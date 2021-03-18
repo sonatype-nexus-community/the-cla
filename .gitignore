@@ -25,3 +25,7 @@ yarn-error.log*
 /tmp
 
 the-cla
+
+#IntelliJ
+.idea
+*.iml
