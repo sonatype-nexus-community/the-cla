@@ -17,7 +17,27 @@ import { NxButton, NxCheckbox, NxPageHeader } from "@sonatype/react-shared-compo
 import CLABody from './ClaBody/CLABody';
 import React from "react";
 
-class ClaAppContainer extends React.Component {
+type CLAAppContainerState = {
+  scrolled: boolean
+}
+
+const handleScroll = (event: any): boolean => {
+  let el = event.target;
+  if (Math.round(el.scrollTop + el.clientHeight) === el.scrollHeight) {
+    return true;
+  }
+  return false;
+};
+
+class ClaAppContainer extends React.Component<any, CLAAppContainerState> {
+
+  constructor(props: any) {
+    super(props);
+
+    this.state = {
+      scrolled: false
+    }
+  }
 
   render() {
     return <React.Fragment>
@@ -33,11 +53,11 @@ class ClaAppContainer extends React.Component {
 
         <NxButton variant="primary">Login To GitHub</NxButton>
 
-        <NxCheckbox checkboxId="cla-check" isChecked={false}>
+        <NxCheckbox checkboxId="cla-check" isChecked={this.state.scrolled} disabled={true}>
           Review the CLA
         </NxCheckbox>
 
-        <CLABody />
+        <CLABody handleScroll={(e: any) => this.setState({scrolled: handleScroll(e)})}/>
 
         <NxCheckbox checkboxId="login-check" isChecked={false}>
           Sign the CLA
@@ -50,3 +70,5 @@ class ClaAppContainer extends React.Component {
 }
 
 export default ClaAppContainer;
+
+export { handleScroll };

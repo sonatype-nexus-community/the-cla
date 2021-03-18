@@ -22,13 +22,17 @@ const fetchCLAText: Action = {
   endpoint: '/cla-text'
 };
 
-const CLABody = () => {
+type CLABodyProps = {
+  handleScroll: (event: any) => void;
+}
+
+const CLABody = (props: CLABodyProps) => {
 
   const { loading, payload, error, query } = useQuery(fetchCLAText);
 
   if (error) {
     return (
-      <h1>There was an error!</h1>
+      <h1 data-testid="cla-body-error">There was an error!</h1>
     )
   }
 
@@ -40,9 +44,11 @@ const CLABody = () => {
 
   if (payload) {
     return (
-      <pre className="nx-pre nx-scrollable">
-        {payload}
-      </pre>
+      <React.Fragment>
+        <pre className="nx-pre nx-scrollable" onScroll={props.handleScroll}>
+          {payload}
+        </pre>
+      </React.Fragment>
     )
   }
 
