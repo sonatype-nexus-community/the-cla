@@ -40,7 +40,7 @@ const CLABody = () => {
 
   if (payload) {
     return (
-      <pre className="nx-scrollable">
+      <pre className="nx-pre nx-scrollable">
         {payload}
       </pre>
     )
