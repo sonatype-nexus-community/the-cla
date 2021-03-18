@@ -42,28 +42,55 @@ class ClaAppContainer extends React.Component<any, CLAAppContainerState> {
   render() {
     return <React.Fragment>
     <div className="nx-page-header">
-      <NxPageHeader productInfo={{name: "THE CLA"}} />
+
+      <NxPageHeader 
+        productInfo={
+          { name: "THE CLA" }
+        }/>
+
     </div>
     <div className="nx-page-content">
+
       <div className="nx-page-main">
+
         <h1>Sign the Sonatype Contributor License Agreement (CLA)</h1>
-        <NxCheckbox checkboxId="login-check" isChecked={false}>
+
+        <NxCheckbox 
+          checkboxId="login-check" 
+          isChecked={false}>
           Authenticate with GitHub so we can associate your commits with your signed CLA
         </NxCheckbox>
 
-        <NxButton variant="primary">Login To GitHub</NxButton>
+        <NxButton 
+          variant="primary">
+            Login To GitHub
+        </NxButton>
 
-        <NxCheckbox checkboxId="cla-check" isChecked={this.state.scrolled} disabled={true}>
+        <NxCheckbox 
+          checkboxId="cla-check" 
+          isChecked={this.state.scrolled} 
+          disabled={true}>
           Review the CLA
         </NxCheckbox>
 
-        <CLABody handleScroll={(e: any) => this.setState({scrolled: handleScroll(e)})}/>
+        <CLABody 
+          handleScroll={
+            (e: any) => this.setState({scrolled: handleScroll(e)})
+          }/>
 
-        <NxCheckbox checkboxId="login-check" isChecked={false}>
+        <NxCheckbox 
+          checkboxId="login-check" 
+          isChecked={false}>
           Sign the CLA
         </NxCheckbox>
-        <NxButton variant="primary">Login via GitHub to sign the CLA</NxButton>
+
+        <NxButton 
+          variant="primary">
+          Login via GitHub to sign the CLA
+        </NxButton>
+
       </div>
+
     </div>
     </React.Fragment>
   }
