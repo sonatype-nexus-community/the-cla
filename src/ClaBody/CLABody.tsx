@@ -14,21 +14,39 @@
  * limitations under the License.
  */
 import React from 'react';
-import ReactDOM from 'react-dom';
-import { ClientContextProvider, createClient } from 'react-fetching-library';
-import ClaAppContainer from './ClaAppContainer';
-import reportWebVitals from './reportWebVitals';
+import { NxLoadingSpinner } from '@sonatype/react-shared-components';
+import { Action, useQuery } from 'react-fetching-library';
 
-const client = createClient({});
+const fetchCLAText: Action = {
+  method: 'GET',
+  endpoint: '/cla-text'
+};
 
-ReactDOM.render(
-  <ClientContextProvider client={client}>
-    <ClaAppContainer />
-  </ClientContextProvider>,
-  document.getElementById('root')
-);
+const CLABody = () => {
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+  const { loading, payload, error, query } = useQuery(fetchCLAText);
+
+  if (error) {
+    return (
+      <h1>There was an error!</h1>
+    )
+  }
+
+  if (loading) {
+    return (
+      <NxLoadingSpinner />
+    )
+  }
+
+  if (payload) {
+    return (
+      <pre className="nx-scrollable">
+        {payload}
+      </pre>
+    )
+  }
+
+  return null;
+}
+
+export default CLABody;

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import { NxButton, NxCheckbox, NxPageHeader } from "@sonatype/react-shared-components";
+import CLABody from './ClaBody/CLABody';
 import React from "react";
 
 class ClaAppContainer extends React.Component {
@@ -36,9 +37,7 @@ class ClaAppContainer extends React.Component {
           Review the CLA
         </NxCheckbox>
 
-        <pre className="nx-pre">
-          A lot of CLA text
-        </pre>
+        <CLABody />
 
         <NxCheckbox checkboxId="login-check" isChecked={false}>
           Sign the CLA
