@@ -28,9 +28,10 @@ type CLABodyProps = {
 
 const CLABody = (props: CLABodyProps) => {
 
-  const { loading, payload, error, query } = useQuery(fetchCLAText);
+  const { loading, payload, error, errorObject } = useQuery(fetchCLAText);
 
   if (error) {
+    console.log("errorObject: " + errorObject)
     return (
       <h1 data-testid="cla-body-error">There was an error!</h1>
     )
