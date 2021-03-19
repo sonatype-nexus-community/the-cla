@@ -31,3 +31,6 @@ the-cla
 *.iml
 
 .env 
+
+# ci config for local ci build
+.circleci/local-config.yml
