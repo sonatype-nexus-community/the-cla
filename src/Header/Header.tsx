@@ -22,7 +22,7 @@ const Header = () => {
 
         <NxPageHeader 
           productInfo={
-            { name: "THE CLA" }
+            { name: (process.env.REACT_APP_CLA_APP_NAME) ? process.env.REACT_APP_CLA_APP_NAME : "THE CLA" }
           }/>
 
       </div>

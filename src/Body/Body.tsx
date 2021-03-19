@@ -86,7 +86,7 @@ const Body = () => {
 
       <div className="nx-page-main">
 
-        <h1>Sign the Sonatype Contributor License Agreement (CLA)</h1>
+        <h1>Sign the {process.env.REACT_APP_COMPANY_NAME} Contributor License Agreement (CLA)</h1>
 
         <NxCheckbox 
           checkboxId="login-check" 
@@ -171,7 +171,7 @@ const Body = () => {
     }
 
     return (
-        doRender(clientContext)
+      doRender(clientContext)
     )
 }
 
