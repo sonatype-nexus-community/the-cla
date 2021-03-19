@@ -18,6 +18,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -35,6 +36,8 @@ type User struct {
 	Email string
 }
 
+const pathClaText = "/cla-text"
+
 func main() {
 	e := echo.New()
 	addr := ":4200"
@@ -46,7 +49,7 @@ func main() {
 
 	e.Use(middleware.CORS())
 
-	e.GET("/cla-text", retrieveCLAText)
+	e.GET(pathClaText, retrieveCLAText)
 
 	e.GET("/oauth-callback", processGitHubOAuth)
 
@@ -97,10 +100,16 @@ func processGitHubOAuth(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, user)
 }
 
+const envClsUrl = "CLA_URL"
+const msgMissingClaUrl = "missing " + envClsUrl + " environment variable"
+
 func retrieveCLAText(c echo.Context) (err error) {
-	claURL := os.Getenv("CLA_URL")
+	claURL := os.Getenv(envClsUrl)
 
 	c.Logger().Debug(claURL)
+	if claURL == "" {
+		return fmt.Errorf(msgMissingClaUrl)
+	}
 
 	client := http.Client{}
 
@@ -111,8 +120,15 @@ func retrieveCLAText(c echo.Context) (err error) {
 	}
 
 	c.Logger().Debug(resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		err = fmt.Errorf("unexpected cla text response code: %d", resp.StatusCode)
+		c.Logger().Error(err)
+		return
+	}
 
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
