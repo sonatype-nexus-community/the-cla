@@ -177,4 +177,4 @@ const Body = () => {
 
 export default Body;
 
-export { handleScroll }
+export { handleScroll, hasCode }
