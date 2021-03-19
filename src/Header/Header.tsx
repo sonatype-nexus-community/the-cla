@@ -13,18 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import Header from './Header/Header';
-import Body from './Body/Body';
-import React from "react";
+import { NxPageHeader } from "@sonatype/react-shared-components"
+import React from "react"
 
-class ClaAppContainer extends React.Component {
+const Header = () => {
+    return (
+        <div className="nx-page-header">
 
-  render() {
-    return <React.Fragment>
-      <Header />
-      <Body />
-    </React.Fragment>
-  }
+        <NxPageHeader 
+          productInfo={
+            { name: "THE CLA" }
+          }/>
+
+      </div>
+    )
 }
 
-export default ClaAppContainer;
+export default Header;

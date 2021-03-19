@@ -20,10 +20,18 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/google/go-github/v33/github"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"golang.org/x/oauth2"
+	githuboauth "golang.org/x/oauth2/github"
 )
+
+type User struct {
+	Login string
+	Email string
+}
 
 func main() {
 	e := echo.New()
@@ -38,11 +46,53 @@ func main() {
 
 	e.GET("/cla-text", retrieveCLAText)
 
+	e.GET("/oauth-callback", processGitHubOAuth)
+
 	e.Static("/", "build")
 
 	e.Debug = true
 
 	e.Logger.Fatal(e.Start(addr))
+}
+
+func processGitHubOAuth(c echo.Context) (err error) {
+	c.Logger().Debug("Attempting to fetch GitHub crud")
+
+	code := c.QueryParam("code")
+
+	state := c.QueryParam("state")
+
+	clientID := os.Getenv("REACT_APP_GITHUB_CLIENT_ID")
+	clientSecret := os.Getenv("GITHUB_CLIENT_SECRET")
+
+	oauthConf := &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Scopes:       []string{"user:email"},
+		Endpoint:     githuboauth.Endpoint,
+	}
+
+	if state == "" {
+		return
+	}
+
+	token, err := oauthConf.Exchange(oauth2.NoContext, code)
+	if err != nil {
+		c.Logger().Error(err)
+		return
+	}
+
+	oauthClient := oauthConf.Client(oauth2.NoContext, token)
+
+	client := github.NewClient(oauthClient)
+
+	user, _, err := client.Users.Get(oauth2.NoContext, "")
+	if err != nil {
+		c.Logger().Error(err)
+		return
+	}
+
+	return c.JSON(http.StatusOK, user)
 }
 
 func retrieveCLAText(c echo.Context) (err error) {

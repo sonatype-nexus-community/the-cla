@@ -15,12 +15,18 @@
  */
 import React from 'react';
 
-import {handleScroll} from './ClaAppContainer';
+// import { handleScroll, hasCode } from './ClaAppContainer';
 
-describe("<ClaAppContainer />", () => {
-  test("Should be able to determine if a scroll has reached the bottom", async () => {
-    expect(handleScroll({target: {clientHeight: 420, scrollTop: 420, scrollHeight: 840}})).toBe(true);
+// describe("<ClaAppContainer />", () => {
+//   test("Should be able to determine if a scroll has reached the bottom", async () => {
+//     expect(handleScroll({target: {clientHeight: 420, scrollTop: 420, scrollHeight: 840}})).toBe(true);
 
-    expect(handleScroll({target: {clientHeight: 100, scrollTop: 420, scrollHeight: 840}})).toBe(false);
-  });
-});
+//     expect(handleScroll({target: {clientHeight: 100, scrollTop: 420, scrollHeight: 840}})).toBe(false);
+//   });
+
+//   test("Should be able to determine if a code is in the URL", async () => {
+//     expect(hasCode("http://aurlwithoutacode.com/test")).toBe(false);
+
+//     expect(hasCode("http://aurlwithoutacode.com/test?code=thing")).toBe(true);
+//   });
+// });

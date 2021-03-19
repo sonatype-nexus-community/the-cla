@@ -29,3 +29,5 @@ the-cla
 #IntelliJ
 .idea
 *.iml
+
+.env 
