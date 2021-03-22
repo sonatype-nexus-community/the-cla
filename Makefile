@@ -1,4 +1,4 @@
-.PHONY: all
+.PHONY: all test build air
 GOCMD=go
 GOTEST=$(GOCMD) test
 
