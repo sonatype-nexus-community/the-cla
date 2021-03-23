@@ -60,7 +60,8 @@ workflows:
   version: 2
   build_and_release:
     jobs:
-      - build
+      - build:
+          context: scan_ossi
 
   build_nightly:
     triggers:
@@ -70,4 +71,5 @@ workflows:
             branches:
               only: main
     jobs:
-      - build
+      - build:
+          context: scan_ossi
