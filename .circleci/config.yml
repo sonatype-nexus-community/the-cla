@@ -14,10 +14,20 @@
 
 version: 2.1
 
+orbs:
+  nancy: sonatype-nexus-community/circleci-nancy-orb@0
+
 executors:
   go:
     docker:
       - image: circleci/golang:1.16.2-buster-node-browsers-legacy
+
+commands:
+  cmd-nancy:
+    description: "Run nancy to check for go vulnerabilities."
+    steps:
+      - nancy/install-nancy
+      - nancy/run-nancy
 
 jobs:
   build:
@@ -36,6 +46,7 @@ jobs:
       - run: make all
       - run: make test | go-junit-report > $TEST_RESULTS/gotest/report.xml
       - run: npm test
+      - cmd-nancy
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
@@ -44,7 +55,6 @@ jobs:
           path: /tmp/test-results/
       - store_test_results:
           path: /tmp/test-results/
-
 
 workflows:
   version: 2
