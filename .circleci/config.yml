@@ -29,6 +29,19 @@ commands:
       - nancy/install-nancy
       - nancy/run-nancy
 
+  cmd-auditjs:
+    description: "Run auditjs to check for npm vulnerabilities."
+    steps:
+      - run:
+          name: run auditjs
+          command: |
+            mkdir reports
+            npx auditjs@latest ossi --xml > reports/dependency-results.xml
+      - store_artifacts:
+          path: reports
+      - store_test_results:
+          path: reports
+
 jobs:
   build:
     executor: go
@@ -47,6 +60,7 @@ jobs:
       - run: make test | go-junit-report > $TEST_RESULTS/gotest/report.xml
       - run: npm test
       - cmd-nancy
+      - cmd-auditjs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
