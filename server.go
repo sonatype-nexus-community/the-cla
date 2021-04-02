@@ -18,6 +18,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -36,7 +37,9 @@ type User struct {
 	Email string
 }
 
-const pathClaText = "/cla-text"
+const pathClaText string = "/cla-text"
+const pathOAuthCallback string = "/oath-callback"
+const buildLocation string = "build"
 
 func main() {
 	e := echo.New()
@@ -44,16 +47,16 @@ func main() {
 
 	err := godotenv.Load(".env")
 	if err != nil {
-		e.Logger.Fatal(err)
+		e.Logger.Error(err)
 	}
 
 	e.Use(middleware.CORS())
 
 	e.GET(pathClaText, retrieveCLAText)
 
-	e.GET("/oauth-callback", processGitHubOAuth)
+	e.GET(pathOAuthCallback, processGitHubOAuth)
 
-	e.Static("/", "build")
+	e.Static("/", buildLocation)
 
 	e.Debug = true
 
@@ -81,17 +84,17 @@ func processGitHubOAuth(c echo.Context) (err error) {
 		return
 	}
 
-	token, err := oauthConf.Exchange(oauth2.NoContext, code)
+	token, err := oauthConf.Exchange(context.Background(), code)
 	if err != nil {
 		c.Logger().Error(err)
 		return
 	}
 
-	oauthClient := oauthConf.Client(oauth2.NoContext, token)
+	oauthClient := oauthConf.Client(context.Background(), token)
 
 	client := github.NewClient(oauthClient)
 
-	user, _, err := client.Users.Get(oauth2.NoContext, "")
+	user, _, err := client.Users.Get(context.Background(), "")
 	if err != nil {
 		c.Logger().Error(err)
 		return
@@ -100,13 +103,13 @@ func processGitHubOAuth(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, user)
 }
 
-const envClsUrl = "CLA_URL"
-const msgMissingClaUrl = "missing " + envClsUrl + " environment variable"
+const envClsUrl string = "CLA_URL"
+const msgMissingClaUrl string = "missing " + envClsUrl + " environment variable"
 
 func retrieveCLAText(c echo.Context) (err error) {
+	c.Logger().Debug("Attempting to fetch CLA text")
 	claURL := os.Getenv(envClsUrl)
 
-	c.Logger().Debug(claURL)
 	if claURL == "" {
 		return fmt.Errorf(msgMissingClaUrl)
 	}
@@ -119,7 +122,6 @@ func retrieveCLAText(c echo.Context) (err error) {
 		return
 	}
 
-	c.Logger().Debug(resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("unexpected cla text response code: %d", resp.StatusCode)
 		c.Logger().Error(err)

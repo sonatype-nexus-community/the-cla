@@ -26,3 +26,12 @@ You can run:
 Thanks to Air, there is some amount of "live-reload". To run the project, you can run `air -c .air.toml` in the project root. Once it is built, you should be able to access the site at `http://localhost:4200/`
 
 Any code changes to golang/react files will cause a rebuild and restart, and will be accessible via the browser with a refresh!
+
+#### Docker
+
+Alternatively, if you just want to play around lightly, you can run:
+
+- `make docker`
+- `docker run -p 4200:4200 the-cla`
+
+This will be a lot slower, but you can build and run the entire application with only `docker` (and `make`) installed, essentially.
