@@ -38,6 +38,40 @@ This will be a lot slower, but you can build and run the entire application with
 
 ## Deployment
 
+### GitHub
+
+#### GitHub oAuth Application
+
+More to come! This is where we will explain how to setup the oauth app!
+
+#### App environment configuration
+
+Configuration of `the-cla` is handled via a `.env` file in the repo (this is ignored by git by default so you don't check in secrets):
+
+A `.example.env` has been provided that looks similar to the following:
+
+```
+CLA_URL=https://s3.amazonaws.com/sonatype-cla/cla.txt
+REACT_APP_COMPANY_NAME=Your company name
+REACT_APP_CLA_APP_NAME=THE CLA
+REACT_APP_GITHUB_CLIENT_ID=fake_ID
+GITHUB_CLIENT_SECRET=fake_Secret
+```
+
+The import things to update are:
+
+- `CLA_URL`, this is a txt file hosted somewhere that has your CLA text! We externalized this to make it easy to update, etc...
+- `REACT_APP_COMPANY_NAME`, unless you want it to say `Your company name`, I would update this!
+- `REACT_APP_CLA_APP_NAME`, if you don't like Toy Story references for a CLA bot, feel free to change this to whatever you want the app to say publicly
+- `REACT_APP_GITHUB_CLIENT_ID`, this is the oAuth Client ID you will get from setting up your GitHub oAuth app
+- `GITHUB_CLIENT_SECRET`, this is the oAuth Client Secret you will get from setting up your GitHub oAuth app
+
+Since these are all environment variables, you can just set them that way if you prefer, but it's important these variables are available at build time, as we inject these into the React code, which is honestly pretty sweet!
+
+- `REACT_APP_COMPANY_NAME`, `REACT_APP_CLA_APP_NAME`, `REACT_APP_GITHUB_CLIENT_ID`
+
+### Deploy Application to AWS
+
 Thankfully, we've made this as simple as possible, we think? It'll get simpler with time, I'm sure :)
 
 You will need:
@@ -47,20 +81,20 @@ You will need:
 - `aws-vault`
 - `docker`
 
-### Terraform
+#### Terraform
 
-- `aws-vault exec <your_profile> --backened=keychain terraform init`
-- `aws-vault exec <your_profile> --backened=keychain terraform apply`
+- `aws-vault exec <your_profile> --backend=keychain terraform init`
+- `aws-vault exec <your_profile> --backend=keychain terraform apply`
 
 This should create all the nice lil AWS resources to manage this application, using ECS and ECR!
 
-### Docker
+#### Docker
 
 To create the docker image:
 
 - `make docker`
 
-### Deployment
+#### Deployment
 
 An executable bash script similar to the following will make pushing images easier:
 
@@ -74,7 +108,3 @@ docker push <aws_account_id>.dkr.ecr.<aws_region>.amazonaws.com/the-cla-app:late
 Replace the stuff in the `<>` with your values (and remove the `<>` characters if that isn't immediately apparent), `chmod +x docker.sh`, and `./docker.sh`
 
 After you have done this, you SHOULD have a running service, somewhere in AWS :)
-
-### GitHub
-
-More to come! This is where we will explain how to setup the oauth app!
