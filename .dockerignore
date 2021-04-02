@@ -1,3 +1,7 @@
 */tmp*
 node_modules
 the-cla
+.terraform.lock.hcl
+.terraform
+terraform.tfstate
+terraform.tfstate.backup

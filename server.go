@@ -38,7 +38,7 @@ type User struct {
 }
 
 const pathClaText string = "/cla-text"
-const pathOAuthCallback string = "/oath-callback"
+const pathOAuthCallback string = "/oauth-callback"
 const buildLocation string = "build"
 
 func main() {

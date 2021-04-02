@@ -34,3 +34,13 @@ the-cla
 
 # ci config for local ci build
 .circleci/local-config.yml
+
+# terraform
+*.hcl
+*.tfstate.lock.info
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
+
+# docker
+docker.sh
