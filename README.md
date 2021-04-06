@@ -31,6 +31,7 @@ Any code changes to golang/react files will cause a rebuild and restart, and wil
 
 Alternatively, if you just want to play around lightly, you can run:
 
+- Make sure to 
 - `make docker`
 - `docker run -p 4200:4200 the-cla`
 
@@ -100,9 +101,10 @@ An executable bash script similar to the following will make pushing images easi
 
 ```bash
 #!/bin/bash
-aws-vault exec <your_profile> --backend=keychain aws ecr get-login-password --region <aws_region> | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.<aws_region>.amazonaws.com
+aws-vault exec <your_profile> aws ecr get-login-password --region <aws_region> | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.<aws_region>.amazonaws.com
 docker tag the-cla:latest <aws_account_id>.dkr.ecr.<aws_region>.amazonaws.com/the-cla-app:latest
 docker push <aws_account_id>.dkr.ecr.<aws_region>.amazonaws.com/the-cla-app:latest
+aws-vault exec <your_profile> -- aws ecs update-service --cluster the-cla-cluster --service the-cla-service --force-new-deployment
 ```
 
 Replace the stuff in the `<>` with your values (and remove the `<>` characters if that isn't immediately apparent), `chmod +x docker.sh`, and `./docker.sh`

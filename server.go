@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/google/go-github/v33/github"
 	"github.com/joho/godotenv"
@@ -33,12 +34,19 @@ import (
 )
 
 type User struct {
-	Login string
-	Email string
+	Login string `json:"login"`
+	Email string `json:"email"`
+}
+
+type UserSignature struct {
+	User       User   `json:"user"`
+	CLAVersion string `json:"claVersion"`
+	TimeSigned string
 }
 
 const pathClaText string = "/cla-text"
 const pathOAuthCallback string = "/oauth-callback"
+const signCla string = "/sign-cla"
 const buildLocation string = "build"
 
 func main() {
@@ -56,11 +64,26 @@ func main() {
 
 	e.GET(pathOAuthCallback, processGitHubOAuth)
 
+	e.PUT(signCla, processSignCla)
+
 	e.Static("/", buildLocation)
 
 	e.Debug = true
 
 	e.Logger.Fatal(e.Start(addr))
+}
+
+func processSignCla(c echo.Context) (err error) {
+	c.Logger().Debug("Attempting to sign the CLA")
+	user := new(UserSignature)
+
+	if err := c.Bind(user); err != nil {
+		return err
+	}
+
+	user.TimeSigned = time.Now().String()
+
+	return c.JSON(http.StatusCreated, user)
 }
 
 func processGitHubOAuth(c echo.Context) (err error) {

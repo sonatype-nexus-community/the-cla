@@ -133,6 +133,13 @@ resource "aws_security_group" "load_balancer_security_group" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -147,18 +154,97 @@ resource "aws_lb_target_group" "target_group" {
   protocol    = "HTTP"
   target_type = "ip"
   vpc_id      = data.aws_vpc.main.id
+
   health_check {
     matcher = "200,301,302"
     path = "/"
+  }
+
+  depends_on = [
+    aws_alb.application_load_balancer
+  ]
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
 resource "aws_lb_listener" "listener" {
   load_balancer_arn = "${aws_alb.application_load_balancer.arn}"
-  port              = "80"
-  protocol          = "HTTP"
+  certificate_arn   = aws_acm_certificate.this.arn
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  port              = "443"
+  protocol          = "HTTPS"
+
   default_action {
     type             = "forward"
     target_group_arn = "${aws_lb_target_group.target_group.arn}"
+  }
+}
+
+resource "aws_lb_listener" "http_listener" {
+  load_balancer_arn = "${aws_alb.application_load_balancer.arn}"
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "redirect"
+
+    redirect {
+      port = "443"
+      protocol = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+data "aws_route53_zone" "this" {
+  name = var.route53_zone
+  private_zone = false
+}
+
+resource "aws_route53_record" "this" {
+  name = var.dns_record_name
+  type = "CNAME"
+
+  records = [
+    aws_alb.application_load_balancer.dns_name,
+  ]
+
+  zone_id = data.aws_route53_zone.this.zone_id
+  ttl = "60"
+}
+
+resource "aws_acm_certificate" "this" {
+  domain_name       = "${var.dns_record_name}.${var.route53_zone}"
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_acm_certificate_validation" "this" {
+  certificate_arn         = aws_acm_certificate.this.arn
+  validation_record_fqdns = [aws_route53_record.web_cert_validation.fqdn]
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "web_cert_validation" {
+  name = element(tolist(aws_acm_certificate.this.domain_validation_options), 0).resource_record_name
+  type = element(tolist(aws_acm_certificate.this.domain_validation_options), 0).resource_record_type
+
+  records = [ 
+    element(tolist(aws_acm_certificate.this.domain_validation_options), 0).resource_record_value 
+  ]
+
+  zone_id = data.aws_route53_zone.this.zone_id
+  ttl     = 60
+
+  lifecycle {
+    create_before_destroy = true
   }
 }

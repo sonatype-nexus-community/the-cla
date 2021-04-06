@@ -23,6 +23,11 @@ type GitHubUser = {
   email?: string
 }
 
+type SignCla = {
+  user: GitHubUser
+  claVersion: string
+}
+
 const handleScroll = (event: any, setScrolled: (scrolled: boolean) => any) => {
   let el = event.target;
   if (Math.round(el.scrollTop + el.clientHeight) === el.scrollHeight) {
@@ -46,6 +51,10 @@ const Body = () => {
     const [agreeToTerms, setAgreeToTerms] = useState(false);
 
     const clientContext = useContext(ClientContext);
+
+    const onEmailChange = (val: string) => {
+      setEmail(val);
+    }
 
     const getUser = async (search: string) => {
       if (!user && !loggedIn) {
@@ -72,8 +81,26 @@ const Body = () => {
       }
     }
 
-    const doSubmit = () => {
+    const doSubmit = async () => {
+      const signUser: SignCla = { 
+        user: { 
+          login: user!.login, 
+          email: email }, 
+        claVersion: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : ""
+      };
 
+      const putSignCla: Action = {
+        method: 'PUT',
+        endpoint: '/sign-cla',
+        body: signUser,
+        headers: {
+          Accept: 'application/json',
+        },
+      }
+
+      const res = await clientContext.query(putSignCla);
+
+      console.log(res);
     }
 
     const doRender = (client: any) => {
@@ -145,7 +172,8 @@ const Body = () => {
               label="Email Address" 
               isRequired={true}>
               <NxTextInput 
-                value={email} 
+                value={email}
+                onChange={onEmailChange} 
                 isPristine={true}
                 required={true}/>
             </NxFormGroup>

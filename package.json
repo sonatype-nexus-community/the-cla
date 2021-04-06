@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
-    "@sonatype/react-shared-components": "^4.4.2",
+    "@sonatype/react-shared-components": "^4.7.3",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-fetching-library": "^1.7.6",
