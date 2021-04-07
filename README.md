@@ -56,7 +56,10 @@ CLA_URL=https://s3.amazonaws.com/sonatype-cla/cla.txt
 REACT_APP_COMPANY_NAME=Your company name
 REACT_APP_CLA_APP_NAME=THE CLA
 REACT_APP_GITHUB_CLIENT_ID=fake_ID
+REACT_APP_CLA_VERSION=1.0
 GITHUB_CLIENT_SECRET=fake_Secret
+GH_WEBHOOK_SECRET=totallysecret
+GH_APP_ID=1337
 ```
 
 The import things to update are:
@@ -66,10 +69,14 @@ The import things to update are:
 - `REACT_APP_CLA_APP_NAME`, if you don't like Toy Story references for a CLA bot, feel free to change this to whatever you want the app to say publicly
 - `REACT_APP_GITHUB_CLIENT_ID`, this is the oAuth Client ID you will get from setting up your GitHub oAuth app
 - `GITHUB_CLIENT_SECRET`, this is the oAuth Client Secret you will get from setting up your GitHub oAuth app
+- `GH_WEBHOOK_SECRET`, if this isn't filled out, you won't be able to process webhooks! This is the value you set on your GitHub App for an "Optional" secret (authors note, it's not optional)
+- `GH_APP_ID`, this is the generated ID for the GitHub app you setup!
 
 Since these are all environment variables, you can just set them that way if you prefer, but it's important these variables are available at build time, as we inject these into the React code, which is honestly pretty sweet!
 
 - `REACT_APP_COMPANY_NAME`, `REACT_APP_CLA_APP_NAME`, `REACT_APP_GITHUB_CLIENT_ID`
+
+Additionally, to communicate with the GitHub API, you will need to have the pem file that is generated when you setup your GitHub App, in the root of this repo. All of our scripts have it named `the-cla.pem`, so if you name it that, you change nothing and the Docker build works, etc...
 
 ### Deploy Application to AWS
 
@@ -84,8 +91,8 @@ You will need:
 
 #### Terraform
 
-- `aws-vault exec <your_profile> --backend=keychain terraform init`
-- `aws-vault exec <your_profile> --backend=keychain terraform apply`
+- `aws-vault exec <your_profile> terraform init`
+- `aws-vault exec <your_profile> terraform apply`
 
 This should create all the nice lil AWS resources to manage this application, using ECS and ECR!
 

@@ -30,7 +30,9 @@ the-cla
 .idea
 *.iml
 
+# sensitive things
 .env 
+*.pem
 
 # ci config for local ci build
 .circleci/local-config.yml
@@ -45,3 +47,6 @@ terraform.tfvars
 
 # docker
 docker.sh
+
+# sonatype
+.sonatype-config

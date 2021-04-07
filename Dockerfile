@@ -64,6 +64,7 @@ COPY --from=build /etc/group /etc/group
 COPY --from=build /src/build /build
 COPY --from=build /src/the-cla /
 COPY *.env /
+COPY the-cla.pem /
 
 USER clauser:clauser
 

@@ -23,14 +23,18 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/v33/github"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"golang.org/x/oauth2"
 	githuboauth "golang.org/x/oauth2/github"
+	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
 
 type User struct {
@@ -46,7 +50,9 @@ type UserSignature struct {
 
 const pathClaText string = "/cla-text"
 const pathOAuthCallback string = "/oauth-callback"
-const signCla string = "/sign-cla"
+const pathSignCla string = "/sign-cla"
+const pathWebhook string = "/webhook-integration"
+
 const buildLocation string = "build"
 
 func main() {
@@ -64,13 +70,135 @@ func main() {
 
 	e.GET(pathOAuthCallback, processGitHubOAuth)
 
-	e.PUT(signCla, processSignCla)
+	e.POST(pathWebhook, processWebhook)
+
+	e.PUT(pathSignCla, processSignCla)
 
 	e.Static("/", buildLocation)
 
 	e.Debug = true
 
 	e.Logger.Fatal(e.Start(addr))
+}
+
+const GH_WEBHOOK_SECRET string = "GH_WEBHOOK_SECRET"
+
+func processWebhook(c echo.Context) (err error) {
+	ghSecret := os.Getenv(GH_WEBHOOK_SECRET)
+
+	hook, _ := webhook.New(webhook.Options.Secret(ghSecret))
+
+	payload, err := hook.Parse(c.Request(), webhook.PullRequestEvent)
+
+	if err != nil {
+		if err == webhook.ErrEventNotFound {
+			c.Logger().Debug("Unsupported event type encountered", err)
+
+			return c.String(http.StatusBadRequest, "I do not handle this type of event, sorry!")
+		}
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+
+	switch payload := payload.(type) {
+	case webhook.PullRequestPayload:
+		switch payload.Action {
+		case "opened", "reopened", "synchronize":
+			res, err := handlePullRequest(payload)
+
+			if err != nil {
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+
+			return c.String(http.StatusAccepted, res)
+		default:
+			return c.String(http.StatusAccepted, fmt.Sprintf("No action taken for: %s", payload.Action))
+		}
+	default:
+		c.Logger().Debug("Unhandled payload type encountered")
+
+		return c.String(http.StatusBadRequest, fmt.Sprintf("I do not handle this type of payload, sorry! Type: %T", payload))
+	}
+}
+
+const THE_CLA_PEM string = "the-cla.pem"
+const GH_APP_ID string = "GH_APP_ID"
+
+func handlePullRequest(payload webhook.PullRequestPayload) (response string, err error) {
+	appId, err := strconv.Atoi(os.Getenv(GH_APP_ID))
+	if err != nil {
+		return
+	}
+	tr := http.DefaultTransport
+
+	itr, err := ghinstallation.NewKeyFromFile(tr, int64(appId), payload.Installation.ID, THE_CLA_PEM)
+	if err != nil {
+		return
+	}
+
+	client := github.NewClient(&http.Client{Transport: itr})
+
+	opts := &github.ListOptions{}
+
+	commits, _, err := client.PullRequests.ListCommits(
+		context.Background(),
+		payload.Repository.Owner.Login,
+		payload.Repository.Name,
+		int(payload.Number), opts)
+
+	if err != nil {
+		return
+	}
+
+	// TODO: Once we have stuff in a DB, we can iterate over the list of commits,
+	// find the authors, and check if they have signed the CLA (and the version that is most current)
+	// The following loop will change a loop as a result
+	committers := []string{}
+	for _, v := range commits {
+		committer := *v.GetCommitter()
+		committers = append(committers,
+			fmt.Sprintf(
+				"Author: %s Email: %s Commit SHA: %s",
+				committer.GetLogin(),
+				committer.GetEmail(),
+				v.GetSHA(),
+			))
+	}
+
+	// This is basically junk just for testing, can be removed
+	response = strings.Join(committers, ",")
+
+	// TODO: once we know if someone hasn't signed, and the sha1 for the commit in question, we can
+	// mark the commit as having failed a check, and apply a label to the PR of not signed
+	// Alternatively if everything is ok, we can remove the label, and say yep! All signed up!
+
+	// TODO: extract to another method for creating a label, so we can see if it exists before we create it
+	strName := ":monocle_face: cla not signed"
+	strColor := "fa3a3a"
+	strDescription := "The CLA is not signed"
+
+	lbl := &github.Label{Name: &strName, Color: &strColor, Description: &strDescription}
+
+	_, _, err = client.Issues.CreateLabel(
+		context.Background(),
+		payload.Repository.Owner.Login,
+		payload.Repository.Name,
+		lbl,
+	)
+
+	// TODO: Garbage error check
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	client.Issues.AddLabelsToIssue(
+		context.Background(),
+		payload.Repository.Owner.Login,
+		payload.Repository.Name,
+		int(payload.Number),
+		[]string{*lbl.Name},
+	)
+
+	return
 }
 
 func processSignCla(c echo.Context) (err error) {
@@ -82,6 +210,8 @@ func processSignCla(c echo.Context) (err error) {
 	}
 
 	user.TimeSigned = time.Now().String()
+
+	// TODO: Shove stuff into DB
 
 	return c.JSON(http.StatusCreated, user)
 }
