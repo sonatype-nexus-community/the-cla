@@ -17,3 +17,4 @@ require (
 )
 
 replace github.com/dhui/dktest => github.com/dhui/dktest v0.3.4
+replace go.mongodb.org/mongo-driver => go.mongodb.org/mongo-driver v1.5.1
