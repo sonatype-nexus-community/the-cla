@@ -19,6 +19,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +29,10 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/ghinstallation"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/go-github/v33/github"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -45,7 +50,7 @@ type User struct {
 type UserSignature struct {
 	User       User   `json:"user"`
 	CLAVersion string `json:"claVersion"`
-	TimeSigned string
+	TimeSigned time.Time
 }
 
 const pathClaText string = "/cla-text"
@@ -55,11 +60,29 @@ const pathWebhook string = "/webhook-integration"
 
 const buildLocation string = "build"
 
+var db *sql.DB
+
 func main() {
 	e := echo.New()
 	addr := ":4200"
 
 	err := godotenv.Load(".env")
+	if err != nil {
+		e.Logger.Error(err)
+	}
+
+	host := os.Getenv("PG_HOST")
+	port, _ := strconv.Atoi(os.Getenv("PG_PORT"))
+	user := os.Getenv("PG_USER")
+	password := os.Getenv("PG_PASSWORD")
+	dbname := os.Getenv("PG_DB_NAME")
+
+	err = connectToPostgres(host, int64(port), user, password, dbname)
+	if err != nil {
+		e.Logger.Error(err)
+	}
+
+	err = migrateDB(db)
 	if err != nil {
 		e.Logger.Error(err)
 	}
@@ -79,6 +102,44 @@ func main() {
 	e.Debug = true
 
 	e.Logger.Fatal(e.Start(addr))
+}
+
+func migrateDB(db *sql.DB) (err error) {
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	if err != nil {
+		return
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://db/migrations",
+		"postgres", driver)
+
+	if err != nil {
+		return
+	}
+
+	if err = m.Up(); err != nil {
+		return
+	}
+
+	return
+}
+
+func connectToPostgres(host string, port int64, user string, password string, dbname string) (err error) {
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+		"password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname)
+	db, err = sql.Open("postgres", psqlInfo)
+	if err != nil {
+		return
+	}
+
+	err = db.Ping()
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 const GH_WEBHOOK_SECRET string = "GH_WEBHOOK_SECRET"
@@ -209,10 +270,19 @@ func processSignCla(c echo.Context) (err error) {
 		return err
 	}
 
-	user.TimeSigned = time.Now().String()
+	user.TimeSigned = time.Now()
 
-	// TODO: Shove stuff into DB
+	sqlStatement := `INSERT INTO the_cla.signatures
+		(LoginName, Email, GivenName, SignedAt, ClaVersion)
+		VALUES ($1, $2, $3, $4, $5)`
 
+	_, err = db.Exec(sqlStatement, user.User.Login, user.User.Email, "", user.TimeSigned, user.CLAVersion)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusInternalServerError, user)
+	}
+
+	c.Logger().Debug("CLA signed successfully")
 	return c.JSON(http.StatusCreated, user)
 }
 
