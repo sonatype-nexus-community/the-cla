@@ -19,7 +19,7 @@ To install air:
 
 You can run:
 
-- `go get -u github.com/cosmtrek/air` in a folder outside of this project (so it is not added as a dependency)
+- `go get -u github.com/cosmtrek/air` in a folder outside this project (so it is not added as a dependency)
 
 ### Running/Developing
 
@@ -48,7 +48,7 @@ More to come! This is where we will explain how to setup the oauth app!
 
 #### App environment configuration
 
-Configuration of `the-cla` is handled via a `.env` file in the repo (this is ignored by git by default so you don't check in secrets):
+Configuration of `the-cla` is handled via a `.env` file in the repo (this is ignored by git by default, so you don't check in secrets):
 
 A `.example.env` has been provided that looks similar to the following:
 
@@ -77,7 +77,7 @@ Since these are all environment variables, you can just set them that way if you
 
 - `REACT_APP_COMPANY_NAME`, `REACT_APP_CLA_APP_NAME`, `REACT_APP_GITHUB_CLIENT_ID`
 
-Additionally, to communicate with the GitHub API, you will need to have the pem file that is generated when you setup your GitHub App, in the root of this repo. All of our scripts have it named `the-cla.pem`, so if you name it that, you change nothing and the Docker build works, etc...
+Additionally, to communicate with the GitHub API, you will need to have the pem file that is generated when you set up your GitHub App, in the root of this repo. All of our scripts have it named `the-cla.pem`, so if you name it that, you change nothing, and the Docker build works, etc...
 
 ### Deploy Application to AWS
 
