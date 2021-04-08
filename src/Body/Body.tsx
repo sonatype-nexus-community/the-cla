@@ -152,7 +152,7 @@ const Body = () => {
         const res = await clientContext.query(putSignCla);
   
         if (!res.error) {
-          if (ghState != "")
+          if (ghState !== "")
           window.location.href = decodeURI(ghState);
         } else {
           setQueryError({error: true, errorMessage: res.payload});
