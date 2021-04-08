@@ -25,3 +25,5 @@ replace github.com/containerd/containerd => github.com/containerd/containerd v1.
 replace go.mongodb.org/mongo-driver => go.mongodb.org/mongo-driver v1.5.1
 
 replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+
+replace github.com/dhui/dktest => github.com/dhui/dktest v0.3.4
