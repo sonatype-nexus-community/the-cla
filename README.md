@@ -46,7 +46,14 @@ This will be a lot slower, but you can build and run the entire application with
 
 More to come! This is where we will explain how to setup the oauth app!
 
-see: [Creating an OAuth App](https://docs.github.com/en/developers/apps/creating-an-oauth-app)
+see: [Creating an OAuth App](https://docs.github.com/en/developers/apps/creating-an-oauth-app) for details on how to
+register `the-cla` as a new oAuth application for your account on GitHub.
+
+For local development, you can use an `Authorization callback URL` url pointing to you locally running app, 
+like: `http://localhost:4200/`
+
+When you register this new oAuth app, GitHub will generate a `Client ID`.
+Edit your `.env` file, setting the `REACT_APP_GITHUB_CLIENT_ID` variable your `Client ID`.
 
 #### App environment configuration
 
