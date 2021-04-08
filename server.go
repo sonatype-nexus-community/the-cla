@@ -43,8 +43,9 @@ import (
 )
 
 type User struct {
-	Login string `json:"login"`
-	Email string `json:"email"`
+	Login    string `json:"login"`
+	Email    string `json:"email"`
+	FullName string `json:"fullName"`
 }
 
 type UserSignature struct {
@@ -73,11 +74,21 @@ func main() {
 
 	host := os.Getenv("PG_HOST")
 	port, _ := strconv.Atoi(os.Getenv("PG_PORT"))
-	user := os.Getenv("PG_USER")
+	user := os.Getenv("PG_USERNAME")
 	password := os.Getenv("PG_PASSWORD")
 	dbname := os.Getenv("PG_DB_NAME")
+	sslMode := os.Getenv("SSL_MODE")
 
-	err = connectToPostgres(host, int64(port), user, password, dbname)
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+		"password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslMode)
+	db, err = sql.Open("postgres", psqlInfo)
+	if err != nil {
+		e.Logger.Error(err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
 	if err != nil {
 		e.Logger.Error(err)
 	}
@@ -119,23 +130,6 @@ func migrateDB(db *sql.DB) (err error) {
 	}
 
 	if err = m.Up(); err != nil {
-		return
-	}
-
-	return
-}
-
-func connectToPostgres(host string, port int64, user string, password string, dbname string) (err error) {
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-		"password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
-	db, err = sql.Open("postgres", psqlInfo)
-	if err != nil {
-		return
-	}
-
-	err = db.Ping()
-	if err != nil {
 		return
 	}
 
@@ -272,14 +266,15 @@ func processSignCla(c echo.Context) (err error) {
 
 	user.TimeSigned = time.Now()
 
-	sqlStatement := `INSERT INTO the_cla.signatures
+	sqlStatement := `INSERT INTO signatures
 		(LoginName, Email, GivenName, SignedAt, ClaVersion)
 		VALUES ($1, $2, $3, $4, $5)`
 
-	_, err = db.Exec(sqlStatement, user.User.Login, user.User.Email, "", user.TimeSigned, user.CLAVersion)
+	_, err = db.Exec(sqlStatement, user.User.Login, user.User.Email, user.User.FullName, user.TimeSigned, user.CLAVersion)
 	if err != nil {
 		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, user)
+
+		return c.String(http.StatusBadRequest, err.Error())
 	}
 
 	c.Logger().Debug("CLA signed successfully")

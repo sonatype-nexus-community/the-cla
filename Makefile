@@ -6,6 +6,7 @@ GOTEST=$(GOCMD) test
 all: test
 
 docker:
+	yarn version --patch
 	docker build -t the-cla .
 	docker image prune --force --filter label=stage=builder 
 

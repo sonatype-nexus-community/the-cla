@@ -22,12 +22,87 @@ data "aws_subnet_ids" "public" {
     }
 }
 
+resource "aws_db_subnet_group" "the_cla_rds_subnet_group" {
+  name        = "${var.app_name}-rds-subnet-group"
+  description = "RDS subnet group"
+  subnet_ids  = data.aws_subnet_ids.private.ids
+}
+
+resource "aws_security_group" "the_cla" {
+  vpc_id      = data.aws_vpc.main.id
+  name        = "${var.app_name}-db-access-sg"
+  description = "Allow access to RDS"
+}
+
+resource "aws_security_group" "the_cla_rds_sg" {
+  name = "${var.app_name}-rds-sg"
+  description = "${var.app_name} Security Group"
+  vpc_id = data.aws_vpc.main.id
+
+  // allows traffic from the SG itself
+  ingress {
+      from_port = 0
+      to_port = 0
+      protocol = "-1"
+      self = true
+  }
+
+  //allow traffic for TCP 5432
+  ingress {
+      from_port = 5432
+      to_port   = 5432
+      protocol  = "tcp"
+      security_groups = [
+        aws_security_group.the_cla.id
+      ]
+  }
+
+  //allow traffic from external IP, pgAdmin, etc...
+  ingress {
+    from_port = 5432
+    to_port = 5432
+    protocol = "tcp"
+    cidr_blocks = [ var.external_db_cidr_group ]
+  }
+
+  // outbound internet access
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_db_instance" "the_cla" {
+  allocated_storage    = 50
+  engine               = "postgres"
+  engine_version       = "12.5"
+  instance_class       = "db.t3.micro"
+  identifier           = "the-cla"
+  name                 = var.postgres_db_name
+  username             = var.postgres_username
+  password             = var.postgres_password
+  db_subnet_group_name = aws_db_subnet_group.the_cla_rds_subnet_group.id
+  vpc_security_group_ids = [aws_security_group.the_cla_rds_sg.id]
+  storage_encrypted    = true
+  skip_final_snapshot  = true
+}
+
 resource "aws_ecr_repository" "the_cla" {
   name = "${var.app_name}-app"
 }
 
 resource "aws_ecs_cluster" "the_cla" {
   name = "${var.app_name}-cluster"
+}
+
+resource "aws_cloudwatch_log_group" "the_cla" {
+  name = "${var.app_name}-cloudwatch-lergs"
+
+  tags = {
+    Application = "${var.app_name}"
+  }
 }
 
 resource "aws_ecs_task_definition" "the_cla" {
@@ -44,8 +119,42 @@ resource "aws_ecs_task_definition" "the_cla" {
           "hostPort": 4200
         }
       ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "${aws_cloudwatch_log_group.the_cla.name}",
+          "awslogs-region": "${var.aws_region}",
+          "awslogs-stream-prefix": "streaming"
+        }
+      },
       "memory": 512,
-      "cpu": 256
+      "cpu": 256,
+      "environment": [
+        {
+          "name": "PG_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "PG_USERNAME",
+          "value": "${var.postgres_username}"
+        },
+        {
+          "name": "PG_PASSWORD",
+          "value": "${var.postgres_password}"
+        },
+        {
+          "name": "PG_HOST",
+          "value": "${aws_db_instance.the_cla.address}"
+        },
+        {
+          "name": "PG_DB_NAME",
+          "value": "${var.postgres_db_name}"
+        },
+        {
+          "name": "SSL_MODE",
+          "value": "require"
+        }
+      ]
     }
   ]
   DEFINITION
@@ -54,6 +163,11 @@ resource "aws_ecs_task_definition" "the_cla" {
   memory                   = 512
   cpu                      = 256
   execution_role_arn       = "${aws_iam_role.ecsTaskExecutionRole.arn}"
+
+  depends_on = [
+    aws_db_instance.the_cla,
+    aws_cloudwatch_log_group.the_cla
+  ]
 }
 
 resource "aws_iam_role" "ecsTaskExecutionRole" {
@@ -93,7 +207,10 @@ resource "aws_ecs_service" "the_cla" {
   network_configuration {
     subnets          = data.aws_subnet_ids.public.ids
     assign_public_ip = true
-    security_groups  = ["${aws_security_group.service_security_group.id}"]
+    security_groups  = [
+      aws_security_group.service_security_group.id,
+      aws_security_group.the_cla.id
+    ]
   }
 }
 
@@ -247,4 +364,8 @@ resource "aws_route53_record" "web_cert_validation" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+output "db_access_sg_id" {
+  value = "${aws_security_group.the_cla.id}"
 }

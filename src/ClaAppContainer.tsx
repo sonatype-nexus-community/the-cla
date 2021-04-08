@@ -21,8 +21,14 @@ class ClaAppContainer extends React.Component {
 
   render() {
     return <React.Fragment>
-      <Header />
-      <Body />
+      <div className="nx-page-header">
+        <Header />
+      </div>
+      <div className="nx-page-content">
+        <div className="nx-page-main">
+          <Body />
+        </div>
+      </div>
     </React.Fragment>
   }
 }

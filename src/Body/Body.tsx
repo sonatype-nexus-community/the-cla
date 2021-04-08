@@ -21,6 +21,7 @@ import CLABody from "../ClaBody/CLABody";
 type GitHubUser = {
   login: string
   email?: string
+  fullName: string
 }
 
 type SignCla = {
@@ -39,15 +40,16 @@ const hasCode = (url: string): boolean => {
   return url.startsWith("?code=");
 }
 
-const githubAuthURL = `https://github.com/login/oauth/authorize?client_id=${process.env.REACT_APP_GITHUB_CLIENT_ID}&redirect_uri=${window.location.href}&scope=user:email&state=${window.location.href}`
-
 const Body = () => {
 
     const [loggedIn, setLoggedIn] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [username, setUsername] = useState<string>("");
+    const [ghState, setGHState] = useState<string>("");
     const [email, setEmail] = useState<string>("");
+    const [fullName, setFullName] = useState<string>("");
     const [user, setUser] = useState<GitHubUser | undefined>(undefined);
+    const [submitError, setSubmitError] = useState<string | null>(null);
     const [agreeToTerms, setAgreeToTerms] = useState(false);
 
     const clientContext = useContext(ClientContext);
@@ -56,28 +58,48 @@ const Body = () => {
       setEmail(val);
     }
 
+    const onFullNameChange = (val: string) => {
+      setFullName(val);
+    }
+
+    const getGitHubAuthUrl = (): string => {
+      const urlParams = new URLSearchParams(window.location.search);
+
+      const originalUri = urlParams.get("original_uri");
+
+      const currentUrl = window.location.href.split('?')[0];
+
+      return `https://github.com/login/oauth/authorize?client_id=${process.env.REACT_APP_GITHUB_CLIENT_ID}&redirect_uri=${currentUrl}&scope=user:email&state=${originalUri}`;
+    }
+
     const getUser = async (search: string) => {
       if (!user && !loggedIn) {
         const urlParams = new URLSearchParams(search);
 
         const code = urlParams.get("code");
-        const state = urlParams.get("state");
+        const redirectState = urlParams.get("state");
   
         const checkOAuthCode: Action = {
           method: 'GET',
-          endpoint: `/oauth-callback?code=${code}&state=${state}`
+          endpoint: `/oauth-callback?code=${code}&state=${redirectState}`
         }
   
         const res = await clientContext.query(checkOAuthCode);
-  
-        setUser(res.payload);
-  
-        setLoggedIn(true);
 
-        const user: GitHubUser = res.payload;
-
-        setUsername(user.login);
-        setEmail( (user.email) ? user.email : "");
+        if (!res.error) {
+          setUser(res.payload);
+  
+          setLoggedIn(true);
+  
+          setGHState(redirectState!);
+  
+          const user: GitHubUser = res.payload;
+  
+          setUsername(user.login);
+          setEmail( (user.email) ? user.email : "");
+        } else {
+          setSubmitError(res.payload);
+        }
       }
     }
 
@@ -85,7 +107,9 @@ const Body = () => {
       const signUser: SignCla = { 
         user: { 
           login: user!.login, 
-          email: email }, 
+          email: email,
+          fullName: fullName
+        }, 
         claVersion: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : ""
       };
 
@@ -100,7 +124,11 @@ const Body = () => {
 
       const res = await clientContext.query(putSignCla);
 
-      console.log(res);
+      if (!res.error) {
+        window.location.href = decodeURI(ghState);
+      } else {
+        setSubmitError(res.payload);
+      }
     }
 
     const doRender = (client: any) => {
@@ -109,9 +137,7 @@ const Body = () => {
         getUser(window.location.search);
       }
 
-      return <div className="nx-page-content">
-
-      <div className="nx-page-main">
+      return <React.Fragment>
 
         <h1>Sign the {process.env.REACT_APP_COMPANY_NAME} Contributor License Agreement (CLA)</h1>
 
@@ -123,7 +149,7 @@ const Body = () => {
         </NxCheckbox>
 
         { !loggedIn && (
-          <a href={githubAuthURL} className="nx-btn nx-btn--primary">Login to Github</a>
+          <a href={getGitHubAuthUrl()} className="nx-btn nx-btn--primary">Login to Github</a>
         )}
 
         { loggedIn && user && (
@@ -150,12 +176,13 @@ const Body = () => {
         </NxCheckbox>
 
         { !loggedIn && (
-          <a href={githubAuthURL} className="nx-btn nx-btn--primary">Login via Github to sign the CLA</a>
+          <a href={getGitHubAuthUrl()} className="nx-btn nx-btn--primary">Login via Github to sign the CLA</a>
         )}
 
         { loggedIn && user && (
           <NxForm 
             onSubmit={doSubmit}
+            submitError={submitError}
             submitBtnText="Sign the CLA">
 
             <NxFormGroup 
@@ -178,6 +205,16 @@ const Body = () => {
                 required={true}/>
             </NxFormGroup>
 
+            <NxFormGroup 
+              label="Full Name" 
+              isRequired={true}>
+              <NxTextInput 
+                value={fullName}
+                onChange={onFullNameChange} 
+                isPristine={true}
+                required={true}/>
+            </NxFormGroup>
+
             <NxFieldset 
               label="I agree to the terms of the above CLA"
               isRequired={true}>
@@ -193,9 +230,7 @@ const Body = () => {
           </NxForm>
         )}
         
-      </div>
-
-    </div>
+        </React.Fragment>
     }
 
     return (

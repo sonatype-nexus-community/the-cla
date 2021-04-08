@@ -1,9 +1,9 @@
 
 BEGIN;
 
-CREATE SCHEMA the_cla;
+CREATE EXTENSION pgcrypto;
 
-CREATE TABLE the_cla.signatures(
+CREATE TABLE signatures(
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     LoginName varchar(250) NOT NULL UNIQUE,
     Email varchar(250),

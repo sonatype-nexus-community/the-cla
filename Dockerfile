@@ -34,8 +34,6 @@ ENV UID=10001
 
 WORKDIR /src
 
-COPY --from=yarn-build /src/build /src/build
-
 RUN adduser \    
     --disabled-password \    
     --gecos "" \    
@@ -47,9 +45,10 @@ RUN adduser \
 
 COPY . .
 
-RUN make go-alpine-build
+# Ensures that the build from yarn is used, not an existing build on the local device
+COPY --from=yarn-build /src/build /src/build
 
-RUN ls
+RUN make go-alpine-build
 
 FROM scratch AS bin
 LABEL application=the-cla
@@ -65,6 +64,7 @@ COPY --from=build /src/build /build
 COPY --from=build /src/the-cla /
 COPY *.env /
 COPY the-cla.pem /
+ADD db/migrations /db/migrations
 
 USER clauser:clauser
 
