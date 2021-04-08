@@ -29,9 +29,10 @@ Any code changes to golang/react files will cause a rebuild and restart, and wil
 
 #### Docker
 
-Alternatively, if you just want to play around lightly, you can run:
+Alternatively, if you just want to play around lightly, you can run the docker commands below. First set up
+your environment as described in [App environment configuration](#app-environment-configuration), otherwise much may not
+work, and you will miss out on much goodness.
 
-- Make sure to 
 - `make docker`
 - `docker run -p 4200:4200 the-cla`
 
