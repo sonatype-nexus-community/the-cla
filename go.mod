@@ -16,14 +16,11 @@ require (
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 )
 
-replace github.com/yuin/goldmark => github.com/yuin/goldmark v1.2.0
-
-replace github.com/aws/aws-sdk-go => github.com/aws/aws-sdk-go v1.33.0
-
+// fix: CVE-2021-21334 in github.com/containerd/containerd v1.4.3
 replace github.com/containerd/containerd => github.com/containerd/containerd v1.4.4
 
+// fix: CVE-2021-20329 in go.mongodb.org/mongo-driver v1.1.0
 replace go.mongodb.org/mongo-driver => go.mongodb.org/mongo-driver v1.5.1
 
-replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
-
+// fix: CVE-2021-3121 in pkg:golang/github.com/gogo/protobuf@1.3.1
 replace github.com/dhui/dktest => github.com/dhui/dktest v0.3.4
