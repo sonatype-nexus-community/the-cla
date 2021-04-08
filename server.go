@@ -43,9 +43,9 @@ import (
 )
 
 type User struct {
-	Login    string `json:"login"`
-	Email    string `json:"email"`
-	FullName string `json:"fullName"`
+	Login     string `json:"login"`
+	Email     string `json:"email"`
+	GivenName string `json:"name"`
 }
 
 type UserSignature struct {
@@ -270,7 +270,7 @@ func processSignCla(c echo.Context) (err error) {
 		(LoginName, Email, GivenName, SignedAt, ClaVersion)
 		VALUES ($1, $2, $3, $4, $5)`
 
-	_, err = db.Exec(sqlStatement, user.User.Login, user.User.Email, user.User.FullName, user.TimeSigned, user.CLAVersion)
+	_, err = db.Exec(sqlStatement, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
 	if err != nil {
 		c.Logger().Error(err)
 

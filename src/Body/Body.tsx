@@ -13,21 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { NxCheckbox, NxFieldset, NxForm, NxFormGroup, NxTextInput } from "@sonatype/react-shared-components";
-import React, { useContext, useState } from "react";
+import { NxButton, NxCheckbox, NxFieldset, NxFormGroup, NxLoadError, NxTextInput, nxTextInputStateHelpers, NxTooltip, useToggle } from "@sonatype/react-shared-components";
+import React, { FormEvent, useContext, useState } from "react";
 import { Action, ClientContext } from "react-fetching-library";
+import classnames from 'classnames';
+import { none } from 'ramda';
+import { hasValidationErrors } from '@sonatype/react-shared-components/util/validationUtil';
 import CLABody from "../ClaBody/CLABody";
+import { StateProps, Validator } from "@sonatype/react-shared-components/components/NxTextInput/types";
 
 type GitHubUser = {
   login: string
   email?: string
-  fullName: string
+  name?: string
 }
 
 type SignCla = {
   user: GitHubUser
   claVersion: string
 }
+
+type queryError = {
+  error: boolean
+  errorMessage: string
+}
+
+type StatePropsSetter = (state: StateProps) => void;
 
 const handleScroll = (event: any, setScrolled: (scrolled: boolean) => any) => {
   let el = event.target;
@@ -40,36 +51,48 @@ const hasCode = (url: string): boolean => {
   return url.startsWith("?code=");
 }
 
+const { initialState, userInput } = nxTextInputStateHelpers;
+
 const Body = () => {
 
-    const [loggedIn, setLoggedIn] = useState(false);
-    const [scrolled, setScrolled] = useState(false);
-    const [username, setUsername] = useState<string>("");
-    const [ghState, setGHState] = useState<string>("");
-    const [email, setEmail] = useState<string>("");
-    const [fullName, setFullName] = useState<string>("");
-    const [user, setUser] = useState<GitHubUser | undefined>(undefined);
-    const [submitError, setSubmitError] = useState<string | null>(null);
-    const [agreeToTerms, setAgreeToTerms] = useState(false);
+    const validator = (val: string) => {
+      return val.length ? null : 'Must be non empty';
+    }
+
+    const [loggedIn, setLoggedIn] = useState(false),
+          [scrolled, setScrolled] = useState(false),
+          [username, setUsername] = useState(initialState('', validator)),
+          [ghState, setGHState] = useState<string>(""),
+          [email, setEmail] = useState(initialState('', validator)),
+          [fullName, setFullName] = useState(initialState('', validator)),
+          [user, setUser] = useState<GitHubUser | undefined>(undefined),
+          [queryError, setQueryError] = useState<queryError>({error: false, errorMessage: ""}),
+          [isOpen, dismiss] = useToggle(true),
+          [agreeToTerms, setAgreeToTerms] = useState(false);
+
+    const stateHasValidationErrors = (state: StateProps) => hasValidationErrors(state.validationErrors),
+          isValid = none(stateHasValidationErrors, [username, email, fullName]),
+          hasAllRequiredData = !!(email.trimmedValue && fullName.trimmedValue && scrolled && agreeToTerms && loggedIn),
+          isSubmittable = isValid && hasAllRequiredData;
+
+    const nonEmptyValidator = (val: string) => val && val.length ? null : 'Must be non-empty';
 
     const clientContext = useContext(ClientContext);
 
-    const onEmailChange = (val: string) => {
-      setEmail(val);
-    }
-
-    const onFullNameChange = (val: string) => {
-      setFullName(val);
-    }
+    const setTextInput = (setter: StatePropsSetter, validator?: Validator) => (value: string) => {
+      setter(userInput(validator, value));
+    };
 
     const getGitHubAuthUrl = (): string => {
       const urlParams = new URLSearchParams(window.location.search);
 
       const originalUri = urlParams.get("original_uri");
 
+      const state: string = (originalUri) ? originalUri : process.env.REACT_APP_COMPANY_WEBSITE!;
+
       const currentUrl = window.location.href.split('?')[0];
 
-      return `https://github.com/login/oauth/authorize?client_id=${process.env.REACT_APP_GITHUB_CLIENT_ID}&redirect_uri=${currentUrl}&scope=user:email&state=${originalUri}`;
+      return `https://github.com/login/oauth/authorize?client_id=${process.env.REACT_APP_GITHUB_CLIENT_ID}&redirect_uri=${currentUrl}&scope=user:email&state=${state}`;
     }
 
     const getUser = async (search: string) => {
@@ -94,47 +117,64 @@ const Body = () => {
           setGHState(redirectState!);
   
           const user: GitHubUser = res.payload;
-  
-          setUsername(user.login);
-          setEmail( (user.email) ? user.email : "");
+
+          setUsername({value: user.login, trimmedValue: user.login.trim(), isPristine: true});
+          setEmail( (user.email) ? {value: user.email, trimmedValue: user.email.trim(), isPristine: true} : {value: "", trimmedValue: "", isPristine: true});
+          setFullName( (user.name) ? {value: user.name, trimmedValue: user.name.trim(), isPristine: true} : {value: "", trimmedValue: "", isPristine: true});
         } else {
-          setSubmitError(res.payload);
+          setQueryError({error: true, errorMessage: res.payload});
         }
       }
     }
 
-    const doSubmit = async () => {
-      const signUser: SignCla = { 
-        user: { 
-          login: user!.login, 
-          email: email,
-          fullName: fullName
-        }, 
-        claVersion: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : ""
-      };
+    const doSubmit = async (evt: FormEvent) => {
+      evt.preventDefault();
 
-      const putSignCla: Action = {
-        method: 'PUT',
-        endpoint: '/sign-cla',
-        body: signUser,
-        headers: {
-          Accept: 'application/json',
-        },
-      }
-
-      const res = await clientContext.query(putSignCla);
-
-      if (!res.error) {
-        window.location.href = decodeURI(ghState);
+      if (isSubmittable) {  
+        const signUser: SignCla = { 
+          user: { 
+            login: user!.login, 
+            email: email.value,
+            name: fullName.value
+          }, 
+          claVersion: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : ""
+        };
+  
+        const putSignCla: Action = {
+          method: 'PUT',
+          endpoint: '/sign-cla',
+          body: signUser,
+          headers: {
+            Accept: 'application/json',
+          },
+        }
+  
+        const res = await clientContext.query(putSignCla);
+  
+        if (!res.error) {
+          if (ghState != "")
+          window.location.href = decodeURI(ghState);
+        } else {
+          setQueryError({error: true, errorMessage: res.payload});
+        }
       } else {
-        setSubmitError(res.payload);
+        evt.stopPropagation();
       }
     }
 
-    const doRender = (client: any) => {
+    const submitBtnClasses = classnames({ disabled: !isSubmittable }),
+      submitTooltip = isSubmittable ? '' :
+      hasAllRequiredData ? 'Validation errors are present' :
+      'Required fields are missing';
+
+    const doRender = () => {
 
       if (hasCode(window.location.search) && !loggedIn) {
         getUser(window.location.search);
+      }
+
+      if (queryError.error) {
+        return isOpen ? <NxLoadError error={queryError.errorMessage} onClose={dismiss}/> : null;
       }
 
       return <React.Fragment>
@@ -180,39 +220,33 @@ const Body = () => {
         )}
 
         { loggedIn && user && (
-          <NxForm 
-            onSubmit={doSubmit}
-            submitError={submitError}
-            submitBtnText="Sign the CLA">
+          <form className="nx-form" onSubmit={doSubmit}>
 
             <NxFormGroup 
               label="Username" 
               isRequired={true}>
               <NxTextInput 
-                value={username} 
-                isPristine={true} 
+                { ...username }
                 disabled={true}
-                required={true}/>
+                validatable={true}/>
             </NxFormGroup>
 
             <NxFormGroup 
               label="Email Address" 
               isRequired={true}>
               <NxTextInput 
-                value={email}
-                onChange={onEmailChange} 
-                isPristine={true}
-                required={true}/>
+                { ...email }
+                onChange={setTextInput(setEmail, nonEmptyValidator)} 
+                validatable={true}/>
             </NxFormGroup>
 
             <NxFormGroup 
               label="Full Name" 
               isRequired={true}>
               <NxTextInput 
-                value={fullName}
-                onChange={onFullNameChange} 
-                isPristine={true}
-                required={true}/>
+                {...fullName}
+                onChange={setTextInput(setFullName, nonEmptyValidator)}
+                validatable={true}/>
             </NxFormGroup>
 
             <NxFieldset 
@@ -227,14 +261,23 @@ const Body = () => {
               </NxCheckbox>
 
             </NxFieldset>
-          </NxForm>
+
+            <footer className="nx-form-footer">
+              <div className="nx-btn-bar">
+                <NxTooltip title={submitTooltip}>
+                  <NxButton className={submitBtnClasses} variant="primary" type="submit">Sign the CLA</NxButton>
+                </NxTooltip>
+              </div>
+            </footer>
+
+          </form>
         )}
         
         </React.Fragment>
     }
 
     return (
-      doRender(clientContext)
+      doRender()
     )
 }
 

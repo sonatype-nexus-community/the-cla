@@ -25,7 +25,7 @@ ReactDOM.render(
   <ClientContextProvider client={client}>
     <ClaAppContainer />
   </ClientContextProvider>,
-  document.getElementById('root')
+  document.getElementById('ui')
 );
 
 // If you want to start measuring performance in your app, pass a function
