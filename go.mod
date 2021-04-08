@@ -10,7 +10,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/joho/godotenv v1.3.0
 	github.com/labstack/echo/v4 v4.2.1
-	github.com/lib/pq v1.10.0 // indirect
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	gopkg.in/go-playground/webhooks.v5 v5.17.0

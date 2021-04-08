@@ -1,8 +1,6 @@
 
 BEGIN;
 
-DROP TABLE IF EXISTS the_cla.signatures;
-
-DROP SCHEMA IF EXISTS the_cla;
+DROP TABLE IF EXISTS signatures;
 
 COMMIT;

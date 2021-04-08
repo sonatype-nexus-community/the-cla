@@ -365,7 +365,3 @@ resource "aws_route53_record" "web_cert_validation" {
     create_before_destroy = true
   }
 }
-
-output "db_access_sg_id" {
-  value = "${aws_security_group.the_cla.id}"
-}

@@ -17,13 +17,14 @@
 package main
 
 import (
-	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
 )
 
 const mockClaText = `mock Cla text.`
@@ -65,6 +66,8 @@ func TestRetrieveCLAText_BadResponseCode(t *testing.T) {
 }
 
 func TestRetrieveCLAText(t *testing.T) {
+	callCount := 0
+
 	origClaUrl := os.Getenv(envClsUrl)
 	defer func() {
 		if origClaUrl == "" {
@@ -77,12 +80,20 @@ func TestRetrieveCLAText(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
 		assert.Equal(t, pathClaText, r.URL.EscapedPath())
+		callCount += 1
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(mockClaText))
 	}))
+
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClsUrl, ts.URL+pathClaText))
 	assert.NoError(t, retrieveCLAText(setupMockContextCLA()))
+	assert.Equal(t, callCount, 1)
+
+	// Ensure that subsequent calls use the cache
+
+	assert.NoError(t, retrieveCLAText(setupMockContextCLA()))
+	assert.Equal(t, callCount, 1)
 }

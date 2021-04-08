@@ -31,7 +31,6 @@ import (
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/go-github/v33/github"
 	"github.com/joho/godotenv"
@@ -62,6 +61,8 @@ const pathWebhook string = "/webhook-integration"
 const buildLocation string = "build"
 
 var db *sql.DB
+
+var claCache map[string]string = make(map[string]string)
 
 func main() {
 	e := echo.New()
@@ -328,6 +329,13 @@ func retrieveCLAText(c echo.Context) (err error) {
 	c.Logger().Debug("Attempting to fetch CLA text")
 	claURL := os.Getenv(envClsUrl)
 
+	if claCache[claURL] != "" {
+		c.Logger().Debug("CLA text was cached, returning")
+
+		return c.String(http.StatusOK, claCache[claURL])
+	}
+
+	c.Logger().Debug("CLA text not in cache, moving forward to fetch")
 	if claURL == "" {
 		return fmt.Errorf(msgMissingClaUrl)
 	}
@@ -356,5 +364,7 @@ func retrieveCLAText(c echo.Context) (err error) {
 		return
 	}
 
-	return c.String(http.StatusOK, string(content))
+	claCache[claURL] = string(content)
+
+	return c.String(http.StatusOK, claCache[claURL])
 }

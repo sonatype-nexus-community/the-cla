@@ -21,6 +21,7 @@ import { none } from 'ramda';
 import { hasValidationErrors } from '@sonatype/react-shared-components/util/validationUtil';
 import CLABody from "../ClaBody/CLABody";
 import { StateProps, Validator } from "@sonatype/react-shared-components/components/NxTextInput/types";
+import './Body.css';
 
 type GitHubUser = {
   login: string
@@ -184,8 +185,7 @@ const Body = () => {
         <NxCheckbox 
           checkboxId="login-check" 
           isChecked={loggedIn}
-          disabled={true}
-          style={{width: "100%"}}>
+          disabled={true}>
           Authenticate with GitHub so we can associate your commits with your signed CLA
         </NxCheckbox>
 
