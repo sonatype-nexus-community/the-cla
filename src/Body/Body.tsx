@@ -184,7 +184,8 @@ const Body = () => {
         <NxCheckbox 
           checkboxId="login-check" 
           isChecked={loggedIn}
-          disabled={true}>
+          disabled={true}
+          style={{width: "100%"}}>
           Authenticate with GitHub so we can associate your commits with your signed CLA
         </NxCheckbox>
 
