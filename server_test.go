@@ -97,3 +97,31 @@ func TestRetrieveCLAText(t *testing.T) {
 	assert.NoError(t, retrieveCLAText(setupMockContextCLA()))
 	assert.Equal(t, callCount, 1)
 }
+
+func TestRetrieveCLATextWithBadURL(t *testing.T) {
+	callCount := 0
+
+	origClaUrl := os.Getenv(envClsUrl)
+	defer func() {
+		if origClaUrl == "" {
+			assert.NoError(t, os.Unsetenv(envClsUrl))
+		} else {
+			assert.NoError(t, os.Setenv(envClsUrl, origClaUrl))
+		}
+	}()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, pathClaText, r.URL.EscapedPath())
+		callCount += 1
+
+		// nobody home, be we should not even be knocking on this door - call should not occur
+		w.WriteHeader(http.StatusNotFound)
+	}))
+
+	defer ts.Close()
+
+	assert.NoError(t, os.Setenv(envClsUrl, "badURLProtocol"+ts.URL+pathClaText))
+	assert.Error(t, retrieveCLAText(setupMockContextCLA()), "unsupported protocol scheme \"badurlprotocolhttp\"")
+	assert.Equal(t, callCount, 0)
+}
