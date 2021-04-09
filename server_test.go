@@ -17,6 +17,7 @@
 package main
 
 import (
+	githuboauth "golang.org/x/oauth2/github"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -124,4 +125,66 @@ func TestRetrieveCLATextWithBadURL(t *testing.T) {
 	assert.NoError(t, os.Setenv(envClsUrl, "badURLProtocol"+ts.URL+pathClaText))
 	assert.Error(t, retrieveCLAText(setupMockContextCLA()), "unsupported protocol scheme \"badurlprotocolhttp\"")
 	assert.Equal(t, callCount, 0)
+}
+
+func setupMockContextOAuth(queryParams map[string]string) echo.Context {
+	// Setup
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, pathOAuthCallback, strings.NewReader("mock OAuth stuff"))
+
+	q := req.URL.Query()
+	for k, v := range queryParams {
+		q.Add(k, v)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	return c
+}
+
+func TestProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
+	assert.NoError(t, processGitHubOAuth(setupMockContextOAuth(map[string]string{})))
+}
+
+func TestProcessGitHubOAuthMissingQueryParamCode(t *testing.T) {
+	assert.Error(t, processGitHubOAuth(setupMockContextOAuth(map[string]string{
+		"state": "testState",
+	})))
+}
+
+func WIP_TestProcessGitHubOAuthMissingQueryParamClientID(t *testing.T) {
+	origOAuthGHTokenURL := githuboauth.Endpoint.TokenURL
+	defer func() {
+		githuboauth.Endpoint.TokenURL = origOAuthGHTokenURL
+	}()
+	pathTestOAuthToken := "/login/oauth/access_token"
+
+	callCount := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, pathTestOAuthToken, r.URL.EscapedPath())
+		callCount += 1
+
+		w.WriteHeader(http.StatusOK)
+
+		//respKeys := map[string]string{
+		//	"access_token": "test_access_token",
+		//	"token_type": "test_token_type",
+		//	"refresh_token": "test_refresh_token",
+		//}
+		//respKeysBytes, err := json.Marshal(respKeys)
+		//assert.NoError(t, err)
+		//_, _ = w.Write(respKeysBytes)
+
+		_, _ = w.Write([]byte("access_token=test_access_token&token_type=test_token_type&refresh_token=test_refresh_token"))
+	}))
+	defer ts.Close()
+
+	githuboauth.Endpoint.TokenURL = ts.URL + pathTestOAuthToken
+
+	assert.Error(t, processGitHubOAuth(setupMockContextOAuth(map[string]string{
+		"state": "testState",
+		"code":  "testCode",
+	})))
 }
