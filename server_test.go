@@ -18,9 +18,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/google/go-github/v33/github"
 	"golang.org/x/oauth2"
+	webhook "gopkg.in/go-playground/webhooks.v5/github"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -291,4 +293,70 @@ func TestProcessGitHubOAuth_UsersServiceError(t *testing.T) {
 	assert.Error(t, forcedError, processGitHubOAuth(c))
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
+}
+
+func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
+	// Setup
+	e := echo.New()
+
+	reqBody, err := json.Marshal(prEvent)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, pathWebhook, strings.NewReader(string(reqBody)))
+
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	rec = httptest.NewRecorder()
+	c = e.NewContext(req, rec)
+	return
+}
+
+func TestProcessWebhookMissingHeaderGitHubEvent(t *testing.T) {
+	c, rec := setupMockContextWebhook(t, map[string]string{}, github.PullRequestEvent{})
+
+	assert.NoError(t, processWebhook(c))
+	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	assert.Equal(t, "missing X-GitHub-Event Header", rec.Body.String())
+}
+
+func TestProcessWebhookUnhandledGitHubEvent(t *testing.T) {
+	c, rec := setupMockContextWebhook(t,
+		map[string]string{
+			"X-GitHub-Event": "unknownGitHubEventHeaderValue",
+		}, github.PullRequestEvent{})
+
+	assert.NoError(t, processWebhook(c))
+	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	assert.Equal(t, msgUnhandledGitHubEventType, rec.Body.String())
+}
+
+func TestProcessWebhookGitHubEventPullRequestPayloadActionIgnored(t *testing.T) {
+	actionText := "someIgnoredAction"
+	c, rec := setupMockContextWebhook(t,
+		map[string]string{
+			"X-GitHub-Event": string(webhook.PullRequestEvent),
+		}, github.PullRequestEvent{Action: &actionText})
+
+	assert.NoError(t, processWebhook(c))
+	assert.Equal(t, http.StatusAccepted, c.Response().Status)
+	assert.Equal(t, "No action taken for: someIgnoredAction", rec.Body.String())
+}
+
+func xxxTestProcessWebhookGitHubEventPullRequestPayloadActionHandled(t *testing.T) {
+	verifyActionHandled(t, "opened")
+	verifyActionHandled(t, "reopened")
+	verifyActionHandled(t, "synchronize")
+}
+
+func verifyActionHandled(t *testing.T, actionText string) {
+	c, rec := setupMockContextWebhook(t,
+		map[string]string{
+			"X-GitHub-Event": string(webhook.PullRequestEvent),
+		}, github.PullRequestEvent{Action: &actionText})
+
+	assert.NoError(t, processWebhook(c))
+	assert.Equal(t, http.StatusAccepted, c.Response().Status)
+	assert.Equal(t, "No action taken for: someIgnoredAction", rec.Body.String())
 }

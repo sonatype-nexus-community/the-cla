@@ -138,6 +138,7 @@ func migrateDB(db *sql.DB) (err error) {
 }
 
 const GH_WEBHOOK_SECRET string = "GH_WEBHOOK_SECRET"
+const msgUnhandledGitHubEventType = "I do not handle this type of event, sorry!"
 
 func processWebhook(c echo.Context) (err error) {
 	ghSecret := os.Getenv(GH_WEBHOOK_SECRET)
@@ -150,7 +151,7 @@ func processWebhook(c echo.Context) (err error) {
 		if err == webhook.ErrEventNotFound {
 			c.Logger().Debug("Unsupported event type encountered", err)
 
-			return c.String(http.StatusBadRequest, "I do not handle this type of event, sorry!")
+			return c.String(http.StatusBadRequest, msgUnhandledGitHubEventType)
 		}
 		return c.String(http.StatusBadRequest, err.Error())
 	}
