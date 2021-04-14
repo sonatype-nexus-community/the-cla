@@ -17,12 +17,16 @@
 package main
 
 import (
-	githuboauth "golang.org/x/oauth2/github"
+	"context"
+	"fmt"
+	"github.com/google/go-github/v33/github"
+	"golang.org/x/oauth2"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
@@ -127,7 +131,7 @@ func TestRetrieveCLATextWithBadURL(t *testing.T) {
 	assert.Equal(t, callCount, 0)
 }
 
-func setupMockContextOAuth(queryParams map[string]string) echo.Context {
+func setupMockContextOAuth(queryParams map[string]string) (c echo.Context, rec *httptest.ResponseRecorder) {
 	// Setup
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, pathOAuthCallback, strings.NewReader("mock OAuth stuff"))
@@ -138,53 +142,153 @@ func setupMockContextOAuth(queryParams map[string]string) echo.Context {
 	}
 	req.URL.RawQuery = q.Encode()
 
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	return c
+	rec = httptest.NewRecorder()
+	c = e.NewContext(req, rec)
+	return
 }
 
 func TestProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
-	assert.NoError(t, processGitHubOAuth(setupMockContextOAuth(map[string]string{})))
+	c, rec := setupMockContextOAuth(map[string]string{})
+	assert.NoError(t, processGitHubOAuth(c))
+	assert.Equal(t, 0, c.Response().Status)
+	assert.Equal(t, "", rec.Body.String())
+}
+
+type OAuthMock struct {
+	exchangeForceError error
+}
+
+// Exchange takes the code and returns a real token.
+func (o *OAuthMock) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	if o.exchangeForceError != nil {
+		return nil, o.exchangeForceError
+	}
+	return &oauth2.Token{
+		AccessToken: "testAccessToken",
+		Expiry:      time.Now().Add(1 * time.Hour),
+	}, nil
+}
+
+// Client returns a new http.Client.
+func (o *OAuthMock) Client(ctx context.Context, t *oauth2.Token) *http.Client {
+	return &http.Client{}
+}
+
+// RepositoriesMock mocks RepositoriesService
+type RepositoriesMock struct {
+	RepositoriesService
+}
+
+// Get returns a repository.
+func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Repository, *github.Response, error) {
+	return &github.Repository{
+		ID:              github.Int64(185409993),
+		Name:            github.String("wayne"),
+		Description:     github.String("some description"),
+		Language:        github.String("JavaScript"),
+		StargazersCount: github.Int(3141),
+		HTMLURL:         github.String("https://www.foo.com"),
+		FullName:        github.String("john/wayne"),
+	}, nil, nil
+}
+
+// UsersMock mocks UsersService
+type UsersMock struct {
+	usersForceError error
+	UsersService
+}
+
+// Get returns a user.
+func (u *UsersMock) Get(context.Context, string) (*github.User, *github.Response, error) {
+	if u.usersForceError != nil {
+		return nil, nil, u.usersForceError
+	}
+	return &github.User{
+		Login: github.String("john"),
+	}, nil, nil
+}
+
+// GitHubMock implements GitHubInterface.
+type GitHubMock struct {
+	usersMock UsersMock
+}
+
+// NewClient something
+func (g *GitHubMock) NewClient(httpClient *http.Client) GitHubClient {
+	return GitHubClient{
+		Repositories: &RepositoriesMock{},
+		Users:        &UsersMock{usersForceError: g.usersMock.usersForceError},
+	}
 }
 
 func TestProcessGitHubOAuthMissingQueryParamCode(t *testing.T) {
-	assert.Error(t, processGitHubOAuth(setupMockContextOAuth(map[string]string{
+	origOAuth := oauthImpl
+	defer func() {
+		oauthImpl = origOAuth
+	}()
+	oauthImpl = &OAuthMock{}
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	githubImpl = &GitHubMock{}
+
+	c, rec := setupMockContextOAuth(map[string]string{
 		"state": "testState",
-	})))
+	})
+	assert.NoError(t, processGitHubOAuth(c))
+	assert.Equal(t, http.StatusOK, c.Response().Status)
+	assert.Equal(t, `{"login":"john"}
+`, rec.Body.String())
 }
 
-func WIP_TestProcessGitHubOAuthMissingQueryParamClientID(t *testing.T) {
-	origOAuthGHTokenURL := githuboauth.Endpoint.TokenURL
+func TestProcessGitHubOAuth_ExchangeError(t *testing.T) {
+	origOAuth := oauthImpl
 	defer func() {
-		githuboauth.Endpoint.TokenURL = origOAuthGHTokenURL
+		oauthImpl = origOAuth
 	}()
-	pathTestOAuthToken := "/login/oauth/access_token"
+	forcedError := fmt.Errorf("forced Exchange error")
+	oauthImpl = &OAuthMock{
+		exchangeForceError: forcedError,
+	}
 
-	callCount := 0
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, pathTestOAuthToken, r.URL.EscapedPath())
-		callCount += 1
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	githubImpl = &GitHubMock{}
 
-		w.WriteHeader(http.StatusOK)
-
-		//respKeys := map[string]string{
-		//	"access_token": "test_access_token",
-		//	"token_type": "test_token_type",
-		//	"refresh_token": "test_refresh_token",
-		//}
-		//respKeysBytes, err := json.Marshal(respKeys)
-		//assert.NoError(t, err)
-		//_, _ = w.Write(respKeysBytes)
-
-		_, _ = w.Write([]byte("access_token=test_access_token&token_type=test_token_type&refresh_token=test_refresh_token"))
-	}))
-	defer ts.Close()
-
-	githuboauth.Endpoint.TokenURL = ts.URL + pathTestOAuthToken
-
-	assert.Error(t, processGitHubOAuth(setupMockContextOAuth(map[string]string{
+	c, rec := setupMockContextOAuth(map[string]string{
 		"state": "testState",
-		"code":  "testCode",
-	})))
+	})
+	assert.Error(t, forcedError, processGitHubOAuth(c))
+	assert.Equal(t, 0, c.Response().Status)
+	assert.Equal(t, "", rec.Body.String())
+}
+
+func TestProcessGitHubOAuth_UsersServiceError(t *testing.T) {
+	origOAuth := oauthImpl
+	defer func() {
+		oauthImpl = origOAuth
+	}()
+	oauthImpl = &OAuthMock{}
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced Users error")
+	githubImpl = &GitHubMock{
+		UsersMock{
+			usersForceError: forcedError,
+		},
+	}
+
+	c, rec := setupMockContextOAuth(map[string]string{
+		"state": "testState",
+	})
+	assert.Error(t, forcedError, processGitHubOAuth(c))
+	assert.Equal(t, 0, c.Response().Status)
+	assert.Equal(t, "", rec.Body.String())
 }

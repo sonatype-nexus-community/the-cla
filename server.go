@@ -282,36 +282,101 @@ func processSignCla(c echo.Context) (err error) {
 	return c.JSON(http.StatusCreated, user)
 }
 
+type OAuthInterface interface {
+	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
+	Client(ctx context.Context, t *oauth2.Token) *http.Client
+}
+type OAuthImpl struct {
+	oauthConf *oauth2.Config
+}
+
+func (oa *OAuthImpl) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	return oa.oauthConf.Exchange(ctx, code)
+}
+func (oa *OAuthImpl) Client(ctx context.Context, t *oauth2.Token) *http.Client {
+	return oa.oauthConf.Client(ctx, t)
+}
+func createOAuth(clientID, clientSecret string, endpoint oauth2.Endpoint) OAuthInterface {
+	oauthConf := &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Scopes:       []string{"user:email"},
+		Endpoint:     endpoint,
+	}
+	oAuthImpl := OAuthImpl{
+		oauthConf: oauthConf,
+	}
+	return &oAuthImpl
+}
+
+var oauthImpl = createOAuth(
+	os.Getenv("REACT_APP_GITHUB_CLIENT_ID"),
+	os.Getenv("GITHUB_CLIENT_SECRET"),
+	githuboauth.Endpoint,
+)
+
+// RepositoriesService handles communication with the repository related methods
+// of the GitHub API.
+// https://godoc.org/github.com/google/go-github/github#RepositoriesService
+type RepositoriesService interface {
+	Get(context.Context, string, string) (*github.Repository, *github.Response, error)
+	// ...
+}
+
+// UsersService handles communication with the user related methods
+// of the GitHub API.
+// https://godoc.org/github.com/google/go-github/github#UsersService
+type UsersService interface {
+	Get(context.Context, string) (*github.User, *github.Response, error)
+	// ...
+}
+
+// GitHubClient manages communication with the GitHub API.
+// https://github.com/google/go-github/issues/113
+type GitHubClient struct {
+	Repositories RepositoriesService
+	Users        UsersService
+}
+
+// GitHubInterface defines all necessary methods.
+// https://godoc.org/github.com/google/go-github/github#NewClient
+type GitHubInterface interface {
+	NewClient(httpClient *http.Client) GitHubClient
+}
+
+// GitHubCreator implements GitHubInterface.
+type GitHubCreator struct{}
+
+// NewClient returns a new GitHubInterface instance.
+func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
+	client := github.NewClient(httpClient)
+	return GitHubClient{
+		Repositories: client.Repositories,
+		Users:        client.Users,
+	}
+}
+
+var githubImpl GitHubInterface = &GitHubCreator{}
+
 func processGitHubOAuth(c echo.Context) (err error) {
 	c.Logger().Debug("Attempting to fetch GitHub crud")
 
 	code := c.QueryParam("code")
 
 	state := c.QueryParam("state")
-
-	clientID := os.Getenv("REACT_APP_GITHUB_CLIENT_ID")
-	clientSecret := os.Getenv("GITHUB_CLIENT_SECRET")
-
-	oauthConf := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       []string{"user:email"},
-		Endpoint:     githuboauth.Endpoint,
-	}
-
 	if state == "" {
 		return
 	}
 
-	token, err := oauthConf.Exchange(context.Background(), code)
+	token, err := oauthImpl.Exchange(context.Background(), code)
 	if err != nil {
 		c.Logger().Error(err)
 		return
 	}
 
-	oauthClient := oauthConf.Client(context.Background(), token)
+	oauthClient := oauthImpl.Client(context.Background(), token)
 
-	client := github.NewClient(oauthClient)
+	client := githubImpl.NewClient(oauthClient)
 
 	user, _, err := client.Users.Get(context.Background(), "")
 	if err != nil {
