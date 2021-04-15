@@ -214,15 +214,22 @@ func (u *UsersMock) Get(context.Context, string) (*github.User, *github.Response
 
 // GitHubMock implements GitHubInterface.
 type GitHubMock struct {
-	usersMock UsersMock
+	usersMock        UsersMock
+	pullRequestsMock PullRequestsMock
 }
 
 type PullRequestsMock struct {
+	listCommitsForceError error
+	mockRepositoryCommits []*github.RepositoryCommit
+	mockResponse          *github.Response
 }
 
 //goland:noinspection GoUnusedParameter
 func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error) {
-	return nil, nil, nil
+	if p.listCommitsForceError != nil {
+		return nil, nil, p.listCommitsForceError
+	}
+	return p.mockRepositoryCommits, p.mockResponse, nil
 }
 
 type IssuesMock struct {
@@ -244,7 +251,7 @@ func (g *GitHubMock) NewClient(httpClient *http.Client) GitHubClient {
 	return GitHubClient{
 		Repositories: &RepositoriesMock{},
 		Users:        &UsersMock{usersForceError: g.usersMock.usersForceError},
-		PullRequests: &PullRequestsMock{},
+		PullRequests: &PullRequestsMock{listCommitsForceError: g.pullRequestsMock.listCommitsForceError},
 		Issues:       &IssuesMock{},
 	}
 }
@@ -308,7 +315,7 @@ func TestProcessGitHubOAuth_UsersServiceError(t *testing.T) {
 	}()
 	forcedError := fmt.Errorf("forced Users error")
 	githubImpl = &GitHubMock{
-		UsersMock{
+		usersMock: UsersMock{
 			usersForceError: forcedError,
 		},
 	}
@@ -355,41 +362,6 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	assert.Equal(t, "", res)
 }
 
-func TestHandlePullRequest(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
-	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
-	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
-
-	// move pem file if it exists
-	pemBackupFile := filenameTheClaPem + "_orig"
-	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(filenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	setupTestPemFile(t)
-
-	origGithubImpl := githubImpl
-	defer func() {
-		githubImpl = origGithubImpl
-	}()
-	githubImpl = &GitHubMock{}
-
-	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(prEvent)
-	// TODO add assertions here
-	assert.NoError(t, err)
-	assert.Equal(t, "", res)
-}
-
 // generated via: openssl genpkey -algorithm RSA  -outform PEM -out private_key.pem -pkeyopt rsa_keygen_bits:2048
 const testPrivatePem = `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDtQtWKdnW9OKJk
@@ -422,6 +394,45 @@ Scy7y5rzNperE0E7Xy1N10NX
 
 func setupTestPemFile(t *testing.T) {
 	assert.NoError(t, os.WriteFile(filenameTheClaPem, []byte(testPrivatePem), 0644))
+}
+
+func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := filenameTheClaPem + "_orig"
+	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(filenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	setupTestPemFile(t)
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced ListCommits error")
+	githubImpl = &GitHubMock{
+		pullRequestsMock: PullRequestsMock{
+			listCommitsForceError: forcedError,
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(prEvent)
+	assert.EqualError(t, err, forcedError.Error())
+	assert.Equal(t, "", res)
 }
 
 func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
