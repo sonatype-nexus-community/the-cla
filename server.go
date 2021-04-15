@@ -62,7 +62,7 @@ const buildLocation string = "build"
 
 var db *sql.DB
 
-var claCache map[string]string = make(map[string]string)
+var claCache = make(map[string]string)
 
 func main() {
 	e := echo.New()
@@ -137,11 +137,11 @@ func migrateDB(db *sql.DB) (err error) {
 	return
 }
 
-const GH_WEBHOOK_SECRET string = "GH_WEBHOOK_SECRET"
+const envGhWebhookSecret string = "GH_WEBHOOK_SECRET"
 const msgUnhandledGitHubEventType = "I do not handle this type of event, sorry!"
 
 func processWebhook(c echo.Context) (err error) {
-	ghSecret := os.Getenv(GH_WEBHOOK_SECRET)
+	ghSecret := os.Getenv(envGhWebhookSecret)
 
 	hook, _ := webhook.New(webhook.Options.Secret(ghSecret))
 
@@ -177,22 +177,23 @@ func processWebhook(c echo.Context) (err error) {
 	}
 }
 
-const THE_CLA_PEM string = "the-cla.pem"
-const GH_APP_ID string = "GH_APP_ID"
+const filenameTheClaPem string = "the-cla.pem"
+const envGhAppId string = "GH_APP_ID"
 
 func handlePullRequest(payload webhook.PullRequestPayload) (response string, err error) {
-	appId, err := strconv.Atoi(os.Getenv(GH_APP_ID))
+	appId, err := strconv.Atoi(os.Getenv(envGhAppId))
 	if err != nil {
 		return
 	}
 	tr := http.DefaultTransport
 
-	itr, err := ghinstallation.NewKeyFromFile(tr, int64(appId), payload.Installation.ID, THE_CLA_PEM)
+	itr, err := ghinstallation.NewKeyFromFile(tr, int64(appId), payload.Installation.ID, filenameTheClaPem)
 	if err != nil {
 		return
 	}
 
-	client := github.NewClient(&http.Client{Transport: itr})
+	//client := github.NewClient(&http.Client{Transport: itr})
+	client := githubImpl.NewClient(&http.Client{Transport: itr})
 
 	opts := &github.ListOptions{}
 
@@ -247,13 +248,17 @@ func handlePullRequest(payload webhook.PullRequestPayload) (response string, err
 		fmt.Print(err)
 	}
 
-	client.Issues.AddLabelsToIssue(
+	// TODO: check error
+	_, _, err = client.Issues.AddLabelsToIssue(
 		context.Background(),
 		payload.Repository.Owner.Login,
 		payload.Repository.Name,
 		int(payload.Number),
 		[]string{*lbl.Name},
 	)
+	if err != nil {
+		return
+	}
 
 	return
 }
@@ -291,6 +296,7 @@ type OAuthImpl struct {
 	oauthConf *oauth2.Config
 }
 
+//goland:noinspection GoUnusedParameter
 func (oa *OAuthImpl) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	return oa.oauthConf.Exchange(ctx, code)
 }
@@ -332,11 +338,30 @@ type UsersService interface {
 	// ...
 }
 
+// PullRequestsService handles communication with the pull request related
+// methods of the GitHub API.
+//
+// GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/pulls/
+type PullRequestsService interface {
+	ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error)
+}
+
+// IssuesService handles communication with the issue related
+// methods of the GitHub API.
+//
+// GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/issues/
+type IssuesService interface {
+	CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (*github.Label, *github.Response, error)
+	AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error)
+}
+
 // GitHubClient manages communication with the GitHub API.
 // https://github.com/google/go-github/issues/113
 type GitHubClient struct {
 	Repositories RepositoriesService
 	Users        UsersService
+	PullRequests PullRequestsService
+	Issues       IssuesService
 }
 
 // GitHubInterface defines all necessary methods.
@@ -388,8 +413,8 @@ func processGitHubOAuth(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, user)
 }
 
-const envClsUrl string = "CLA_URL"
-const msgMissingClaUrl string = "missing " + envClsUrl + " environment variable"
+const envClsUrl = "CLA_URL"
+const msgMissingClaUrl = "missing " + envClsUrl + " environment variable"
 
 func retrieveCLAText(c echo.Context) (err error) {
 	c.Logger().Debug("Attempting to fetch CLA text")

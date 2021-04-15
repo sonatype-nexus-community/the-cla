@@ -161,6 +161,7 @@ type OAuthMock struct {
 }
 
 // Exchange takes the code and returns a real token.
+//goland:noinspection GoUnusedParameter
 func (o *OAuthMock) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	if o.exchangeForceError != nil {
 		return nil, o.exchangeForceError
@@ -172,6 +173,7 @@ func (o *OAuthMock) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 }
 
 // Client returns a new http.Client.
+//goland:noinspection GoUnusedParameter
 func (o *OAuthMock) Client(ctx context.Context, t *oauth2.Token) *http.Client {
 	return &http.Client{}
 }
@@ -215,11 +217,35 @@ type GitHubMock struct {
 	usersMock UsersMock
 }
 
+type PullRequestsMock struct {
+}
+
+//goland:noinspection GoUnusedParameter
+func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error) {
+	return nil, nil, nil
+}
+
+type IssuesMock struct {
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (*github.Label, *github.Response, error) {
+	return nil, nil, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error) {
+	return nil, nil, nil
+}
+
 // NewClient something
+//goland:noinspection GoUnusedParameter
 func (g *GitHubMock) NewClient(httpClient *http.Client) GitHubClient {
 	return GitHubClient{
 		Repositories: &RepositoriesMock{},
 		Users:        &UsersMock{usersForceError: g.usersMock.usersForceError},
+		PullRequests: &PullRequestsMock{},
+		Issues:       &IssuesMock{},
 	}
 }
 
@@ -295,6 +321,109 @@ func TestProcessGitHubOAuth_UsersServiceError(t *testing.T) {
 	assert.Equal(t, "", rec.Body.String())
 }
 
+func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "nonNumericGHAppID"))
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(prEvent)
+	assert.EqualError(t, err, "strconv.Atoi: parsing \"nonNumericGHAppID\": invalid syntax")
+	assert.Equal(t, "", res)
+}
+
+func TestHandlePullRequestMissingPemFile(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(prEvent)
+	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
+	assert.Equal(t, "", res)
+}
+
+func TestHandlePullRequest(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := filenameTheClaPem + "_orig"
+	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(filenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	setupTestPemFile(t)
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	githubImpl = &GitHubMock{}
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(prEvent)
+	// TODO add assertions here
+	assert.NoError(t, err)
+	assert.Equal(t, "", res)
+}
+
+// generated via: openssl genpkey -algorithm RSA  -outform PEM -out private_key.pem -pkeyopt rsa_keygen_bits:2048
+const testPrivatePem = `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDtQtWKdnW9OKJk
+XuSx45oixrJqWqpaly23iXvAAcTqg+pFD7Yw1bL9viAYoc7ATcd6Uonz7/d6RugO
+JuozsC4X1xYotEWYlB7tKrp+InQ2H0fRC6afGiCdDUgLINfmqShPWgGft4cA7mwH
+JSHB6XAGwVsZsxqYIi4wXVPYYJaI3OX5nA/BiRvZMrsaF2PT8dt/5rptMIXxXlwK
+tuQVvICxh5CXn5/FaeQcnkXoDESoZcG9nhqSmRdeUJxoiGZ7epVljj7Ef5XKJYoz
+uv8vJVTVXwxb7MbcjQ6Zna4iJj4FscwkQyaoFQOzBf+1H5ypZ8CFn/E236tLpwh0
+7Xspu5CrAgMBAAECggEBAOd51CKBjj8s+OpZ1l9jgea52il/CULWyciNvolGcJqo
+VrBIMuUUKMv8aQ3/F1pwx9QkoOi4TsciVJYyCz6gfWfO9ZSCxH+my0Fx9X7IGH8R
+J5zg9A+3iugOpCIPSfSFRomcc4cio/kZo5WY+YVZPW2pyTqajbCtcEjJVNr+6P7e
+PAWKI6RXbwGa4Fp8dLHMRq+/i2zuznEzdrTJPBSoW5HUMDvPixhjd+WeYT9pNfZP
+P8V2HhSt1qvuVM/epZ8llnmyPaw7ojwAOurG19fDGUvEfjAORYJopOvxeJ1mCY++
+HVxcumbx4N2D8IQ/dwbtarMBLpw89GQztxCxokJ7a5ECgYEA/QFTsgQKFQbdlv1z
+ooBq3EZPfzebx4mkyCcLmQAliSArJezRewCyelP2A102p5125SMEA1vcsSkZOes8
+h4z4HaptHZob1OxG2EBNdOzY41TaG1nzbOAJEkF71ksT30dpaLRCECUfcEWc0waB
+cwia1v1xUvfcvwhPJIdzye5V7hkCgYEA8BHMYRfvIMtRgHNPoFNoRxr6BU/gjfV/
+FRJLNdMSk3KYve459XGPFvLSAh0eucOVjmkZY8y0BJJdeFVdTjPa2nvk70i9yhGk
+MhjVHs1Y7VIRYB6SSoA7hPK3zMELTbMudZS1/Dxe8fCc1/oDhamLAcT1474hXIR2
+AYe8T97qBWMCgYA77yWJhSVyR7cUfqP2+d7WoZ1RcLXpdfTgKUe5DezWaBVwnYIe
+VlLxYZRkxZ8d49J3g2z+8rL8ENVWACDNp5pbRLUmjwxKy1IZBlqS+UyDxeUJF6zv
+vL7JYVPZtt1VRlB1KkaAFps0+HinEOJ3grFTfqRq2Cal5m0BJUlLq7cVeQKBgHLB
+Hz/+L9kuNxw+gn5xwDPVClRFtWJGSmPpJbhp18RRj/+iA2R2zt46XfaSsuA7RJ8Z
+UACrlhVlXXaq33oFQYUUmf9jdw1DV4h25FDf+bUfeJzIoEcqesj3OLKQSHXww7GC
+z2bt+LiPunlm0g4vV/oVizA87zeJPdtHZdWMCbNfAoGBALEVP1RXKsI9M7R01ML5
+cocpE9qF81DkPzYsQxDRnheFNE9GOK2snADOiXa/ObvzQ5g57FJ7sJVkm2YECI9N
+pNEMHXmW70G0upWmOnjZL6WxXcJjbpZ94SOFiD7GFFLgWs9bI4BdxMDX/EyXQafy
+Scy7y5rzNperE0E7Xy1N10NX
+-----END PRIVATE KEY-----`
+
+func setupTestPemFile(t *testing.T) {
+	assert.NoError(t, os.WriteFile(filenameTheClaPem, []byte(testPrivatePem), 0644))
+}
+
 func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
 	// Setup
 	e := echo.New()
@@ -342,6 +471,50 @@ func TestProcessWebhookGitHubEventPullRequestPayloadActionIgnored(t *testing.T) 
 	assert.NoError(t, processWebhook(c))
 	assert.Equal(t, http.StatusAccepted, c.Response().Status)
 	assert.Equal(t, "No action taken for: someIgnoredAction", rec.Body.String())
+}
+
+func TestProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing.T) {
+	actionText := "opened"
+	c, rec := setupMockContextWebhook(t,
+		map[string]string{
+			"X-GitHub-Event": string(webhook.PullRequestEvent),
+		}, github.PullRequestEvent{Action: &actionText})
+
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "nonNumericGHAppID"))
+
+	assert.NoError(t, processWebhook(c))
+	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	assert.Equal(t, "strconv.Atoi: parsing \"nonNumericGHAppID\": invalid syntax", rec.Body.String())
+}
+
+func TestProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) {
+	actionText := "opened"
+	c, rec := setupMockContextWebhook(t,
+		map[string]string{
+			"X-GitHub-Event": string(webhook.PullRequestEvent),
+		}, github.PullRequestEvent{Action: &actionText})
+
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	assert.NoError(t, processWebhook(c))
+	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	assert.Equal(t, "could not read private key: open the-cla.pem: no such file or directory", rec.Body.String())
 }
 
 func xxxTestProcessWebhookGitHubEventPullRequestPayloadActionHandled(t *testing.T) {
