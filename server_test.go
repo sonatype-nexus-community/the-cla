@@ -199,17 +199,14 @@ func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Reposit
 // UsersMock mocks UsersService
 type UsersMock struct {
 	usersForceError error
+	mockUser        *github.User
+	mockResponse    *github.Response
 	UsersService
 }
 
 // Get returns a user.
 func (u *UsersMock) Get(context.Context, string) (*github.User, *github.Response, error) {
-	if u.usersForceError != nil {
-		return nil, nil, u.usersForceError
-	}
-	return &github.User{
-		Login: github.String("john"),
-	}, nil, nil
+	return u.mockUser, u.mockResponse, u.usersForceError
 }
 
 // GitHubMock implements GitHubInterface.
@@ -250,9 +247,17 @@ func (i *IssuesMock) AddLabelsToIssue(ctx context.Context, owner string, repo st
 func (g *GitHubMock) NewClient(httpClient *http.Client) GitHubClient {
 	return GitHubClient{
 		Repositories: &RepositoriesMock{},
-		Users:        &UsersMock{usersForceError: g.usersMock.usersForceError},
-		PullRequests: &PullRequestsMock{listCommitsForceError: g.pullRequestsMock.listCommitsForceError},
-		Issues:       &IssuesMock{},
+		Users: &UsersMock{
+			usersForceError: g.usersMock.usersForceError,
+			mockUser:        g.usersMock.mockUser,
+			mockResponse:    g.usersMock.mockResponse,
+		},
+		PullRequests: &PullRequestsMock{
+			listCommitsForceError: g.pullRequestsMock.listCommitsForceError,
+			mockRepositoryCommits: g.pullRequestsMock.mockRepositoryCommits,
+			mockResponse:          g.pullRequestsMock.mockResponse,
+		},
+		Issues: &IssuesMock{},
 	}
 }
 
@@ -274,7 +279,7 @@ func TestProcessGitHubOAuthMissingQueryParamCode(t *testing.T) {
 	})
 	assert.NoError(t, processGitHubOAuth(c))
 	assert.Equal(t, http.StatusOK, c.Response().Status)
-	assert.Equal(t, `{"login":"john"}
+	assert.Equal(t, `null
 `, rec.Body.String())
 }
 
@@ -356,6 +361,15 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
 
+	// move pem file if it exists
+	pemBackupFile := filenameTheClaPem + "_orig"
+	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	defer func() {
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+
 	prEvent := webhook.PullRequestPayload{}
 	res, err := handlePullRequest(prEvent)
 	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
@@ -433,6 +447,47 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	res, err := handlePullRequest(prEvent)
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "", res)
+}
+
+func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := filenameTheClaPem + "_orig"
+	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(filenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	setupTestPemFile(t)
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	mockRepositoryCommits := []*github.RepositoryCommit{
+		{Committer: &github.User{Login: github.String("john")}},
+	}
+	githubImpl = &GitHubMock{
+		pullRequestsMock: PullRequestsMock{
+			mockRepositoryCommits: mockRepositoryCommits,
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(prEvent)
+	assert.NoError(t, err)
+	assert.Equal(t, "Author: john Email:  Commit SHA: ", res)
 }
 
 func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
@@ -522,6 +577,15 @@ func TestProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) 
 		}
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := filenameTheClaPem + "_orig"
+	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	defer func() {
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
 
 	assert.NoError(t, processWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
