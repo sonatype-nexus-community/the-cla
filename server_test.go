@@ -18,8 +18,11 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/go-github/v33/github"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
@@ -28,8 +31,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 const mockClaText = `mock Cla text.`
@@ -757,18 +762,75 @@ func TestProcessSignClaBindError(t *testing.T) {
 	assert.Equal(t, "", rec.Body.String())
 }
 
-// TODO Mock db calls
-func xxxTestProcessSignClaDBInsertError(t *testing.T) {
-	c, rec := setupMockContextSignCla(t, map[string]string{"Content-Type": "application/json"}, UserSignature{})
-	assert.EqualError(t, processSignCla(c), "some db error")
-	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
-	assert.Equal(t, "", rec.Body.String())
+func newMockDb(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		assert.NoError(t, err)
+	}
+
+	return db, mock
 }
 
-// TODO Mock db calls
-func xxxTestProcessSignClaSigned(t *testing.T) {
-	c, rec := setupMockContextSignCla(t, map[string]string{"Content-Type": "application/json"}, UserSignature{})
-	assert.NoError(t, processSignCla(c))
+type AnyTime struct{}
+
+// Match satisfies sqlmock.Argument interface
+func (a AnyTime) Match(v driver.Value) bool {
+	_, ok := v.(time.Time)
+	return ok
+}
+
+func TestProcessSignClaDBInsertError(t *testing.T) {
+	user := UserSignature{}
+	c, rec := setupMockContextSignCla(t, map[string]string{"Content-Type": "application/json"}, user)
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	forcedError := fmt.Errorf("forced SQL insert error")
+	mock.ExpectExec("INSERT INTO signatures.*LoginName, Email, GivenName, SignedAt, ClaVersion.*VALUES .*").
+		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
+		WillReturnError(forcedError).
+		WillReturnResult(sqlmock.NewErrorResult(forcedError))
+
+	assert.NoError(t, processSignCla(c), "some db error")
+	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	assert.Equal(t, forcedError.Error(), rec.Body.String())
+}
+
+func TestProcessSignClaSigned(t *testing.T) {
+	user := UserSignature{}
+	c, rec := setupMockContextSignCla(t, map[string]string{"Content-Type": "application/json"}, user)
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	forcedError := fmt.Errorf("forced SQL insert error")
+	mock.ExpectExec("INSERT INTO signatures.*LoginName, Email, GivenName, SignedAt, ClaVersion.*VALUES .*").
+		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
+		WillReturnResult(sqlmock.NewErrorResult(forcedError))
+
+	assert.NoError(t, processSignCla(c), "some db error")
 	assert.Equal(t, http.StatusCreated, c.Response().Status)
-	assert.Equal(t, "user stuff", rec.Body.String())
+
+	// ignore/truncate the TimeSigned suffix
+	jsonUserBytes, err := json.Marshal(user)
+	assert.NoError(t, err)
+	jsonUser := string(jsonUserBytes)
+	reg := regexp.MustCompile(`(.*)"TimeSigned.*`)
+	jsonUserPrefix := reg.ReplaceAllString(jsonUser, "${1}")
+	assert.True(t, strings.HasPrefix(rec.Body.String(), jsonUserPrefix), "body:\n%s,\nprefix:\n%s", rec.Body.String(), jsonUserPrefix)
 }

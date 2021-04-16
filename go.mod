@@ -3,6 +3,7 @@ module github.com/sonatype-nexus-community/the-cla
 go 1.16
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/bradleyfalzon/ghinstallation v1.1.1
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/google/go-github/v33 v33.0.0
