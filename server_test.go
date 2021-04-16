@@ -731,3 +731,44 @@ func verifyActionHandled(t *testing.T, actionText string) {
 	assert.Equal(t, http.StatusAccepted, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
 }
+
+func setupMockContextSignCla(t *testing.T, headers map[string]string, user UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
+	// Setup
+	e := echo.New()
+
+	reqBody, err := json.Marshal(user)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, pathSignCla, strings.NewReader(string(reqBody)))
+
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	rec = httptest.NewRecorder()
+	c = e.NewContext(req, rec)
+	return
+}
+
+func TestProcessSignClaBindError(t *testing.T) {
+	c, rec := setupMockContextSignCla(t, map[string]string{}, UserSignature{})
+	assert.EqualError(t, processSignCla(c), "code=415, message=Unsupported Media Type")
+	assert.Equal(t, 0, c.Response().Status)
+	assert.Equal(t, "", rec.Body.String())
+}
+
+// TODO Mock db calls
+func xxxTestProcessSignClaDBInsertError(t *testing.T) {
+	c, rec := setupMockContextSignCla(t, map[string]string{"Content-Type": "application/json"}, UserSignature{})
+	assert.EqualError(t, processSignCla(c), "some db error")
+	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	assert.Equal(t, "", rec.Body.String())
+}
+
+// TODO Mock db calls
+func xxxTestProcessSignClaSigned(t *testing.T) {
+	c, rec := setupMockContextSignCla(t, map[string]string{"Content-Type": "application/json"}, UserSignature{})
+	assert.NoError(t, processSignCla(c))
+	assert.Equal(t, http.StatusCreated, c.Response().Status)
+	assert.Equal(t, "user stuff", rec.Body.String())
+}
