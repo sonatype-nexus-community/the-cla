@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/go-github/v33/github"
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 	"net/http"
@@ -28,10 +30,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
 )
 
 const mockClaText = `mock Cla text.`
@@ -156,31 +154,8 @@ func TestProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
 	assert.Equal(t, "", rec.Body.String())
 }
 
-type OAuthMock struct {
-	exchangeForceError error
-}
-
-// Exchange takes the code and returns a real token.
-//goland:noinspection GoUnusedParameter
-func (o *OAuthMock) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
-	if o.exchangeForceError != nil {
-		return nil, o.exchangeForceError
-	}
-	return &oauth2.Token{
-		AccessToken: "testAccessToken",
-		Expiry:      time.Now().Add(1 * time.Hour),
-	}, nil
-}
-
-// Client returns a new http.Client.
-//goland:noinspection GoUnusedParameter
-func (o *OAuthMock) Client(ctx context.Context, t *oauth2.Token) *http.Client {
-	return &http.Client{}
-}
-
-// RepositoriesMock mocks RepositoriesService
+/*// RepositoriesMock mocks RepositoriesService
 type RepositoriesMock struct {
-	RepositoriesService
 }
 
 // Get returns a repository.
@@ -195,69 +170,97 @@ func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Reposit
 		FullName:        github.String("john/wayne"),
 	}, nil, nil
 }
+*/
+
+type OAuthMock struct {
+	exchangeToken *oauth2.Token
+	exchangeError error
+}
+
+// Exchange takes the code and returns a real token.
+//goland:noinspection GoUnusedParameter
+func (o *OAuthMock) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	return o.exchangeToken, o.exchangeError
+}
+
+// Client returns a new http.Client.
+//goland:noinspection GoUnusedParameter
+func (o *OAuthMock) Client(ctx context.Context, t *oauth2.Token) *http.Client {
+	return &http.Client{}
+}
 
 // UsersMock mocks UsersService
 type UsersMock struct {
-	usersForceError error
-	mockUser        *github.User
-	mockResponse    *github.Response
-	UsersService
+	mockUser     *github.User
+	mockResponse *github.Response
+	mockGetError error
 }
 
 // Get returns a user.
 func (u *UsersMock) Get(context.Context, string) (*github.User, *github.Response, error) {
-	return u.mockUser, u.mockResponse, u.usersForceError
+	return u.mockUser, u.mockResponse, u.mockGetError
+}
+
+type PullRequestsMock struct {
+	mockRepositoryCommits []*github.RepositoryCommit
+	mockResponse          *github.Response
+	mockListCommitsError  error
+}
+
+//goland:noinspection GoUnusedParameter
+func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error) {
+	return p.mockRepositoryCommits, p.mockResponse, p.mockListCommitsError
+}
+
+type IssuesMock struct {
+	mockCreateLabel         *github.Label
+	mockCreateLabelResponse *github.Response
+	mockCreateLabelError    error
+	mockAddLabels           []*github.Label
+	mockAddLabelsResponse   *github.Response
+	mockAddLabelsError      error
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (*github.Label, *github.Response, error) {
+	return i.mockCreateLabel, i.mockCreateLabelResponse, i.mockCreateLabelError
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error) {
+	return i.mockAddLabels, i.mockAddLabelsResponse, i.mockAddLabelsError
 }
 
 // GitHubMock implements GitHubInterface.
 type GitHubMock struct {
 	usersMock        UsersMock
 	pullRequestsMock PullRequestsMock
-}
-
-type PullRequestsMock struct {
-	listCommitsForceError error
-	mockRepositoryCommits []*github.RepositoryCommit
-	mockResponse          *github.Response
-}
-
-//goland:noinspection GoUnusedParameter
-func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error) {
-	if p.listCommitsForceError != nil {
-		return nil, nil, p.listCommitsForceError
-	}
-	return p.mockRepositoryCommits, p.mockResponse, nil
-}
-
-type IssuesMock struct {
-}
-
-//goland:noinspection GoUnusedParameter
-func (i *IssuesMock) CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (*github.Label, *github.Response, error) {
-	return nil, nil, nil
-}
-
-//goland:noinspection GoUnusedParameter
-func (i *IssuesMock) AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error) {
-	return nil, nil, nil
+	issuesMock       IssuesMock
 }
 
 // NewClient something
 //goland:noinspection GoUnusedParameter
 func (g *GitHubMock) NewClient(httpClient *http.Client) GitHubClient {
 	return GitHubClient{
-		Repositories: &RepositoriesMock{},
+		//Repositories: &RepositoriesMock{},
 		Users: &UsersMock{
-			usersForceError: g.usersMock.usersForceError,
-			mockUser:        g.usersMock.mockUser,
-			mockResponse:    g.usersMock.mockResponse,
+			mockGetError: g.usersMock.mockGetError,
+			mockUser:     g.usersMock.mockUser,
+			mockResponse: g.usersMock.mockResponse,
 		},
 		PullRequests: &PullRequestsMock{
-			listCommitsForceError: g.pullRequestsMock.listCommitsForceError,
+			mockListCommitsError:  g.pullRequestsMock.mockListCommitsError,
 			mockRepositoryCommits: g.pullRequestsMock.mockRepositoryCommits,
 			mockResponse:          g.pullRequestsMock.mockResponse,
 		},
-		Issues: &IssuesMock{},
+		Issues: &IssuesMock{
+			mockCreateLabel:         g.issuesMock.mockCreateLabel,
+			mockCreateLabelResponse: g.issuesMock.mockCreateLabelResponse,
+			mockCreateLabelError:    g.issuesMock.mockCreateLabelError,
+			mockAddLabels:           g.issuesMock.mockAddLabels,
+			mockAddLabelsResponse:   g.issuesMock.mockAddLabelsResponse,
+			mockAddLabelsError:      g.issuesMock.mockAddLabelsError,
+		},
 	}
 }
 
@@ -290,7 +293,7 @@ func TestProcessGitHubOAuth_ExchangeError(t *testing.T) {
 	}()
 	forcedError := fmt.Errorf("forced Exchange error")
 	oauthImpl = &OAuthMock{
-		exchangeForceError: forcedError,
+		exchangeError: forcedError,
 	}
 
 	origGithubImpl := githubImpl
@@ -321,7 +324,7 @@ func TestProcessGitHubOAuth_UsersServiceError(t *testing.T) {
 	forcedError := fmt.Errorf("forced Users error")
 	githubImpl = &GitHubMock{
 		usersMock: UsersMock{
-			usersForceError: forcedError,
+			mockGetError: forcedError,
 		},
 	}
 
@@ -439,7 +442,7 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	forcedError := fmt.Errorf("forced ListCommits error")
 	githubImpl = &GitHubMock{
 		pullRequestsMock: PullRequestsMock{
-			listCommitsForceError: forcedError,
+			mockListCommitsError: forcedError,
 		},
 	}
 
@@ -476,7 +479,20 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 		githubImpl = origGithubImpl
 	}()
 	mockRepositoryCommits := []*github.RepositoryCommit{
-		{Committer: &github.User{Login: github.String("john")}},
+		{
+			Committer: &github.User{
+				Login: github.String("john"),
+				Email: github.String("j@gmail.com"),
+			},
+			SHA: github.String("johnSHA"),
+		},
+		{
+			Committer: &github.User{
+				Login: github.String("doe"),
+				Email: github.String("d@gmail.com"),
+			},
+			SHA: github.String("doeSHA"),
+		},
 	}
 	githubImpl = &GitHubMock{
 		pullRequestsMock: PullRequestsMock{
@@ -487,7 +503,87 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	prEvent := webhook.PullRequestPayload{}
 	res, err := handlePullRequest(prEvent)
 	assert.NoError(t, err)
-	assert.Equal(t, "Author: john Email:  Commit SHA: ", res)
+	assert.Equal(t, "Author: john Email: j@gmail.com Commit SHA: johnSHA,Author: doe Email: d@gmail.com Commit SHA: doeSHA", res)
+}
+
+func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := filenameTheClaPem + "_orig"
+	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(filenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	setupTestPemFile(t)
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	mockRepositoryCommits := []*github.RepositoryCommit{{Committer: &github.User{}}}
+	forcedError := fmt.Errorf("forced CreateLabel error")
+	githubImpl = &GitHubMock{
+		pullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
+		issuesMock:       IssuesMock{mockCreateLabelError: forcedError},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(prEvent)
+	// #TODO change assertion below to verify forcedError is returned when CreateLabel fails.
+	//assert.EqualError(t, err, forcedError.Error())
+	assert.NoError(t, err)
+	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
+}
+
+func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := filenameTheClaPem + "_orig"
+	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(filenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	setupTestPemFile(t)
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	mockRepositoryCommits := []*github.RepositoryCommit{{Committer: &github.User{}}}
+	forcedError := fmt.Errorf("forced AddLabelsToIssue error")
+	githubImpl = &GitHubMock{
+		pullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
+		issuesMock:       IssuesMock{mockAddLabelsError: forcedError},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(prEvent)
+	assert.EqualError(t, err, forcedError.Error())
+	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
 }
 
 func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
@@ -592,7 +688,7 @@ func TestProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) 
 	assert.Equal(t, "could not read private key: open the-cla.pem: no such file or directory", rec.Body.String())
 }
 
-func xxxTestProcessWebhookGitHubEventPullRequestPayloadActionHandled(t *testing.T) {
+func TestProcessWebhookGitHubEventPullRequestPayloadActionHandled(t *testing.T) {
 	verifyActionHandled(t, "opened")
 	verifyActionHandled(t, "reopened")
 	verifyActionHandled(t, "synchronize")
@@ -604,7 +700,34 @@ func verifyActionHandled(t *testing.T, actionText string) {
 			"X-GitHub-Event": string(webhook.PullRequestEvent),
 		}, github.PullRequestEvent{Action: &actionText})
 
+	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	defer func() {
+		if origGHAppIDEnvVar == "" {
+			assert.NoError(t, os.Unsetenv(envGhAppId))
+		} else {
+			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
+		}
+	}()
+	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := filenameTheClaPem + "_orig"
+	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(filenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	setupTestPemFile(t)
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	githubImpl = &GitHubMock{}
+
 	assert.NoError(t, processWebhook(c))
 	assert.Equal(t, http.StatusAccepted, c.Response().Status)
-	assert.Equal(t, "No action taken for: someIgnoredAction", rec.Body.String())
+	assert.Equal(t, "", rec.Body.String())
 }

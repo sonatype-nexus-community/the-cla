@@ -171,6 +171,7 @@ func processWebhook(c echo.Context) (err error) {
 			return c.String(http.StatusAccepted, fmt.Sprintf("No action taken for: %s", payload.Action))
 		}
 	default:
+		// theoretically can't get here due to hook.Parse() call above (events param), but better safe than sorry
 		c.Logger().Debug("Unhandled payload type encountered")
 
 		return c.String(http.StatusBadRequest, fmt.Sprintf("I do not handle this type of payload, sorry! Type: %T", payload))
@@ -210,7 +211,7 @@ func handlePullRequest(payload webhook.PullRequestPayload) (response string, err
 	// TODO: Once we have stuff in a DB, we can iterate over the list of commits,
 	// find the authors, and check if they have signed the CLA (and the version that is most current)
 	// The following loop will change a loop as a result
-	committers := []string{}
+	var committers []string
 	for _, v := range commits {
 		committer := *v.GetCommitter()
 		committers = append(committers,
