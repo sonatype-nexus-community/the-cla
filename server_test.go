@@ -834,3 +834,96 @@ func TestProcessSignClaSigned(t *testing.T) {
 	jsonUserPrefix := reg.ReplaceAllString(jsonUser, "${1}")
 	assert.True(t, strings.HasPrefix(rec.Body.String(), jsonUserPrefix), "body:\n%s,\nprefix:\n%s", rec.Body.String(), jsonUserPrefix)
 }
+
+func TestMigrateDBErrorPostgresWithInstance(t *testing.T) {
+	dbMock, _ := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+
+	assert.EqualError(t, migrateDB(dbMock), "all expectations were already fulfilled, call to Query 'SELECT CURRENT_DATABASE()' with args [] was not expected in line 0: SELECT CURRENT_DATABASE()")
+}
+
+func TestMigrateDBErrorMigrateUp(t *testing.T) {
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+
+	// mocks for 'postgres.WithInstance()'
+	mock.ExpectQuery("SELECT CURRENT_DATABASE()").
+		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseName"))
+	mock.ExpectQuery("SELECT CURRENT_SCHEMA()").
+		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseSchema"))
+
+	args := []driver.Value{"1014225327"}
+	mock.ExpectExec("SELECT pg_advisory_lock\\(\\$1\\)").
+		WithArgs(args...).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS \"schema_migrations\" \\(version bigint not null primary key, dirty boolean not null\\)").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(args...).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	assert.EqualError(t, migrateDB(dbMock), "try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:1014225327}] was not expected)")
+}
+
+func TestMigrateDB(t *testing.T) {
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+
+	// mocks for 'postgres.WithInstance()'
+	mock.ExpectQuery("SELECT CURRENT_DATABASE()").
+		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseName"))
+	mock.ExpectQuery("SELECT CURRENT_SCHEMA()").
+		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseSchema"))
+
+	args := []driver.Value{"1014225327"}
+	mock.ExpectExec("SELECT pg_advisory_lock\\(\\$1\\)").
+		WithArgs(args...).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS \"schema_migrations\" \\(version bigint not null primary key, dirty boolean not null\\)").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(args...).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	// mocks for the migrate.Up()
+	mock.ExpectExec("SELECT pg_advisory_lock\\(\\$1\\)").
+		WithArgs(args...).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.ExpectQuery("SELECT version, dirty FROM \"schema_migrations\" LIMIT 1").
+		WillReturnRows(sqlmock.NewRows([]string{"version", "dirty"}).FromCSVString("-1,false"))
+
+	mock.ExpectBegin()
+	mock.ExpectExec("TRUNCATE \"schema_migrations\"").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO \"schema_migrations\" \\(version, dirty\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(1, true).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	mock.ExpectExec("BEGIN; CREATE EXTENSION pgcrypto; CREATE TABLE signatures*").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectBegin()
+	mock.ExpectExec("TRUNCATE \"schema_migrations\"").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO \"schema_migrations\" \\(version, dirty\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(1, false).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(args...).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	assert.NoError(t, migrateDB(dbMock))
+}
