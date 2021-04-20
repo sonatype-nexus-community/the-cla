@@ -62,7 +62,7 @@ const buildLocation string = "build"
 
 var db *sql.DB
 
-var claCache map[string]string = make(map[string]string)
+var claCache = make(map[string]string)
 
 func main() {
 	e := echo.New()
@@ -87,7 +87,11 @@ func main() {
 	if err != nil {
 		e.Logger.Error(err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			e.Logger.Error(err)
+		}
+	}()
 
 	err = db.Ping()
 	if err != nil {
@@ -137,10 +141,11 @@ func migrateDB(db *sql.DB) (err error) {
 	return
 }
 
-const GH_WEBHOOK_SECRET string = "GH_WEBHOOK_SECRET"
+const envGhWebhookSecret string = "GH_WEBHOOK_SECRET"
+const msgUnhandledGitHubEventType = "I do not handle this type of event, sorry!"
 
 func processWebhook(c echo.Context) (err error) {
-	ghSecret := os.Getenv(GH_WEBHOOK_SECRET)
+	ghSecret := os.Getenv(envGhWebhookSecret)
 
 	hook, _ := webhook.New(webhook.Options.Secret(ghSecret))
 
@@ -150,7 +155,7 @@ func processWebhook(c echo.Context) (err error) {
 		if err == webhook.ErrEventNotFound {
 			c.Logger().Debug("Unsupported event type encountered", err)
 
-			return c.String(http.StatusBadRequest, "I do not handle this type of event, sorry!")
+			return c.String(http.StatusBadRequest, msgUnhandledGitHubEventType)
 		}
 		return c.String(http.StatusBadRequest, err.Error())
 	}
@@ -170,28 +175,29 @@ func processWebhook(c echo.Context) (err error) {
 			return c.String(http.StatusAccepted, fmt.Sprintf("No action taken for: %s", payload.Action))
 		}
 	default:
+		// theoretically can't get here due to hook.Parse() call above (events param), but better safe than sorry
 		c.Logger().Debug("Unhandled payload type encountered")
 
 		return c.String(http.StatusBadRequest, fmt.Sprintf("I do not handle this type of payload, sorry! Type: %T", payload))
 	}
 }
 
-const THE_CLA_PEM string = "the-cla.pem"
-const GH_APP_ID string = "GH_APP_ID"
+const filenameTheClaPem string = "the-cla.pem"
+const envGhAppId string = "GH_APP_ID"
 
 func handlePullRequest(payload webhook.PullRequestPayload) (response string, err error) {
-	appId, err := strconv.Atoi(os.Getenv(GH_APP_ID))
+	appId, err := strconv.Atoi(os.Getenv(envGhAppId))
 	if err != nil {
 		return
 	}
 	tr := http.DefaultTransport
 
-	itr, err := ghinstallation.NewKeyFromFile(tr, int64(appId), payload.Installation.ID, THE_CLA_PEM)
+	itr, err := ghinstallation.NewKeyFromFile(tr, int64(appId), payload.Installation.ID, filenameTheClaPem)
 	if err != nil {
 		return
 	}
 
-	client := github.NewClient(&http.Client{Transport: itr})
+	client := githubImpl.NewClient(&http.Client{Transport: itr})
 
 	opts := &github.ListOptions{}
 
@@ -208,7 +214,7 @@ func handlePullRequest(payload webhook.PullRequestPayload) (response string, err
 	// TODO: Once we have stuff in a DB, we can iterate over the list of commits,
 	// find the authors, and check if they have signed the CLA (and the version that is most current)
 	// The following loop will change a loop as a result
-	committers := []string{}
+	var committers []string
 	for _, v := range commits {
 		committer := *v.GetCommitter()
 		committers = append(committers,
@@ -246,13 +252,17 @@ func handlePullRequest(payload webhook.PullRequestPayload) (response string, err
 		fmt.Print(err)
 	}
 
-	client.Issues.AddLabelsToIssue(
+	// TODO: check error
+	_, _, err = client.Issues.AddLabelsToIssue(
 		context.Background(),
 		payload.Repository.Owner.Login,
 		payload.Repository.Name,
 		int(payload.Number),
 		[]string{*lbl.Name},
 	)
+	if err != nil {
+		return
+	}
 
 	return
 }
@@ -282,36 +292,121 @@ func processSignCla(c echo.Context) (err error) {
 	return c.JSON(http.StatusCreated, user)
 }
 
+type OAuthInterface interface {
+	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
+	Client(ctx context.Context, t *oauth2.Token) *http.Client
+}
+type OAuthImpl struct {
+	oauthConf *oauth2.Config
+}
+
+//goland:noinspection GoUnusedParameter
+func (oa *OAuthImpl) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	return oa.oauthConf.Exchange(ctx, code)
+}
+func (oa *OAuthImpl) Client(ctx context.Context, t *oauth2.Token) *http.Client {
+	return oa.oauthConf.Client(ctx, t)
+}
+func createOAuth(clientID, clientSecret string, endpoint oauth2.Endpoint) OAuthInterface {
+	oauthConf := &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Scopes:       []string{"user:email"},
+		Endpoint:     endpoint,
+	}
+	oAuthImpl := OAuthImpl{
+		oauthConf: oauthConf,
+	}
+	return &oAuthImpl
+}
+
+var oauthImpl = createOAuth(
+	os.Getenv("REACT_APP_GITHUB_CLIENT_ID"),
+	os.Getenv("GITHUB_CLIENT_SECRET"),
+	githuboauth.Endpoint,
+)
+
+// RepositoriesService handles communication with the repository related methods
+// of the GitHub API.
+// https://godoc.org/github.com/google/go-github/github#RepositoriesService
+type RepositoriesService interface {
+	Get(context.Context, string, string) (*github.Repository, *github.Response, error)
+	// ...
+}
+
+// UsersService handles communication with the user related methods
+// of the GitHub API.
+// https://godoc.org/github.com/google/go-github/github#UsersService
+type UsersService interface {
+	Get(context.Context, string) (*github.User, *github.Response, error)
+	// ...
+}
+
+// PullRequestsService handles communication with the pull request related
+// methods of the GitHub API.
+//
+// GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/pulls/
+type PullRequestsService interface {
+	ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error)
+}
+
+// IssuesService handles communication with the issue related
+// methods of the GitHub API.
+//
+// GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/issues/
+type IssuesService interface {
+	CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (*github.Label, *github.Response, error)
+	AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error)
+}
+
+// GitHubClient manages communication with the GitHub API.
+// https://github.com/google/go-github/issues/113
+type GitHubClient struct {
+	Repositories RepositoriesService
+	Users        UsersService
+	PullRequests PullRequestsService
+	Issues       IssuesService
+}
+
+// GitHubInterface defines all necessary methods.
+// https://godoc.org/github.com/google/go-github/github#NewClient
+type GitHubInterface interface {
+	NewClient(httpClient *http.Client) GitHubClient
+}
+
+// GitHubCreator implements GitHubInterface.
+type GitHubCreator struct{}
+
+// NewClient returns a new GitHubInterface instance.
+func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
+	client := github.NewClient(httpClient)
+	return GitHubClient{
+		Repositories: client.Repositories,
+		Users:        client.Users,
+	}
+}
+
+var githubImpl GitHubInterface = &GitHubCreator{}
+
 func processGitHubOAuth(c echo.Context) (err error) {
 	c.Logger().Debug("Attempting to fetch GitHub crud")
 
 	code := c.QueryParam("code")
 
 	state := c.QueryParam("state")
-
-	clientID := os.Getenv("REACT_APP_GITHUB_CLIENT_ID")
-	clientSecret := os.Getenv("GITHUB_CLIENT_SECRET")
-
-	oauthConf := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       []string{"user:email"},
-		Endpoint:     githuboauth.Endpoint,
-	}
-
 	if state == "" {
 		return
 	}
 
-	token, err := oauthConf.Exchange(context.Background(), code)
+	token, err := oauthImpl.Exchange(context.Background(), code)
 	if err != nil {
 		c.Logger().Error(err)
 		return
 	}
 
-	oauthClient := oauthConf.Client(context.Background(), token)
+	oauthClient := oauthImpl.Client(context.Background(), token)
 
-	client := github.NewClient(oauthClient)
+	client := githubImpl.NewClient(oauthClient)
 
 	user, _, err := client.Users.Get(context.Background(), "")
 	if err != nil {
@@ -322,8 +417,8 @@ func processGitHubOAuth(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, user)
 }
 
-const envClsUrl string = "CLA_URL"
-const msgMissingClaUrl string = "missing " + envClsUrl + " environment variable"
+const envClsUrl = "CLA_URL"
+const msgMissingClaUrl = "missing " + envClsUrl + " environment variable"
 
 func retrieveCLAText(c echo.Context) (err error) {
 	c.Logger().Debug("Attempting to fetch CLA text")
