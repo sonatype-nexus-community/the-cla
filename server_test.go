@@ -850,13 +850,19 @@ func TestMigrateDBErrorMigrateUp(t *testing.T) {
 		_ = dbMock.Close()
 	}()
 
+	setupMockPostgresWithInstance(mock)
+
+	assert.EqualError(t, migrateDB(dbMock), "try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:1014225327}] was not expected)")
+}
+
+func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
 	// mocks for 'postgres.WithInstance()'
 	mock.ExpectQuery("SELECT CURRENT_DATABASE()").
 		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseName"))
 	mock.ExpectQuery("SELECT CURRENT_SCHEMA()").
 		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseSchema"))
 
-	args := []driver.Value{"1014225327"}
+	args = []driver.Value{"1014225327"}
 	mock.ExpectExec("SELECT pg_advisory_lock\\(\\$1\\)").
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
@@ -867,8 +873,7 @@ func TestMigrateDBErrorMigrateUp(t *testing.T) {
 	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-
-	assert.EqualError(t, migrateDB(dbMock), "try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:1014225327}] was not expected)")
+	return
 }
 
 func TestMigrateDB(t *testing.T) {
@@ -877,23 +882,7 @@ func TestMigrateDB(t *testing.T) {
 		_ = dbMock.Close()
 	}()
 
-	// mocks for 'postgres.WithInstance()'
-	mock.ExpectQuery("SELECT CURRENT_DATABASE()").
-		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseName"))
-	mock.ExpectQuery("SELECT CURRENT_SCHEMA()").
-		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseSchema"))
-
-	args := []driver.Value{"1014225327"}
-	mock.ExpectExec("SELECT pg_advisory_lock\\(\\$1\\)").
-		WithArgs(args...).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-
-	mock.ExpectExec("CREATE TABLE IF NOT EXISTS \"schema_migrations\" \\(version bigint not null primary key, dirty boolean not null\\)").
-		WillReturnResult(sqlmock.NewResult(0, 0))
-
-	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
-		WithArgs(args...).
-		WillReturnResult(sqlmock.NewResult(0, 0))
+	args := setupMockPostgresWithInstance(mock)
 
 	// mocks for the migrate.Up()
 	mock.ExpectExec("SELECT pg_advisory_lock\\(\\$1\\)").
