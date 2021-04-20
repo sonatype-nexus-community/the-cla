@@ -87,7 +87,11 @@ func main() {
 	if err != nil {
 		e.Logger.Error(err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			e.Logger.Error(err)
+		}
+	}()
 
 	err = db.Ping()
 	if err != nil {
@@ -193,7 +197,6 @@ func handlePullRequest(payload webhook.PullRequestPayload) (response string, err
 		return
 	}
 
-	//client := github.NewClient(&http.Client{Transport: itr})
 	client := githubImpl.NewClient(&http.Client{Transport: itr})
 
 	opts := &github.ListOptions{}
