@@ -331,7 +331,6 @@ var oauthImpl = createOAuth(
 // https://godoc.org/github.com/google/go-github/github#RepositoriesService
 type RepositoriesService interface {
 	Get(context.Context, string, string) (*github.Repository, *github.Response, error)
-	// ...
 }
 
 // UsersService handles communication with the user related methods
@@ -339,7 +338,6 @@ type RepositoriesService interface {
 // https://godoc.org/github.com/google/go-github/github#UsersService
 type UsersService interface {
 	Get(context.Context, string) (*github.User, *github.Response, error)
-	// ...
 }
 
 // PullRequestsService handles communication with the pull request related

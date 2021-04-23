@@ -57,7 +57,7 @@ resource "aws_security_group" "the_cla_rds_sg" {
       ]
   }
 
-  // allow traffic from external IP, pgAdmin, etc...
+  // allow traffic from external IP, pgAdmin, etc.
   ingress {
     from_port = 5432
     to_port = 5432

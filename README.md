@@ -75,7 +75,7 @@ GH_APP_ID=1337
 
 The import things to update are:
 
-- `CLA_URL`, this is a txt file hosted somewhere that has your CLA text! We externalized this to make it easy to update, etc...
+- `CLA_URL`, this is a txt file hosted somewhere that has your CLA text! We externalized this to make it easy to update, etc.
 - `REACT_APP_COMPANY_NAME`, unless you want it to say `Your company name`, I would update this!
 - `REACT_APP_CLA_APP_NAME`, if you don't like Toy Story references for a CLA bot, feel free to change this to whatever you want the app to say publicly
 - `REACT_APP_GITHUB_CLIENT_ID`, this is the oAuth Client ID you will get from setting up your [GitHub oAuth application](#github-oauth-application)
