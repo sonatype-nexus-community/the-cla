@@ -74,6 +74,12 @@ When you register this new oAuth app, GitHub will generate a `Client ID`.
 Edit your `.env` file, setting the `REACT_APP_GITHUB_CLIENT_ID` variable to your `Client ID`. The id will be a hash-like
 value like `3babf7b58e69bbd53189`. Of course your value will be different.
 
+After completing the steps above, you also need to generate a new `Client secret` for use during authentication.
+Click the `Generate a new client secret` button, and set the resulting value to the `GITHUB_CLIENT_SECRET` variable. The
+id will be a hash-like value like `4a8ca4355977f4d34fe6d55ab8931fea6581024d` (a little longer than the `Client ID`).
+Of course your value will be different. 
+![Generate Client Secret](docs/images/generateClientSecret.png)
+
 #### App environment configuration
 
 Configuration of `the-cla` is handled via a `.env` file in the repo (this is ignored by git by default, so you don't check in secrets):
