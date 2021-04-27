@@ -1,3 +1,5 @@
+<img src="https://github.com/sonatype-nexus-community/the-cla/raw/main/src/Header/theeecla.svg" width="100" alt="TheCla Logo"/>
+
 [![sonatype-nexus-community](https://circleci.com/gh/sonatype-nexus-community/the-cla.svg?style=shield)](https://circleci.com/gh/sonatype-nexus-community/the-cla)
 # THE-CLA
 
@@ -44,7 +46,7 @@ This will be a lot slower, but you can build and run the entire application with
 
 #### GitHub oAuth Application
 
-More to come! This is where we will explain how to setup the oauth app!
+More to come! This is where we will explain how to set up the oauth app!
 
 see: [Creating an OAuth App](https://docs.github.com/en/developers/apps/creating-an-oauth-app) for details on how to
 register `the-cla` as a new oAuth application for your account on GitHub.
@@ -73,15 +75,15 @@ GH_WEBHOOK_SECRET=totallysecret
 GH_APP_ID=1337
 ```
 
-The import things to update are:
+The important things to update are:
 
-- `CLA_URL`, this is a txt file hosted somewhere that has your CLA text! We externalized this to make it easy to update, etc.
-- `REACT_APP_COMPANY_NAME`, unless you want it to say `Your company name`, I would update this!
-- `REACT_APP_CLA_APP_NAME`, if you don't like Toy Story references for a CLA bot, feel free to change this to whatever you want the app to say publicly
-- `REACT_APP_GITHUB_CLIENT_ID`, this is the oAuth Client ID you will get from setting up your [GitHub oAuth application](#github-oauth-application)
-- `GITHUB_CLIENT_SECRET`, this is the oAuth Client Secret you will get from setting up your [GitHub oAuth application](#github-oauth-application)
-- `GH_WEBHOOK_SECRET`, if this isn't filled out, you won't be able to process webhooks! This is the value you set on your GitHub App for an "Optional" secret (authors note, it's not optional)
-- `GH_APP_ID`, this is the generated ID for the GitHub app you setup!
+- `CLA_URL` - this is a txt file hosted somewhere that has your CLA text! We externalized this to make it easy to update, etc.
+- `REACT_APP_COMPANY_NAME` - unless you want it to say `Your company name`, I would update this!
+- `REACT_APP_CLA_APP_NAME` - if you don't like Toy Story references for a CLA bot, feel free to change this to whatever you want the app to say publicly
+- `REACT_APP_GITHUB_CLIENT_ID` - this is the oAuth Client ID you will get from setting up your [GitHub oAuth application](#github-oauth-application)
+- `GITHUB_CLIENT_SECRET` - this is the oAuth Client Secret you will get from setting up your [GitHub oAuth application](#github-oauth-application)
+- `GH_WEBHOOK_SECRET` - if this isn't filled out, you won't be able to process webhooks! This is the value you set on your GitHub App for an "Optional" secret (authors note, it's not optional)
+- `GH_APP_ID` - this is the generated ID for the GitHub app you set up!
 
 Since these are all environment variables, you can just set them that way if you prefer, but it's important these variables are available at build time, as we inject these into the React code, which is honestly pretty sweet!
 
