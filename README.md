@@ -29,6 +29,22 @@ Thanks to Air, there is some amount of "live-reload". To run the project, you ca
 
 Any code changes to golang/react files will cause a rebuild and restart, and will be accessible via the browser with a refresh!
 
+For local development, a good first step is to copy the example `.env.example` file to `.env` and launch a local db
+and `air` like so:
+```shell
+cp .example.env .env
+make run-air
+```
+
+For some fun interactive debugging with [server.go](./server.go), you could spin up the local docker db image, and manually run
+the server in debug more. See the [Makefile](./Makefile) to the latest and greatest commands to cherry-pick.
+```shell
+$ docker run --name the_cla_postgres -p 5432:5432 -e POSTGRES_PASSWORD=the_cla -e POSTGRES_DB=db -d postgres
+34b413c68663b28d722fe2503b869a03bd2808e1facdcbbf5dde8a1ac0f6beb9...
+```
+Then run [server.go](./server.go) in debug mode in your favorite IDE, and enjoy break points activating when you connect to
+endpoints. Wee!
+
 #### Docker
 
 Alternatively, if you just want to play around lightly, you can run the docker commands below. First set up
