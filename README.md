@@ -67,7 +67,7 @@ More to come! This is where we will explain how to set up the oauth app!
 see: [Creating an OAuth App](https://docs.github.com/en/developers/apps/creating-an-oauth-app) for details on how to
 register `the-cla` as a new oAuth application for your account on GitHub.
 
-For local development, you can use an `Authorization callback URL` that points to you locally running app, 
+For local development, you can use an `Authorization callback URL` that points to your locally running app, 
 like: `http://localhost:4200/`
 
 When you register this new oAuth app, GitHub will generate a `Client ID`.
