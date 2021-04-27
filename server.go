@@ -103,6 +103,8 @@ func main() {
 		e.Logger.Error(err)
 	}
 
+	oauthImpl = createOAuth()
+
 	e.Use(middleware.CORS())
 
 	e.GET(pathClaText, retrieveCLAText)
@@ -295,6 +297,8 @@ func processSignCla(c echo.Context) (err error) {
 type OAuthInterface interface {
 	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
 	Client(ctx context.Context, t *oauth2.Token) *http.Client
+	// for testing only
+	getConf() *oauth2.Config
 }
 type OAuthImpl struct {
 	oauthConf *oauth2.Config
@@ -307,12 +311,19 @@ func (oa *OAuthImpl) Exchange(ctx context.Context, code string, opts ...oauth2.A
 func (oa *OAuthImpl) Client(ctx context.Context, t *oauth2.Token) *http.Client {
 	return oa.oauthConf.Client(ctx, t)
 }
-func createOAuth(clientID, clientSecret string, endpoint oauth2.Endpoint) OAuthInterface {
+func (oa *OAuthImpl) getConf() *oauth2.Config {
+	return oa.oauthConf
+}
+
+const envReactAppGithubClientId = "REACT_APP_GITHUB_CLIENT_ID"
+const envGithubClientSecret = "GITHUB_CLIENT_SECRET"
+
+func createOAuth() OAuthInterface {
 	oauthConf := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
+		ClientID:     os.Getenv(envReactAppGithubClientId),
+		ClientSecret: os.Getenv(envGithubClientSecret),
 		Scopes:       []string{"user:email"},
-		Endpoint:     endpoint,
+		Endpoint:     githuboauth.Endpoint,
 	}
 	oAuthImpl := OAuthImpl{
 		oauthConf: oauthConf,
@@ -320,11 +331,7 @@ func createOAuth(clientID, clientSecret string, endpoint oauth2.Endpoint) OAuthI
 	return &oAuthImpl
 }
 
-var oauthImpl = createOAuth(
-	os.Getenv("REACT_APP_GITHUB_CLIENT_ID"),
-	os.Getenv("GITHUB_CLIENT_SECRET"),
-	githuboauth.Endpoint,
-)
+var oauthImpl OAuthInterface
 
 // RepositoriesService handles communication with the repository related methods
 // of the GitHub API.

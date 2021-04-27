@@ -37,6 +37,35 @@ import (
 	"time"
 )
 
+func resetEnvVariable(t *testing.T, variableName, originalValue string) {
+	if originalValue == "" {
+		assert.NoError(t, os.Unsetenv(variableName))
+	} else {
+		assert.NoError(t, os.Setenv(variableName, originalValue))
+	}
+}
+
+func TestCreateOAuth(t *testing.T) {
+	origGHClientId := os.Getenv(envReactAppGithubClientId)
+	defer func() {
+		resetEnvVariable(t, envReactAppGithubClientId, origGHClientId)
+	}()
+	forcedClientId := "myGHClientId"
+	assert.NoError(t, os.Setenv(envReactAppGithubClientId, forcedClientId))
+
+	origGHClientSecret := os.Getenv(envGithubClientSecret)
+	defer func() {
+		resetEnvVariable(t, envGithubClientSecret, origGHClientSecret)
+	}()
+	forcedGHClientSecret := "myGHClientSecret"
+	assert.NoError(t, os.Setenv(envGithubClientSecret, forcedGHClientSecret))
+
+	oauth := createOAuth()
+
+	assert.Equal(t, forcedClientId, oauth.getConf().ClientID)
+	assert.Equal(t, forcedGHClientSecret, oauth.getConf().ClientSecret)
+}
+
 const mockClaText = `mock Cla text.`
 
 func setupMockContextCLA() echo.Context {
@@ -56,11 +85,7 @@ func TestRetrieveCLAText_MissingClaURL(t *testing.T) {
 func TestRetrieveCLAText_BadResponseCode(t *testing.T) {
 	origClaUrl := os.Getenv(envClsUrl)
 	defer func() {
-		if origClaUrl == "" {
-			assert.NoError(t, os.Unsetenv(envClsUrl))
-		} else {
-			assert.NoError(t, os.Setenv(envClsUrl, origClaUrl))
-		}
+		resetEnvVariable(t, envClsUrl, origClaUrl)
 	}()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -80,11 +105,7 @@ func TestRetrieveCLAText(t *testing.T) {
 
 	origClaUrl := os.Getenv(envClsUrl)
 	defer func() {
-		if origClaUrl == "" {
-			assert.NoError(t, os.Unsetenv(envClsUrl))
-		} else {
-			assert.NoError(t, os.Setenv(envClsUrl, origClaUrl))
-		}
+		resetEnvVariable(t, envClsUrl, origClaUrl)
 	}()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -113,11 +134,7 @@ func TestRetrieveCLATextWithBadURL(t *testing.T) {
 
 	origClaUrl := os.Getenv(envClsUrl)
 	defer func() {
-		if origClaUrl == "" {
-			assert.NoError(t, os.Unsetenv(envClsUrl))
-		} else {
-			assert.NoError(t, os.Setenv(envClsUrl, origClaUrl))
-		}
+		resetEnvVariable(t, envClsUrl, origClaUrl)
 	}()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -192,6 +209,10 @@ func (o *OAuthMock) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 //goland:noinspection GoUnusedParameter
 func (o *OAuthMock) Client(ctx context.Context, t *oauth2.Token) *http.Client {
 	return &http.Client{}
+}
+
+func (o *OAuthMock) getConf() *oauth2.Config {
+	return nil
 }
 
 // UsersMock mocks UsersService
@@ -344,11 +365,7 @@ func TestProcessGitHubOAuth_UsersServiceError(t *testing.T) {
 func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "nonNumericGHAppID"))
 
@@ -361,11 +378,7 @@ func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
 func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
 
@@ -421,11 +434,7 @@ func setupTestPemFile(t *testing.T) {
 func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
 
@@ -460,11 +469,7 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
 
@@ -514,11 +519,7 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
 
@@ -555,11 +556,7 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
 
@@ -649,11 +646,7 @@ func TestProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing.T) {
 
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "nonNumericGHAppID"))
 
@@ -671,11 +664,7 @@ func TestProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) 
 
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
 
@@ -707,11 +696,7 @@ func verifyActionHandled(t *testing.T, actionText string) {
 
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
-		if origGHAppIDEnvVar == "" {
-			assert.NoError(t, os.Unsetenv(envGhAppId))
-		} else {
-			assert.NoError(t, os.Setenv(envGhAppId, origGHAppIDEnvVar))
-		}
+		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
 
