@@ -37,7 +37,7 @@ make run-air
 ```
 
 For some fun interactive debugging with [server.go](./server.go), you could spin up the local docker db image, and manually run
-the server in debug more. See the [Makefile](./Makefile) to the latest and greatest commands to cherry-pick.
+the server in debug more. See the [Makefile](./Makefile) for the latest and greatest commands to cherry-pick.
 ```shell
 $ docker run --name the_cla_postgres -p 5432:5432 -e POSTGRES_PASSWORD=the_cla -e POSTGRES_DB=db -d postgres
 34b413c68663b28d722fe2503b869a03bd2808e1facdcbbf5dde8a1ac0f6beb9...
