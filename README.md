@@ -106,6 +106,7 @@ The important things to update are:
 - `GITHUB_CLIENT_SECRET` - this is the oAuth Client Secret you will get from setting up your [GitHub oAuth application](#github-oauth-application)
 - `GH_WEBHOOK_SECRET` - if this isn't filled out, you won't be able to process webhooks! This is the value you set on your GitHub App for an "Optional" secret (authors note, it's not optional)
 - `GH_APP_ID` - this is the generated ID for the GitHub app you set up!
+- `SSL_MODE=disable` - this only exists to enable local development with a local database. Remove this setting for deployment to AWS.
 
 Since these are all environment variables, you can just set them that way if you prefer, but it's important these variables are available at build time, as we inject these into the React code, which is honestly pretty sweet!
 
