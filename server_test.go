@@ -149,7 +149,7 @@ func TestRetrieveCLATextWithBadURL(t *testing.T) {
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClsUrl, "badURLProtocol"+ts.URL+pathClaText))
-	assert.Error(t, retrieveCLAText(setupMockContextCLA()), "unsupported protocol scheme \"badurlprotocolhttp\"")
+	assert.Error(t, retrieveCLAText(setupMockContextCLA()), `unsupported protocol scheme "badurlprotocolhttp"`)
 	assert.Equal(t, callCount, 0)
 }
 
@@ -371,7 +371,7 @@ func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
 
 	prEvent := webhook.PullRequestPayload{}
 	res, err := handlePullRequest(prEvent)
-	assert.EqualError(t, err, "strconv.Atoi: parsing \"nonNumericGHAppID\": invalid syntax")
+	assert.EqualError(t, err, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`)
 	assert.Equal(t, "", res)
 }
 
@@ -652,7 +652,7 @@ func TestProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing.T) {
 
 	assert.NoError(t, processWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
-	assert.Equal(t, "strconv.Atoi: parsing \"nonNumericGHAppID\": invalid syntax", rec.Body.String())
+	assert.Equal(t, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`, rec.Body.String())
 }
 
 func TestProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) {
@@ -829,6 +829,27 @@ func TestMigrateDBErrorPostgresWithInstance(t *testing.T) {
 	assert.EqualError(t, migrateDB(dbMock), "all expectations were already fulfilled, call to Query 'SELECT CURRENT_DATABASE()' with args [] was not expected in line 0: SELECT CURRENT_DATABASE()")
 }
 
+func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
+	// mocks for 'postgres.WithInstance()'
+	mock.ExpectQuery(`SELECT CURRENT_DATABASE()`).
+		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseName"))
+	mock.ExpectQuery(`SELECT CURRENT_SCHEMA()`).
+		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseSchema"))
+
+	args = []driver.Value{"1014225327"}
+	mock.ExpectExec(`SELECT pg_advisory_lock\(\$1\)`).
+		WithArgs(args...).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS "schema_migrations" \(version bigint not null primary key, dirty boolean not null\)`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.ExpectExec(`SELECT pg_advisory_unlock\(\$1\)`).
+		WithArgs(args...).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	return
+}
+
 func TestMigrateDBErrorMigrateUp(t *testing.T) {
 	dbMock, mock := newMockDb(t)
 	defer func() {
@@ -840,27 +861,6 @@ func TestMigrateDBErrorMigrateUp(t *testing.T) {
 	assert.EqualError(t, migrateDB(dbMock), "try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:1014225327}] was not expected)")
 }
 
-func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
-	// mocks for 'postgres.WithInstance()'
-	mock.ExpectQuery("SELECT CURRENT_DATABASE()").
-		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseName"))
-	mock.ExpectQuery("SELECT CURRENT_SCHEMA()").
-		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseSchema"))
-
-	args = []driver.Value{"1014225327"}
-	mock.ExpectExec("SELECT pg_advisory_lock\\(\\$1\\)").
-		WithArgs(args...).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-
-	mock.ExpectExec("CREATE TABLE IF NOT EXISTS \"schema_migrations\" \\(version bigint not null primary key, dirty boolean not null\\)").
-		WillReturnResult(sqlmock.NewResult(0, 0))
-
-	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
-		WithArgs(args...).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	return
-}
-
 func TestMigrateDB(t *testing.T) {
 	dbMock, mock := newMockDb(t)
 	defer func() {
@@ -870,32 +870,32 @@ func TestMigrateDB(t *testing.T) {
 	args := setupMockPostgresWithInstance(mock)
 
 	// mocks for the migrate.Up()
-	mock.ExpectExec("SELECT pg_advisory_lock\\(\\$1\\)").
+	mock.ExpectExec(`SELECT pg_advisory_lock\(\$1\)`).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	mock.ExpectQuery("SELECT version, dirty FROM \"schema_migrations\" LIMIT 1").
+	mock.ExpectQuery(`SELECT version, dirty FROM "schema_migrations" LIMIT 1`).
 		WillReturnRows(sqlmock.NewRows([]string{"version", "dirty"}).FromCSVString("-1,false"))
 
 	mock.ExpectBegin()
-	mock.ExpectExec("TRUNCATE \"schema_migrations\"").
+	mock.ExpectExec(`TRUNCATE "schema_migrations"`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("INSERT INTO \"schema_migrations\" \\(version, dirty\\) VALUES \\(\\$1, \\$2\\)").
+	mock.ExpectExec(`INSERT INTO "schema_migrations" \(version, dirty\) VALUES \(\$1, \$2\)`).
 		WithArgs(1, true).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
-	mock.ExpectExec("BEGIN; CREATE EXTENSION pgcrypto; CREATE TABLE signatures*").
+	mock.ExpectExec(`BEGIN; CREATE EXTENSION pgcrypto; CREATE TABLE signatures*`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
-	mock.ExpectExec("TRUNCATE \"schema_migrations\"").
+	mock.ExpectExec(`TRUNCATE "schema_migrations"`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("INSERT INTO \"schema_migrations\" \\(version, dirty\\) VALUES \\(\\$1, \\$2\\)").
+	mock.ExpectExec(`INSERT INTO "schema_migrations" \(version, dirty\) VALUES \(\$1, \$2\)`).
 		WithArgs(1, false).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
-	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+	mock.ExpectExec(`SELECT pg_advisory_unlock\(\$1\)`).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
