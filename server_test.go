@@ -477,6 +477,9 @@ func convertSqlToDbMockExpect(realSql string) string {
 
 	reRightParen := regexp.MustCompile(`(\))`)
 	sqlMatch = reRightParen.ReplaceAll(sqlMatch, []byte(`\)`))
+
+	reStar := regexp.MustCompile(`(\*)`)
+	sqlMatch = reStar.ReplaceAll(sqlMatch, []byte(`\*`))
 	return string(sqlMatch)
 }
 
