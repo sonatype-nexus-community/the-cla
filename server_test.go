@@ -370,7 +370,7 @@ func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
 	assert.NoError(t, os.Setenv(envGhAppId, "nonNumericGHAppID"))
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(prEvent)
+	res, err := handlePullRequest(nil, prEvent)
 	assert.EqualError(t, err, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`)
 	assert.Equal(t, "", res)
 }
@@ -392,7 +392,7 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	}()
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(prEvent)
+	res, err := handlePullRequest(nil, prEvent)
 	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
 	assert.Equal(t, "", res)
 }
@@ -461,7 +461,7 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	}
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(prEvent)
+	res, err := handlePullRequest(nil, prEvent)
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "", res)
 }
@@ -488,17 +488,19 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	defer func() {
 		githubImpl = origGithubImpl
 	}()
+	login := "john"
+	login2 := "doe"
 	mockRepositoryCommits := []*github.RepositoryCommit{
 		{
 			Committer: &github.User{
-				Login: github.String("john"),
+				Login: github.String(login),
 				Email: github.String("j@gmail.com"),
 			},
 			SHA: github.String("johnSHA"),
 		},
 		{
 			Committer: &github.User{
-				Login: github.String("doe"),
+				Login: github.String(login2),
 				Email: github.String("d@gmail.com"),
 			},
 			SHA: github.String("doeSHA"),
@@ -511,9 +513,35 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	}
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(prEvent)
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	mock.ExpectQuery(`SELECT 
+		LoginName, Email, GivenName, SignedAt, ClaVersion
+		FROM signatures
+		WHERE LoginName = \$1`).
+		WithArgs(login).
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
+	mock.ExpectQuery(`SELECT 
+		LoginName, Email, GivenName, SignedAt, ClaVersion
+		FROM signatures
+		WHERE LoginName = \$1`).
+		WithArgs(login2).
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
+
+	logger := echo.New().Logger
+
+	res, err := handlePullRequest(logger, prEvent)
 	assert.NoError(t, err)
-	assert.Equal(t, "Author: john Email: j@gmail.com Commit SHA: johnSHA,Author: doe Email: d@gmail.com Commit SHA: doeSHA", res)
+	assert.Equal(t, `Author: `+login+` Email: j@gmail.com Commit SHA: johnSHA,Author: `+login2+` Email: d@gmail.com Commit SHA: doeSHA`, res)
 }
 
 func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
@@ -546,7 +574,25 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	}
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(prEvent)
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	mock.ExpectQuery(`SELECT 
+		LoginName, Email, GivenName, SignedAt, ClaVersion
+		FROM signatures
+		WHERE LoginName = \$1`).
+		WithArgs("").
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
+
+	res, err := handlePullRequest(nil, prEvent)
 	// #TODO change assertion below to verify forcedError is returned when CreateLabel fails.
 	//assert.EqualError(t, err, forcedError.Error())
 	assert.NoError(t, err)
@@ -583,7 +629,25 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 	}
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(prEvent)
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	mock.ExpectQuery(`SELECT 
+		LoginName, Email, GivenName, SignedAt, ClaVersion
+		FROM signatures
+		WHERE LoginName = \$1`).
+		WithArgs("").
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
+
+	res, err := handlePullRequest(nil, prEvent)
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
 }
@@ -900,4 +964,110 @@ func TestMigrateDB(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	assert.NoError(t, migrateDB(dbMock))
+}
+
+func setupMockContextProcessWebhook(t *testing.T, user UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
+	// Setup
+	e := echo.New()
+
+	reqBody, err := json.Marshal(user)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, pathWebhook, strings.NewReader(string(reqBody)))
+
+	rec = httptest.NewRecorder()
+	c = e.NewContext(req, rec)
+	return
+}
+
+func TestHasCommitterSignedTheClaQueryError(t *testing.T) {
+	user := UserSignature{}
+	c, rec := setupMockContextProcessWebhook(t, user)
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	forcedError := fmt.Errorf("forced SQL query error")
+	mock.ExpectQuery(`SELECT 
+        	            			LoginName, Email, GivenName, SignedAt, ClaVersion 
+        	            			FROM signatures		
+        	            			WHERE LoginName = \$1`).
+		WillReturnError(forcedError)
+
+	committer := github.User{}
+	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	assert.EqualError(t, err, forcedError.Error())
+	assert.False(t, hasSigned)
+	assert.Equal(t, "", rec.Body.String())
+}
+
+func TestHasCommitterSignedTheClaReadRowError(t *testing.T) {
+	user := UserSignature{}
+	c, rec := setupMockContextProcessWebhook(t, user)
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	loginName := "myLoginName"
+	mock.ExpectQuery(`SELECT 
+        	            			LoginName, Email, GivenName, SignedAt, ClaVersion 
+        	            			FROM signatures		
+        	            			WHERE LoginName = \$1`).
+		WithArgs(loginName).
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}).
+			FromCSVString(`myLoginName,myEmail,myGivenName,INVALID_TIME_VALUE_TO_CAUSE_ROW_READ_ERROR,myClaVersion`))
+
+	committer := github.User{}
+	committer.Login = &loginName
+	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	assert.EqualError(t, err, "sql: Scan error on column index 3, name \"SignedAt\": unsupported Scan, storing driver.Value type []uint8 into type *time.Time")
+	assert.True(t, hasSigned)
+	assert.Equal(t, "", rec.Body.String())
+}
+
+func TestHasCommitterSignedTheClaTrue(t *testing.T) {
+	user := UserSignature{}
+	c, rec := setupMockContextProcessWebhook(t, user)
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	loginName := "myLoginName"
+	rs := sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"})
+	now := time.Now()
+	rs.AddRow(loginName, "myEmail", "myGivenName", now, "myClaVersion")
+	mock.ExpectQuery(`SELECT 
+        	            			LoginName, Email, GivenName, SignedAt, ClaVersion 
+        	            			FROM signatures		
+        	            			WHERE LoginName = \$1`).
+		WithArgs(loginName).
+		WillReturnRows(rs)
+
+	committer := github.User{}
+	committer.Login = &loginName
+	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	assert.NoError(t, err)
+	assert.True(t, hasSigned)
+	assert.Equal(t, "", rec.Body.String())
 }

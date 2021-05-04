@@ -166,7 +166,7 @@ func processWebhook(c echo.Context) (err error) {
 	case webhook.PullRequestPayload:
 		switch payload.Action {
 		case "opened", "reopened", "synchronize":
-			res, err := handlePullRequest(payload)
+			res, err := handlePullRequest(c.Logger(), payload)
 
 			if err != nil {
 				return c.String(http.StatusBadRequest, err.Error())
@@ -187,7 +187,7 @@ func processWebhook(c echo.Context) (err error) {
 const filenameTheClaPem string = "the-cla.pem"
 const envGhAppId string = "GH_APP_ID"
 
-func handlePullRequest(payload webhook.PullRequestPayload) (response string, err error) {
+func handlePullRequest(logger echo.Logger, payload webhook.PullRequestPayload) (response string, err error) {
 	appId, err := strconv.Atoi(os.Getenv(envGhAppId))
 	if err != nil {
 		return
@@ -219,13 +219,20 @@ func handlePullRequest(payload webhook.PullRequestPayload) (response string, err
 	var committers []string
 	for _, v := range commits {
 		committer := *v.GetCommitter()
-		committers = append(committers,
-			fmt.Sprintf(
-				"Author: %s Email: %s Commit SHA: %s",
-				committer.GetLogin(),
-				committer.GetEmail(),
-				v.GetSHA(),
-			))
+		var hasCommitterSigned bool
+		hasCommitterSigned, err = hasCommitterSignedTheCla(logger, committer)
+		if err != nil {
+			return
+		}
+		if !hasCommitterSigned {
+			committers = append(committers,
+				fmt.Sprintf(
+					"Author: %s Email: %s Commit SHA: %s",
+					committer.GetLogin(),
+					committer.GetEmail(),
+					v.GetSHA(),
+				))
+		}
 	}
 
 	// This is basically junk just for testing, can be removed
@@ -267,6 +274,41 @@ func handlePullRequest(payload webhook.PullRequestPayload) (response string, err
 	}
 
 	return
+}
+
+// @TODO for now this ignores the requirement of "the CLA version that is most current"
+// Do we really want to negate all prior signatures when the CLA version is incremented? This means all contributors
+// would have to re-sign. If so, we need to determine what is the most current CLA version (requiredCLAVersion), etc.
+func hasCommitterSignedTheCla(logger echo.Logger, committer github.User) (isSigned bool, err error) {
+	sqlQuery := `SELECT 
+		LoginName, Email, GivenName, SignedAt, ClaVersion 
+		FROM signatures		
+		WHERE LoginName = $1`
+
+	rows, err := db.Query(sqlQuery, committer.GetLogin())
+	if err != nil {
+		return isSigned, err
+	}
+
+	var foundUserSignature UserSignature
+	for rows.Next() {
+		isSigned = true
+		foundUserSignature = UserSignature{}
+		err = rows.Scan(
+			&foundUserSignature.User.Login,
+			&foundUserSignature.User.Email,
+			&foundUserSignature.User.GivenName,
+			&foundUserSignature.TimeSigned,
+			&foundUserSignature.CLAVersion,
+		)
+		if err != nil {
+			return isSigned, err
+		}
+		logger.Debugf("Found user signature for committer: %s, TimeSigned: %s, CLAVersion: %s",
+			foundUserSignature.User.Login, foundUserSignature.TimeSigned, foundUserSignature.CLAVersion)
+	}
+
+	return isSigned, err
 }
 
 func processSignCla(c echo.Context) (err error) {
