@@ -300,9 +300,6 @@ const sqlSelectUserSignature = `SELECT
 		WHERE LoginName = $1
 		AND ClaVersion = $2`
 
-// @TODO for now this ignores the requirement of "the CLA version that is most current"
-// Do we really want to negate all prior signatures when the CLA version is incremented? This means all contributors
-// would have to re-sign. If so, we need to determine what is the most current CLA version (requiredCLAVersion), etc.
 func hasCommitterSignedTheCla(logger echo.Logger, committer github.User) (isSigned bool, err error) {
 	rows, err := db.Query(sqlSelectUserSignature, committer.GetLogin(), getCurrentCLAVersion())
 	if err != nil {
