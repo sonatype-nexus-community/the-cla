@@ -466,6 +466,20 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	assert.Equal(t, "", res)
 }
 
+// convertSqlToDbMockExpect takes a "real" sql string and adds escape characters as needed to produce a
+// regex matching string for use with database mock expect calls.
+func convertSqlToDbMockExpect(realSql string) string {
+	reDollarSign := regexp.MustCompile(`(\$)`)
+	sqlMatch := reDollarSign.ReplaceAll([]byte(realSql), []byte(`\$`))
+
+	reLeftParen := regexp.MustCompile(`(\()`)
+	sqlMatch = reLeftParen.ReplaceAll(sqlMatch, []byte(`\(`))
+
+	reRightParen := regexp.MustCompile(`(\))`)
+	sqlMatch = reRightParen.ReplaceAll(sqlMatch, []byte(`\)`))
+	return string(sqlMatch)
+}
+
 func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
@@ -524,17 +538,12 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	}()
 	db = dbMock
 
-	mock.ExpectQuery(`SELECT 
-		LoginName, Email, GivenName, SignedAt, ClaVersion
-		FROM signatures
-		WHERE LoginName = \$1`).
-		WithArgs(login).
+	requiredClaVersion := getCurrentCLAVersion()
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+		WithArgs(login, requiredClaVersion).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
-	mock.ExpectQuery(`SELECT 
-		LoginName, Email, GivenName, SignedAt, ClaVersion
-		FROM signatures
-		WHERE LoginName = \$1`).
-		WithArgs(login2).
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+		WithArgs(login2, requiredClaVersion).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
 
 	logger := echo.New().Logger
@@ -585,11 +594,8 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	}()
 	db = dbMock
 
-	mock.ExpectQuery(`SELECT 
-		LoginName, Email, GivenName, SignedAt, ClaVersion
-		FROM signatures
-		WHERE LoginName = \$1`).
-		WithArgs("").
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+		WithArgs("", getCurrentCLAVersion()).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
 
 	res, err := handlePullRequest(nil, prEvent)
@@ -640,11 +646,8 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 	}()
 	db = dbMock
 
-	mock.ExpectQuery(`SELECT 
-		LoginName, Email, GivenName, SignedAt, ClaVersion
-		FROM signatures
-		WHERE LoginName = \$1`).
-		WithArgs("").
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+		WithArgs("", getCurrentCLAVersion()).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
 
 	res, err := handlePullRequest(nil, prEvent)
@@ -843,7 +846,7 @@ func TestProcessSignClaDBInsertError(t *testing.T) {
 	db = dbMock
 
 	forcedError := fmt.Errorf("forced SQL insert error")
-	mock.ExpectExec("INSERT INTO signatures.*LoginName, Email, GivenName, SignedAt, ClaVersion.*VALUES .*").
+	mock.ExpectExec(convertSqlToDbMockExpect(sqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnError(forcedError).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
@@ -868,7 +871,7 @@ func TestProcessSignClaSigned(t *testing.T) {
 	db = dbMock
 
 	forcedError := fmt.Errorf("forced SQL insert error")
-	mock.ExpectExec("INSERT INTO signatures.*LoginName, Email, GivenName, SignedAt, ClaVersion.*VALUES .*").
+	mock.ExpectExec(convertSqlToDbMockExpect(sqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
 
@@ -995,10 +998,7 @@ func TestHasCommitterSignedTheClaQueryError(t *testing.T) {
 	db = dbMock
 
 	forcedError := fmt.Errorf("forced SQL query error")
-	mock.ExpectQuery(`SELECT 
-        	            			LoginName, Email, GivenName, SignedAt, ClaVersion 
-        	            			FROM signatures		
-        	            			WHERE LoginName = \$1`).
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
 		WillReturnError(forcedError)
 
 	committer := github.User{}
@@ -1023,11 +1023,8 @@ func TestHasCommitterSignedTheClaReadRowError(t *testing.T) {
 	db = dbMock
 
 	loginName := "myLoginName"
-	mock.ExpectQuery(`SELECT 
-        	            			LoginName, Email, GivenName, SignedAt, ClaVersion 
-        	            			FROM signatures		
-        	            			WHERE LoginName = \$1`).
-		WithArgs(loginName).
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+		WithArgs(loginName, getCurrentCLAVersion()).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}).
 			FromCSVString(`myLoginName,myEmail,myGivenName,INVALID_TIME_VALUE_TO_CAUSE_ROW_READ_ERROR,myClaVersion`))
 
@@ -1057,11 +1054,8 @@ func TestHasCommitterSignedTheClaTrue(t *testing.T) {
 	rs := sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"})
 	now := time.Now()
 	rs.AddRow(loginName, "myEmail", "myGivenName", now, "myClaVersion")
-	mock.ExpectQuery(`SELECT 
-        	            			LoginName, Email, GivenName, SignedAt, ClaVersion 
-        	            			FROM signatures		
-        	            			WHERE LoginName = \$1`).
-		WithArgs(loginName).
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+		WithArgs(loginName, getCurrentCLAVersion()).
 		WillReturnRows(rs)
 
 	committer := github.User{}

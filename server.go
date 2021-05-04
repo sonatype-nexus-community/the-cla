@@ -217,6 +217,7 @@ func handlePullRequest(logger echo.Logger, payload webhook.PullRequestPayload) (
 	// find the authors, and check if they have signed the CLA (and the version that is most current)
 	// The following loop will change a loop as a result
 	var committers []string
+	var usersNeedingToSignCLA []UserSignature
 	for _, v := range commits {
 		committer := *v.GetCommitter()
 		var hasCommitterSigned bool
@@ -232,6 +233,16 @@ func handlePullRequest(logger echo.Logger, payload webhook.PullRequestPayload) (
 					committer.GetEmail(),
 					v.GetSHA(),
 				))
+			usersNeedingToSignCLA = append(usersNeedingToSignCLA,
+				UserSignature{
+					User: User{
+						Login:     committer.GetLogin(),
+						Email:     committer.GetEmail(),
+						GivenName: committer.GetName(),
+					},
+					CLAVersion: getCurrentCLAVersion(),
+					//TimeSigned: time.Time{},
+				})
 		}
 	}
 
@@ -276,16 +287,24 @@ func handlePullRequest(logger echo.Logger, payload webhook.PullRequestPayload) (
 	return
 }
 
+const envReactAppClaVersion = "REACT_APP_CLA_VERSION"
+
+func getCurrentCLAVersion() (requiredClaVersion string) {
+	// TODO should we read this from env var?
+	return os.Getenv(envReactAppClaVersion)
+}
+
+const sqlSelectUserSignature = `SELECT 
+		LoginName, Email, GivenName, SignedAt, ClaVersion 
+		FROM signatures		
+		WHERE LoginName = $1
+		AND ClaVersion = $2`
+
 // @TODO for now this ignores the requirement of "the CLA version that is most current"
 // Do we really want to negate all prior signatures when the CLA version is incremented? This means all contributors
 // would have to re-sign. If so, we need to determine what is the most current CLA version (requiredCLAVersion), etc.
 func hasCommitterSignedTheCla(logger echo.Logger, committer github.User) (isSigned bool, err error) {
-	sqlQuery := `SELECT 
-		LoginName, Email, GivenName, SignedAt, ClaVersion 
-		FROM signatures		
-		WHERE LoginName = $1`
-
-	rows, err := db.Query(sqlQuery, committer.GetLogin())
+	rows, err := db.Query(sqlSelectUserSignature, committer.GetLogin(), getCurrentCLAVersion())
 	if err != nil {
 		return isSigned, err
 	}
@@ -311,6 +330,10 @@ func hasCommitterSignedTheCla(logger echo.Logger, committer github.User) (isSign
 	return isSigned, err
 }
 
+const sqlInsertSignature = `INSERT INTO signatures
+		(LoginName, Email, GivenName, SignedAt, ClaVersion)
+		VALUES ($1, $2, $3, $4, $5)`
+
 func processSignCla(c echo.Context) (err error) {
 	c.Logger().Debug("Attempting to sign the CLA")
 	user := new(UserSignature)
@@ -321,11 +344,7 @@ func processSignCla(c echo.Context) (err error) {
 
 	user.TimeSigned = time.Now()
 
-	sqlStatement := `INSERT INTO signatures
-		(LoginName, Email, GivenName, SignedAt, ClaVersion)
-		VALUES ($1, $2, $3, $4, $5)`
-
-	_, err = db.Exec(sqlStatement, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
+	_, err = db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
 	if err != nil {
 		c.Logger().Error(err)
 
