@@ -483,6 +483,11 @@ func convertSqlToDbMockExpect(realSql string) string {
 	return string(sqlMatch)
 }
 
+func TestConvertSqlToDbMockExpect(t *testing.T) {
+	// sanity check all the cases we've found so far
+	assert.Equal(t, `\$\(\)\*`, convertSqlToDbMockExpect(`$()*`))
+}
+
 func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
