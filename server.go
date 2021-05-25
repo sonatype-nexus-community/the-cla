@@ -253,37 +253,63 @@ func handlePullRequest(logger echo.Logger, payload webhook.PullRequestPayload) (
 	// mark the commit as having failed a check, and apply a label to the PR of not signed
 	// Alternatively if everything is ok, we can remove the label, and say yep! All signed up!
 
-	// TODO: extract to another method for creating a label, so we can see if it exists before we create it
-	strName := ":monocle_face: cla not signed"
-	strColor := "fa3a3a"
-	strDescription := "The CLA is not signed"
-
-	lbl := &github.Label{Name: &strName, Color: &strColor, Description: &strDescription}
-
-	_, _, err = client.Issues.CreateLabel(
-		context.Background(),
-		payload.Repository.Owner.Login,
-		payload.Repository.Name,
-		lbl,
-	)
-
-	// TODO: Garbage error check
-	if err != nil {
-		fmt.Print(err)
-	}
-
-	// TODO: check error
-	_, _, err = client.Issues.AddLabelsToIssue(
-		context.Background(),
-		payload.Repository.Owner.Login,
-		payload.Repository.Name,
-		int(payload.Number),
-		[]string{*lbl.Name},
-	)
+	lblCLANotSigned, err := createRepoLabelIfNotExists(client.Issues, payload.Repository.Owner.Login, payload.Repository.Name)
 	if err != nil {
 		return
 	}
 
+	_, err = addLabelToIssueIfNotExists(client.Issues, payload.Repository.Owner.Login, payload.Repository.Name, int(payload.Number), lblCLANotSigned.GetName())
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+const labelNameCLANotSigned string = ":monocle_face: cla not signed"
+
+func createRepoLabelIfNotExists(issuesService IssuesService, owner, repo string) (desiredLabel *github.Label, err error) {
+	desiredLabel, _, err = issuesService.GetLabel(context.Background(), owner, repo, labelNameCLANotSigned)
+	if err != nil {
+		return
+	}
+	if desiredLabel != nil {
+		return
+	}
+
+	// looks like the label doesn't exist, so create it
+	strName := labelNameCLANotSigned
+	strColor := "fa3a3a"
+	strDescription := "The CLA is not signed"
+	newLabel := &github.Label{Name: &strName, Color: &strColor, Description: &strDescription}
+	desiredLabel, _, err = issuesService.CreateLabel(context.Background(), owner, repo, newLabel)
+	return
+}
+
+func addLabelToIssueIfNotExists(issuesService IssuesService, owner, repo string, issueNumber int, labelName string) (desiredLabel *github.Label, err error) {
+	// check if label is already added to issue
+	opts := github.ListOptions{}
+	issueLabels, _, err := issuesService.ListLabelsByIssue(context.Background(), owner, repo, issueNumber, &opts)
+	if err != nil {
+		return
+	}
+	for _, existingLabel := range issueLabels {
+		if *existingLabel.Name == labelNameCLANotSigned {
+			// label already exists on this issue
+			desiredLabel = existingLabel
+			return
+		}
+	}
+
+	// didn't find the label on this issue, so add the label to this issue
+	// @TODO Verify this does not remove existing labels (any label not in our "add" array)
+	_, _, err = issuesService.AddLabelsToIssue(
+		context.Background(),
+		owner,
+		repo,
+		issueNumber,
+		[]string{labelName},
+	)
 	return
 }
 
@@ -418,6 +444,8 @@ type PullRequestsService interface {
 //
 // GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/issues/
 type IssuesService interface {
+	GetLabel(ctx context.Context, owner string, repo string, name string) (*github.Label, *github.Response, error)
+	ListLabelsByIssue(ctx context.Context, owner string, repo string, issueNumber int, opts *github.ListOptions) ([]*github.Label, *github.Response, error)
 	CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (*github.Label, *github.Response, error)
 	AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error)
 }
@@ -446,6 +474,8 @@ func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
 	return GitHubClient{
 		Repositories: client.Repositories,
 		Users:        client.Users,
+		PullRequests: client.PullRequests,
+		Issues:       client.Issues,
 	}
 }
 

@@ -239,17 +239,33 @@ func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo s
 }
 
 type IssuesMock struct {
-	mockCreateLabel         *github.Label
-	mockCreateLabelResponse *github.Response
-	mockCreateLabelError    error
-	mockAddLabels           []*github.Label
-	mockAddLabelsResponse   *github.Response
-	mockAddLabelsError      error
+	mockGetLabel                  *github.Label
+	mockGetLabelResponse          *github.Response
+	mockGetLabelError             error
+	mockListLabelsByIssue         []*github.Label
+	mockListLabelsByIssueResponse *github.Response
+	mockListLabelsByIssueError    error
+	mockCreateLabel               *github.Label
+	mockCreateLabelResponse       *github.Response
+	mockCreateLabelError          error
+	mockAddLabels                 []*github.Label
+	mockAddLabelsResponse         *github.Response
+	mockAddLabelsError            error
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) GetLabel(ctx context.Context, owner string, repo string, labelName string) (*github.Label, *github.Response, error) {
+	return i.mockGetLabel, i.mockGetLabelResponse, i.mockGetLabelError
 }
 
 //goland:noinspection GoUnusedParameter
 func (i *IssuesMock) CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (*github.Label, *github.Response, error) {
 	return i.mockCreateLabel, i.mockCreateLabelResponse, i.mockCreateLabelError
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) ListLabelsByIssue(ctx context.Context, owner string, repo string, issueNumber int, opts *github.ListOptions) ([]*github.Label, *github.Response, error) {
+	return i.mockListLabelsByIssue, i.mockListLabelsByIssueResponse, i.mockListLabelsByIssueError
 }
 
 //goland:noinspection GoUnusedParameter
@@ -280,12 +296,18 @@ func (g *GitHubMock) NewClient(httpClient *http.Client) GitHubClient {
 			mockResponse:          g.pullRequestsMock.mockResponse,
 		},
 		Issues: &IssuesMock{
-			mockCreateLabel:         g.issuesMock.mockCreateLabel,
-			mockCreateLabelResponse: g.issuesMock.mockCreateLabelResponse,
-			mockCreateLabelError:    g.issuesMock.mockCreateLabelError,
-			mockAddLabels:           g.issuesMock.mockAddLabels,
-			mockAddLabelsResponse:   g.issuesMock.mockAddLabelsResponse,
-			mockAddLabelsError:      g.issuesMock.mockAddLabelsError,
+			mockGetLabel:                  g.issuesMock.mockGetLabel,
+			mockGetLabelResponse:          g.issuesMock.mockGetLabelResponse,
+			mockGetLabelError:             g.issuesMock.mockGetLabelError,
+			mockListLabelsByIssue:         g.issuesMock.mockListLabelsByIssue,
+			mockListLabelsByIssueResponse: g.issuesMock.mockListLabelsByIssueResponse,
+			mockListLabelsByIssueError:    g.issuesMock.mockListLabelsByIssueError,
+			mockCreateLabel:               g.issuesMock.mockCreateLabel,
+			mockCreateLabelResponse:       g.issuesMock.mockCreateLabelResponse,
+			mockCreateLabelError:          g.issuesMock.mockCreateLabelError,
+			mockAddLabels:                 g.issuesMock.mockAddLabels,
+			mockAddLabelsResponse:         g.issuesMock.mockAddLabelsResponse,
+			mockAddLabelsError:            g.issuesMock.mockAddLabelsError,
 		},
 	}
 }
@@ -561,6 +583,143 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	assert.Equal(t, `Author: `+login+` Email: j@gmail.com Commit SHA: johnSHA,Author: `+login2+` Email: d@gmail.com Commit SHA: doeSHA`, res)
 }
 
+func TestCreateLabelIfNotExists_GetLabelError(t *testing.T) {
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced GetLabel error")
+	githubImpl = &GitHubMock{
+		issuesMock: IssuesMock{mockGetLabelError: forcedError},
+	}
+
+	client := githubImpl.NewClient(nil)
+
+	label, err := createRepoLabelIfNotExists(client.Issues, "", "")
+	assert.EqualError(t, err, forcedError.Error())
+	assert.Nil(t, label)
+}
+
+func TestCreateLabelIfNotExists_LabelExists(t *testing.T) {
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	labelName := "we already got one"
+	existingLabel := &github.Label{Name: &labelName}
+	githubImpl = &GitHubMock{
+		issuesMock: IssuesMock{mockGetLabel: existingLabel},
+	}
+
+	client := githubImpl.NewClient(nil)
+
+	label, err := createRepoLabelIfNotExists(client.Issues, "", "")
+	assert.NoError(t, err)
+	assert.Equal(t, label, existingLabel)
+}
+
+func TestCreateLabelIfNotExists_CreateError(t *testing.T) {
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced CreateLabel error")
+	githubImpl = &GitHubMock{issuesMock: IssuesMock{mockCreateLabelError: forcedError}}
+	client := githubImpl.NewClient(nil)
+
+	label, err := createRepoLabelIfNotExists(client.Issues, "", "")
+	assert.EqualError(t, err, forcedError.Error())
+	assert.Nil(t, label)
+}
+
+func TestCreateLabelIfNotExists(t *testing.T) {
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	labelName := labelNameCLANotSigned
+	labelColor := "fa3a3a"
+	labelDescription := "The CLA is not signed"
+	labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
+	githubImpl = &GitHubMock{issuesMock: IssuesMock{mockCreateLabel: labelToCreate}}
+
+	client := githubImpl.NewClient(nil)
+
+	label, err := createRepoLabelIfNotExists(client.Issues, "", "")
+	assert.NoError(t, err)
+	assert.Equal(t, label, labelToCreate)
+}
+
+func TestAddLabelToIssueIfNotExists_ListLabelsByIssueError(t *testing.T) {
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced ListLabelsByIssue error")
+	githubImpl = &GitHubMock{issuesMock: IssuesMock{mockListLabelsByIssueError: forcedError}}
+
+	client := githubImpl.NewClient(nil)
+
+	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
+	assert.EqualError(t, err, forcedError.Error())
+	assert.Nil(t, label)
+}
+
+func TestAddLabelToIssueIfNotExists_LabelAlreadyExists(t *testing.T) {
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	labelName := labelNameCLANotSigned
+	existingLabel := &github.Label{Name: &labelName}
+	existingLabelList := []*github.Label{existingLabel}
+	githubImpl = &GitHubMock{
+		issuesMock: IssuesMock{mockListLabelsByIssue: existingLabelList},
+	}
+
+	client := githubImpl.NewClient(nil)
+
+	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
+	assert.NoError(t, err)
+	assert.Equal(t, existingLabel, label)
+}
+
+func TestAddLabelToIssueIfNotExists_AddLabelError(t *testing.T) {
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced AddLabels error")
+	githubImpl = &GitHubMock{
+		issuesMock: IssuesMock{mockAddLabelsError: forcedError},
+	}
+
+	client := githubImpl.NewClient(nil)
+
+	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
+	assert.EqualError(t, err, forcedError.Error())
+	assert.Nil(t, label)
+}
+
+func TestAddLabelToIssueIfNotExists(t *testing.T) {
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	labelName := labelNameCLANotSigned
+	labelColor := "fa3a3a"
+	labelDescription := "The CLA is not signed"
+	labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
+	githubImpl = &GitHubMock{issuesMock: IssuesMock{mockAddLabels: []*github.Label{labelToCreate}}}
+
+	client := githubImpl.NewClient(nil)
+
+	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
+	assert.NoError(t, err)
+	// real github API returns different result, but does not matter to us now
+	assert.Nil(t, label)
+}
+
 func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(envGhAppId)
 	defer func() {
@@ -607,9 +766,7 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
 
 	res, err := handlePullRequest(nil, prEvent)
-	// #TODO change assertion below to verify forcedError is returned when CreateLabel fails.
-	//assert.EqualError(t, err, forcedError.Error())
-	assert.NoError(t, err)
+	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
 }
 
