@@ -17,7 +17,8 @@ require (
 )
 
 // fix: CVE-2021-21334 in github.com/containerd/containerd v1.4.3
-replace github.com/containerd/containerd => github.com/containerd/containerd v1.4.4
+// fix: CVE-2021-32760 in github.com/containerd/containerd v1.4.4
+replace github.com/containerd/containerd => github.com/containerd/containerd v1.4.8
 
 // fix: CVE-2021-20329 in go.mongodb.org/mongo-driver v1.1.0
 replace go.mongodb.org/mongo-driver => go.mongodb.org/mongo-driver v1.5.1
