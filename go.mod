@@ -25,3 +25,6 @@ replace go.mongodb.org/mongo-driver => go.mongodb.org/mongo-driver v1.5.1
 
 // fix: CVE-2021-3121 in pkg:golang/github.com/gogo/protobuf@1.3.1
 replace github.com/dhui/dktest => github.com/dhui/dktest v0.3.4
+
+// fix: SONATYPE-2019-0702 in github.com/gobuffalo/packr/v2 v2.2.0
+replace github.com/gobuffalo/packr/v2 => github.com/gobuffalo/packr/v2 v2.3.2
