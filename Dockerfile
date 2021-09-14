@@ -27,7 +27,7 @@ RUN make yarn
 FROM golang:1.16.0-alpine AS build
 LABEL stage=builder
 
-RUN apk add --update build-base ca-certificates
+RUN apk add --update build-base ca-certificates git
 
 ENV USER=clauser
 ENV UID=10001 
