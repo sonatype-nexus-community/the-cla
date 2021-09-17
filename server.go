@@ -369,9 +369,10 @@ func processSignCla(c echo.Context) (err error) {
 
 	_, err = db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
 	if err != nil {
-		c.Logger().Error(err)
+		errWithDetails := fmt.Errorf("insert error, user: %+v, error: %+v", user.User, err)
+		c.Logger().Error(errWithDetails)
 
-		return c.String(http.StatusBadRequest, err.Error())
+		return c.String(http.StatusBadRequest, errWithDetails.Error())
 	}
 
 	c.Logger().Debug("CLA signed successfully")
