@@ -716,7 +716,7 @@ func TestAddLabelToIssueIfNotExists(t *testing.T) {
 
 	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
 	assert.NoError(t, err)
-	// real github API returns different result, but does not matter to us now
+	// real gitHub API returns different result, but does not matter to us now
 	assert.Nil(t, label)
 }
 
@@ -1018,7 +1018,7 @@ func TestProcessSignClaDBInsertError(t *testing.T) {
 
 	assert.NoError(t, processSignCla(c), "some db error")
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
-	assert.Equal(t, forcedError.Error(), rec.Body.String())
+	assert.Equal(t, fmt.Sprintf(msgTemplateErrInsertSignatureDuplicate, user.User, forcedError), rec.Body.String())
 }
 
 func TestProcessSignClaSigned(t *testing.T) {
@@ -1101,7 +1101,7 @@ func TestMigrateDB(t *testing.T) {
 
 	args := setupMockPostgresWithInstance(mock)
 
-	// mocks for the migrate.Up()
+	// mocks for migrate.Up()
 	mock.ExpectExec(`SELECT pg_advisory_lock\(\$1\)`).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))

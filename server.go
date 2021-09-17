@@ -357,6 +357,8 @@ const sqlInsertSignature = `INSERT INTO signatures
 		(LoginName, Email, GivenName, SignedAt, ClaVersion)
 		VALUES ($1, $2, $3, $4, $5)`
 
+const msgTemplateErrInsertSignatureDuplicate = "insert error. did user previously sign the cla? user: %+v, error: %+v"
+
 func processSignCla(c echo.Context) (err error) {
 	c.Logger().Debug("Attempting to sign the CLA")
 	user := new(UserSignature)
@@ -369,7 +371,7 @@ func processSignCla(c echo.Context) (err error) {
 
 	_, err = db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
 	if err != nil {
-		errWithDetails := fmt.Errorf("insert error, user: %+v, error: %+v", user.User, err)
+		errWithDetails := fmt.Errorf(msgTemplateErrInsertSignatureDuplicate, user.User, err)
 		c.Logger().Error(errWithDetails)
 
 		return c.String(http.StatusBadRequest, errWithDetails.Error())
