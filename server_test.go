@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/google/go-github/v33/github"
+	"github.com/google/go-github/v39/github"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
@@ -1068,15 +1068,21 @@ func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
 	mock.ExpectQuery(`SELECT CURRENT_SCHEMA()`).
 		WillReturnRows(sqlmock.NewRows([]string{"col1"}).FromCSVString("theDatabaseSchema"))
 
-	args = []driver.Value{"1014225327"}
-	mock.ExpectExec(`SELECT pg_advisory_lock\(\$1\)`).
+	//args = []driver.Value{"1014225327"}
+	args = []driver.Value{"1560208929"}
+	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_lock($1)`)).
 		WithArgs(args...).
+		//WithArgs(sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS "schema_migrations" \(version bigint not null primary key, dirty boolean not null\)`).
+	mock.ExpectQuery(convertSqlToDbMockExpect(`SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2 LIMIT 1`)).
+		WithArgs("theDatabaseSchema", "schema_migrations").
+		WillReturnRows(sqlmock.NewRows([]string{"theCount"}).AddRow(0))
+
+	mock.ExpectExec(convertSqlToDbMockExpect(`CREATE TABLE IF NOT EXISTS "theDatabaseSchema"."schema_migrations" (version bigint not null primary key, dirty boolean not null)`)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	mock.ExpectExec(`SELECT pg_advisory_unlock\(\$1\)`).
+	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_unlock($1)`)).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	return
@@ -1088,9 +1094,9 @@ func TestMigrateDBErrorMigrateUp(t *testing.T) {
 		_ = dbMock.Close()
 	}()
 
-	setupMockPostgresWithInstance(mock)
+	args := setupMockPostgresWithInstance(mock)
 
-	assert.EqualError(t, migrateDB(dbMock), "try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:1014225327}] was not expected)")
+	assert.EqualError(t, migrateDB(dbMock), fmt.Sprintf("try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:%s}] was not expected)", args[0]))
 }
 
 func TestMigrateDB(t *testing.T) {
@@ -1102,17 +1108,17 @@ func TestMigrateDB(t *testing.T) {
 	args := setupMockPostgresWithInstance(mock)
 
 	// mocks for migrate.Up()
-	mock.ExpectExec(`SELECT pg_advisory_lock\(\$1\)`).
+	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_lock($1)`)).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	mock.ExpectQuery(`SELECT version, dirty FROM "schema_migrations" LIMIT 1`).
+	mock.ExpectQuery(`SELECT version, dirty FROM "theDatabaseSchema"."schema_migrations" LIMIT 1`).
 		WillReturnRows(sqlmock.NewRows([]string{"version", "dirty"}).FromCSVString("-1,false"))
 
 	mock.ExpectBegin()
-	mock.ExpectExec(`TRUNCATE "schema_migrations"`).
+	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`INSERT INTO "schema_migrations" \(version, dirty\) VALUES \(\$1, \$2\)`).
+	mock.ExpectExec(convertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
 		WithArgs(1, true).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
@@ -1120,14 +1126,14 @@ func TestMigrateDB(t *testing.T) {
 	mock.ExpectExec(`BEGIN; CREATE EXTENSION pgcrypto; CREATE TABLE signatures*`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
-	mock.ExpectExec(`TRUNCATE "schema_migrations"`).
+	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`INSERT INTO "schema_migrations" \(version, dirty\) VALUES \(\$1, \$2\)`).
+	mock.ExpectExec(convertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
 		WithArgs(1, false).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
-	mock.ExpectExec(`SELECT pg_advisory_unlock\(\$1\)`).
+	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_unlock($1)`)).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
