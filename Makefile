@@ -3,6 +3,8 @@ GOCMD=go
 GOBUILD=$(GOCMD) build
 GOTEST=$(GOCMD) test
 
+AIRCMD=~/go/bin/air
+
 all: test
 
 docker:
@@ -26,7 +28,7 @@ air: yarn
 
 run-air:
 	docker run --name the_cla_postgres -p 5432:5432 -e POSTGRES_PASSWORD=the_cla -e POSTGRES_DB=db -d postgres
-	air -c .air.toml && docker stop the_cla_postgres && docker rm the_cla_postgres
+	$(AIRCMD) -c .air.toml && docker stop the_cla_postgres && docker rm the_cla_postgres
 
 test: build
 	$(GOTEST) -v ./... 2>&1

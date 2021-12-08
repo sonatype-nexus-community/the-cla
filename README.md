@@ -21,7 +21,10 @@ To install air:
 
 You can run:
 
-- `go get -u github.com/cosmtrek/air` in a folder outside this project (so it is not added as a dependency)
+- `go get -u github.com/cosmtrek/air` in a folder outside this project (so it is not added as a dependency).
+
+  The `air` binary will be located in your `~/go/bin` folder, which may need to added to your commands and/or path.
+  The [AIRCMD](Makefile#L6) setting in the Makefile may need to be adjusted if a different location is used.
 
 ### Running/Developing
 
