@@ -1154,7 +1154,7 @@ func setupMockContextProcessWebhook(t *testing.T, user UserSignature) (c echo.Co
 	return
 }
 
-func TestHasCommitterSignedTheClaQueryError(t *testing.T) {
+func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
 	user := UserSignature{}
 	c, rec := setupMockContextProcessWebhook(t, user)
 
@@ -1173,13 +1173,13 @@ func TestHasCommitterSignedTheClaQueryError(t *testing.T) {
 		WillReturnError(forcedError)
 
 	committer := github.User{}
-	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	hasSigned, err := hasAuthorSignedTheCla(c.Logger(), committer)
 	assert.EqualError(t, err, forcedError.Error())
 	assert.False(t, hasSigned)
 	assert.Equal(t, "", rec.Body.String())
 }
 
-func TestHasCommitterSignedTheClaReadRowError(t *testing.T) {
+func TestHasAuthorSignedTheClaReadRowError(t *testing.T) {
 	user := UserSignature{}
 	c, rec := setupMockContextProcessWebhook(t, user)
 
@@ -1201,13 +1201,13 @@ func TestHasCommitterSignedTheClaReadRowError(t *testing.T) {
 
 	committer := github.User{}
 	committer.Login = &loginName
-	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	hasSigned, err := hasAuthorSignedTheCla(c.Logger(), committer)
 	assert.EqualError(t, err, "sql: Scan error on column index 3, name \"SignedAt\": unsupported Scan, storing driver.Value type []uint8 into type *time.Time")
 	assert.True(t, hasSigned)
 	assert.Equal(t, "", rec.Body.String())
 }
 
-func TestHasCommitterSignedTheClaTrue(t *testing.T) {
+func TestHasAuthorSignedTheClaTrue(t *testing.T) {
 	user := UserSignature{}
 	c, rec := setupMockContextProcessWebhook(t, user)
 
@@ -1231,7 +1231,7 @@ func TestHasCommitterSignedTheClaTrue(t *testing.T) {
 
 	committer := github.User{}
 	committer.Login = &loginName
-	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	hasSigned, err := hasAuthorSignedTheCla(c.Logger(), committer)
 	assert.NoError(t, err)
 	assert.True(t, hasSigned)
 	assert.Equal(t, "", rec.Body.String())
