@@ -37,3 +37,9 @@ replace github.com/dhui/dktest => github.com/dhui/dktest v0.3.4
 
 // fix: CVE-2020-26160 in github.com/dgrijalva/jwt-go v3.2.0
 //replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt/v4 v4.1.0
+
+// fix: CVE-2020-8911 in github.com/aws/aws-sdk-go v1.17.7
+replace github.com/aws/aws-sdk-go => github.com/aws/aws-sdk-go v1.33.21
+
+// fix: CVE-2021-41190 in github.com/opencontainers/image-spec v1.0.1
+replace github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2
