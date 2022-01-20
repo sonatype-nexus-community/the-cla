@@ -101,6 +101,8 @@ func main() {
 	err = migrateDB(db)
 	if err != nil {
 		e.Logger.Error(err)
+	} else {
+		e.Logger.Info("DB migration has occurred")
 	}
 
 	oauthImpl = createOAuth()
@@ -218,10 +220,14 @@ func handlePullRequest(logger echo.Logger, payload webhook.PullRequestPayload) (
 	// The following loop will change a loop as a result
 	var committers []string
 	var usersNeedingToSignCLA []UserSignature
+
 	for _, v := range commits {
-		committer := *v.GetCommitter()
+		// It is important to use GetAuthor() instead of v.Commit.GetCommitter() because the committer can be the GH webflow user, where as the author is
+		// the canonical author of the commit
+		author := *v.GetAuthor()
+
 		var hasCommitterSigned bool
-		hasCommitterSigned, err = hasCommitterSignedTheCla(logger, committer)
+		hasCommitterSigned, err = hasAuthorSignedTheCla(logger, author)
 		if err != nil {
 			return
 		}
@@ -229,16 +235,16 @@ func handlePullRequest(logger echo.Logger, payload webhook.PullRequestPayload) (
 			committers = append(committers,
 				fmt.Sprintf(
 					"Author: %s Email: %s Commit SHA: %s",
-					committer.GetLogin(),
-					committer.GetEmail(),
+					author.GetLogin(),
+					author.GetEmail(),
 					v.GetSHA(),
 				))
 			usersNeedingToSignCLA = append(usersNeedingToSignCLA,
 				UserSignature{
 					User: User{
-						Login:     committer.GetLogin(),
-						Email:     committer.GetEmail(),
-						GivenName: committer.GetName(),
+						Login:     author.GetLogin(),
+						Email:     author.GetEmail(),
+						GivenName: author.GetName(),
 					},
 					CLAVersion: getCurrentCLAVersion(),
 					//TimeSigned: time.Time{},
@@ -326,8 +332,11 @@ const sqlSelectUserSignature = `SELECT
 		WHERE LoginName = $1
 		AND ClaVersion = $2`
 
-func hasCommitterSignedTheCla(logger echo.Logger, committer github.User) (isSigned bool, err error) {
-	rows, err := db.Query(sqlSelectUserSignature, committer.GetLogin(), getCurrentCLAVersion())
+func hasAuthorSignedTheCla(logger echo.Logger, author github.User) (isSigned bool, err error) {
+	logger.Debug("Checking to see if author signed the CLA")
+	logger.Debug(author.GetLogin())
+
+	rows, err := db.Query(sqlSelectUserSignature, author.GetLogin(), getCurrentCLAVersion())
 	if err != nil {
 		return isSigned, err
 	}
