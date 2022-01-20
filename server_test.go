@@ -392,7 +392,7 @@ func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
 	assert.NoError(t, os.Setenv(envGhAppId, "nonNumericGHAppID"))
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(nil, prEvent)
+	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
 	assert.EqualError(t, err, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`)
 	assert.Equal(t, "", res)
 }
@@ -414,7 +414,7 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	}()
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(nil, prEvent)
+	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
 	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
 	assert.Equal(t, "", res)
 }
@@ -483,7 +483,7 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	}
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(nil, prEvent)
+	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "", res)
 }
@@ -536,14 +536,14 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	login2 := "doe"
 	mockRepositoryCommits := []*github.RepositoryCommit{
 		{
-			Committer: &github.User{
+			Author: &github.User{
 				Login: github.String(login),
 				Email: github.String("j@gmail.com"),
 			},
 			SHA: github.String("johnSHA"),
 		},
 		{
-			Committer: &github.User{
+			Author: &github.User{
 				Login: github.String(login2),
 				Email: github.String("d@gmail.com"),
 			},
@@ -742,7 +742,7 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	defer func() {
 		githubImpl = origGithubImpl
 	}()
-	mockRepositoryCommits := []*github.RepositoryCommit{{Committer: &github.User{}}}
+	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{}}}
 	forcedError := fmt.Errorf("forced CreateLabel error")
 	githubImpl = &GitHubMock{
 		pullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
@@ -765,9 +765,14 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 		WithArgs("", getCurrentCLAVersion()).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
 
-	res, err := handlePullRequest(nil, prEvent)
+	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
+}
+
+func setupMockContextLogger() echo.Logger {
+	logger := echo.New().Logger
+	return logger
 }
 
 func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
@@ -792,7 +797,7 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 	defer func() {
 		githubImpl = origGithubImpl
 	}()
-	mockRepositoryCommits := []*github.RepositoryCommit{{Committer: &github.User{}}}
+	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{}}}
 	forcedError := fmt.Errorf("forced AddLabelsToIssue error")
 	githubImpl = &GitHubMock{
 		pullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
@@ -815,7 +820,7 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 		WithArgs("", getCurrentCLAVersion()).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
 
-	res, err := handlePullRequest(nil, prEvent)
+	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
 }
