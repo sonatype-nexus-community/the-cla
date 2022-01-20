@@ -48,6 +48,11 @@ $ docker run --name the_cla_postgres -p 5432:5432 -e POSTGRES_PASSWORD=the_cla -
 Then run [server.go](./server.go) in debug mode in your favorite IDE, and enjoy break points activating when you connect to
 endpoints. Wee!
 
+For frontend work (with a previously manually launched database), this command is helpful for development:
+```shell
+make run-air-alone
+```
+
 #### Docker
 
 Alternatively, if you just want to play around lightly, you can run the docker commands below. First set up
