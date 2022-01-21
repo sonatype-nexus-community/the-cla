@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/google/go-github/v39/github"
+	"github.com/google/go-github/v42/github"
 	"github.com/labstack/echo/v4"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"github.com/stretchr/testify/assert"
