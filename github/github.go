@@ -19,7 +19,6 @@ package github
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -103,7 +102,7 @@ func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
 var githubImpl GitHubInterface = &GitHubCreator{}
 
 func HandlePullRequest(logger echo.Logger,
-	postgres *db.ClaDB,
+	postgres db.IClaDB,
 	payload webhook.PullRequestPayload,
 	appId int,
 	claVersion string) (string, error) {
@@ -318,41 +317,4 @@ func _addLabelToIssueIfNotExists(logger echo.Logger, issuesService IssuesService
 		[]string{labelName},
 	)
 	return
-}
-
-const sqlSelectUserSignature = `SELECT 
-		LoginName, Email, GivenName, SignedAt, ClaVersion 
-		FROM signatures		
-		WHERE LoginName = $1
-		AND ClaVersion = $2`
-
-func hasAuthorSignedTheCla(logger echo.Logger, db *sql.DB, login, claVersion string) (bool, error) {
-	logger.Debug("Checking to see if author signed the CLA")
-	logger.Debug(login)
-
-	rows, err := db.Query(sqlSelectUserSignature, login, claVersion)
-	if err != nil {
-		return false, err
-	}
-
-	var foundUserSignature types.UserSignature
-	isSigned := false
-	for rows.Next() {
-		isSigned = true
-		foundUserSignature = types.UserSignature{}
-		err = rows.Scan(
-			&foundUserSignature.User.Login,
-			&foundUserSignature.User.Email,
-			&foundUserSignature.User.GivenName,
-			&foundUserSignature.TimeSigned,
-			&foundUserSignature.CLAVersion,
-		)
-		if err != nil {
-			return isSigned, err
-		}
-		logger.Debugf("Found user signature for author: %s, TimeSigned: %s, CLAVersion: %s",
-			foundUserSignature.User.Login, foundUserSignature.TimeSigned, foundUserSignature.CLAVersion)
-	}
-
-	return isSigned, nil
 }

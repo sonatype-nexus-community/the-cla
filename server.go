@@ -52,7 +52,7 @@ const envGithubClientSecret string = "GITHUB_CLIENT_SECRET"
 
 const msgUnhandledGitHubEventType = "I do not handle this type of event, sorry!"
 
-var postgresDB *db.ClaDB
+var postgresDB db.IClaDB
 
 var claCache = make(map[string]string)
 
