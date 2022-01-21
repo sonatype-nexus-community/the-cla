@@ -4,15 +4,17 @@ go 1.16
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/bradleyfalzon/ghinstallation/v2 v2.0.3
-	github.com/golang-migrate/migrate/v4 v4.15.0
-	github.com/google/go-github/v39 v39.1.0
+	github.com/bradleyfalzon/ghinstallation/v2 v2.0.4
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/golang-migrate/migrate/v4 v4.15.1
+	github.com/google/go-github/v42 v42.0.0
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/joho/godotenv v1.4.0
-	github.com/labstack/echo/v4 v4.6.1
+	github.com/labstack/echo/v4 v4.6.3
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
+	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 )
 
