@@ -28,8 +28,6 @@ import (
 	githuboauth "golang.org/x/oauth2/github"
 )
 
-var githubImpl ourGithub.GitHubInterface = &ourGithub.GitHubCreator{}
-
 type OAuthInterface interface {
 	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
 	Client(ctx context.Context, t *oauth2.Token) *http.Client
@@ -62,9 +60,9 @@ func (oa *OAuthImpl) GetOAuthUser(logger echo.Logger, code string) (user *github
 
 	oauthClient := oa.Client(context.Background(), token)
 
-	client := githubImpl.NewClient(oauthClient)
+	client := ourGithub.NewOAuthClient(oauthClient, logger)
 
-	user, _, err = client.Users.Get(context.Background(), "")
+	user, _, err = client.GetUsers(context.Background(), "")
 	if err != nil {
 		logger.Error(err)
 		return
@@ -88,5 +86,3 @@ func CreateOAuth(clientID, clientSecret string) OAuthInterface {
 	}
 	return &oAuthImpl
 }
-
-var oauthImpl OAuthInterface

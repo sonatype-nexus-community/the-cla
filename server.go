@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
 	"github.com/sonatype-nexus-community/the-cla/oauth"
@@ -47,8 +48,11 @@ const buildLocation string = "build"
 const envGhAppId string = "GH_APP_ID"
 const envReactAppClaVersion string = "REACT_APP_CLA_VERSION"
 const envGhWebhookSecret string = "GH_WEBHOOK_SECRET"
+
 const envReactAppGithubClientId string = "REACT_APP_GITHUB_CLIENT_ID"
 const envGithubClientSecret string = "GITHUB_CLIENT_SECRET"
+
+const filenameTheClaPem string = "the-cla.pem"
 
 const msgUnhandledGitHubEventType = "I do not handle this type of event, sorry!"
 
@@ -142,7 +146,47 @@ func handleProcessWebhook(c echo.Context) (err error) {
 	case webhook.PullRequestPayload:
 		switch payload.Action {
 		case "opened", "reopened", "synchronize":
-			res, err := ourGithub.HandlePullRequest(c.Logger(), postgresDB, payload, appId, getCurrentCLAVersion())
+			// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as installInfo
+			atr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(appId), filenameTheClaPem)
+			if err != nil {
+				c.Logger().Error(err)
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+
+			ghJWTClient := ourGithub.NewJWTClient(&http.Client{Transport: atr}, c.Logger(), int(payload.Installation.ID))
+
+			installInfo, err := ghJWTClient.GetInstallInfo()
+			if err != nil {
+				c.Logger().Error(err)
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+
+			// See if we can move this to a longer lived thing, maybe? It's going to recreate the transport and http Client each time we get a payload
+			c.Logger().Debugf("Transport setup, using appID: %d and installation ID: %d", appId, payload.Installation.ID)
+
+			itr, err := ghinstallation.NewKeyFromFile(
+				http.DefaultTransport,
+				int64(appId),
+				payload.Installation.ID,
+				filenameTheClaPem,
+			)
+			if err != nil {
+				c.Logger().Error(err)
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+
+			ghClient := ourGithub.NewClient(
+				&http.Client{Transport: itr},
+				c.Logger(),
+				postgresDB,
+				ourGithub.GitHubClientOptions{
+					AppID:      appId,
+					CLAVersion: getCurrentCLAVersion(),
+					BotName:    *installInfo.AppSlug,
+				},
+			)
+
+			res, err := ghClient.HandlePullRequest(payload)
 
 			if err != nil {
 				c.Logger().Error(err)
