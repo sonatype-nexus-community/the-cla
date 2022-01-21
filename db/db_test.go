@@ -3,16 +3,14 @@ package db
 import (
 	"database/sql"
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"go.uber.org/zap/zaptest"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v42/github"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -56,69 +54,51 @@ func TestConvertSqlToDbMockExpect(t *testing.T) {
 	assert.Equal(t, `\$\(\)\*`, convertSqlToDbMockExpect(`$()*`))
 }
 
-func TestProcessSignClaDBInsertError(t *testing.T) {
+func setupMockDB(t *testing.T) (mock sqlmock.Sqlmock, mockDbIf *ClaDB, closeDbFunc func()) {
+	db, mock := newMockDb(t)
+	closeDbFunc = func() {
+		_ = db.Close()
+	}
+	mockDbIf = New(db, zaptest.NewLogger(t))
+	return
+}
+
+func TestInsertSignatureError(t *testing.T) {
+	mock, db, closeDbFunc := setupMockDB(t)
+	defer closeDbFunc()
+
 	user := types.UserSignature{}
-	c, rec := setupMockContextSignCla(t, map[string]string{"Content-Type": "application/json"}, user)
-
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
-
 	forcedError := fmt.Errorf("forced SQL insert error")
 	mock.ExpectExec(convertSqlToDbMockExpect(sqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnError(forcedError).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
 
-	assert.NoError(t, processSignCla(c), "some db error")
-	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
-	assert.Equal(t, fmt.Sprintf(msgTemplateErrInsertSignatureDuplicate, user.User, forcedError), rec.Body.String())
+	assert.Error(t, db.InsertSignature(&user), forcedError.Error())
 }
 
 func TestProcessSignClaSigned(t *testing.T) {
-	user := types.UserSignature{}
-	c, rec := setupMockContextSignCla(t, map[string]string{"Content-Type": "application/json"}, user)
+	mock, db, closeDbFunc := setupMockDB(t)
+	defer closeDbFunc()
 
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
+	user := types.UserSignature{
+		User:       types.User{Login: "myUserId", Email: "myEmail", GivenName: "myGivenName"},
+		CLAVersion: mockCLAVersion,
+	}
 
 	forcedError := fmt.Errorf("forced SQL insert error")
 	mock.ExpectExec(convertSqlToDbMockExpect(sqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
 
-	assert.NoError(t, processSignCla(c), "some db error")
-	assert.Equal(t, http.StatusCreated, c.Response().Status)
-
-	// ignore/truncate the TimeSigned suffix
-	jsonUserBytes, err := json.Marshal(user)
-	assert.NoError(t, err)
-	jsonUser := string(jsonUserBytes)
-	reg := regexp.MustCompile(`(.*)"TimeSigned.*`)
-	jsonUserPrefix := reg.ReplaceAllString(jsonUser, "${1}")
-	assert.True(t, strings.HasPrefix(rec.Body.String(), jsonUserPrefix), "body:\n%s,\nprefix:\n%s", rec.Body.String(), jsonUserPrefix)
+	assert.NoError(t, db.InsertSignature(&user))
 }
 
 func TestMigrateDBErrorPostgresWithInstance(t *testing.T) {
-	dbMock, _ := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
+	_, db, closeDbFunc := setupMockDB(t)
+	defer closeDbFunc()
 
-	assert.EqualError(t, migrateDB(dbMock), "all expectations were already fulfilled, call to Query 'SELECT CURRENT_DATABASE()' with args [] was not expected in line 0: SELECT CURRENT_DATABASE()")
+	assert.EqualError(t, db.MigrateDB(), "all expectations were already fulfilled, call to Query 'SELECT CURRENT_DATABASE()' with args [] was not expected in line 0: SELECT CURRENT_DATABASE()")
 }
 
 func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
@@ -149,21 +129,17 @@ func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
 }
 
 func TestMigrateDBErrorMigrateUp(t *testing.T) {
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
+	mock, db, closeDbFunc := setupMockDB(t)
+	defer closeDbFunc()
 
 	args := setupMockPostgresWithInstance(mock)
 
-	assert.EqualError(t, migrateDB(dbMock), fmt.Sprintf("try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:%s}] was not expected)", args[0]))
+	assert.EqualError(t, db.MigrateDB(), fmt.Sprintf("try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:%s}] was not expected)", args[0]))
 }
 
 func TestMigrateDB(t *testing.T) {
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
+	mock, db, closeDbFunc := setupMockDB(t)
+	defer closeDbFunc()
 
 	args := setupMockPostgresWithInstance(mock)
 
@@ -197,88 +173,54 @@ func TestMigrateDB(t *testing.T) {
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	assert.NoError(t, migrateDB(dbMock))
+	assert.NoError(t, db.MigrateDB())
 }
 
-func TestHasCommitterSignedTheClaQueryError(t *testing.T) {
-	user := types.UserSignature{}
-	c, rec := setupMockContextProcessWebhook(t, user)
-
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
+func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
+	mock, db, closeDbFunc := setupMockDB(t)
+	defer closeDbFunc()
 
 	forcedError := fmt.Errorf("forced SQL query error")
 	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
 		WillReturnError(forcedError)
 
-	committer := github.User{}
-	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	hasSigned, err := db.HasAuthorSignedTheCla("", "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.False(t, hasSigned)
-	assert.Equal(t, "", rec.Body.String())
 }
 
-func TestHasCommitterSignedTheClaReadRowError(t *testing.T) {
-	user := types.UserSignature{}
-	c, rec := setupMockContextProcessWebhook(t, user)
+const mockCLAVersion = "myClaVersion"
 
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
+func TestHasAuthorSignedTheClaReadRowError(t *testing.T) {
+	mock, db, closeDbFunc := setupMockDB(t)
+	defer closeDbFunc()
 
 	loginName := "myLoginName"
 	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
-		WithArgs(loginName, getCurrentCLAVersion()).
+		WithArgs(loginName, mockCLAVersion).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}).
-			FromCSVString(`myLoginName,myEmail,myGivenName,INVALID_TIME_VALUE_TO_CAUSE_ROW_READ_ERROR,myClaVersion`))
+			FromCSVString(`myLoginName,myEmail,myGivenName,INVALID_TIME_VALUE_TO_CAUSE_ROW_READ_ERROR,` + mockCLAVersion))
 
-	committer := github.User{}
-	committer.Login = &loginName
-	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	hasSigned, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
 	assert.EqualError(t, err, "sql: Scan error on column index 3, name \"SignedAt\": unsupported Scan, storing driver.Value type []uint8 into type *time.Time")
 	assert.True(t, hasSigned)
-	assert.Equal(t, "", rec.Body.String())
 }
 
-func TestHasCommitterSignedTheClaTrue(t *testing.T) {
-	user := types.UserSignature{}
-	c, rec := setupMockContextProcessWebhook(t, user)
-
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
+func TestHasAuthorSignedTheClaTrue(t *testing.T) {
+	mock, db, closeDbFunc := setupMockDB(t)
+	defer closeDbFunc()
 
 	loginName := "myLoginName"
 	rs := sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"})
 	now := time.Now()
 	rs.AddRow(loginName, "myEmail", "myGivenName", now, "myClaVersion")
 	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
-		WithArgs(loginName, getCurrentCLAVersion()).
+		WithArgs(loginName, mockCLAVersion).
 		WillReturnRows(rs)
 
 	committer := github.User{}
 	committer.Login = &loginName
-	hasSigned, err := hasCommitterSignedTheCla(c.Logger(), committer)
+	hasSigned, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
 	assert.NoError(t, err)
 	assert.True(t, hasSigned)
-	assert.Equal(t, "", rec.Body.String())
 }

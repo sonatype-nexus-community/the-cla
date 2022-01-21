@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build go1.16
 // +build go1.16
 
 package main
@@ -20,6 +21,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -31,11 +33,14 @@ import (
 	"github.com/sonatype-nexus-community/the-cla/oauth"
 	"github.com/sonatype-nexus-community/the-cla/types"
 
+	"github.com/brpaz/echozap"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
+
+const defaultServicePort = ":4200"
 
 const pathClaText string = "/cla-text"
 const pathOAuthCallback string = "/oauth-callback"
@@ -58,9 +63,15 @@ var claCache = make(map[string]string)
 
 func main() {
 	e := echo.New()
-	addr := ":4200"
 
-	err := godotenv.Load(".env")
+	logger, err := zap.NewProduction()
+	if err != nil {
+		e.Logger.Fatal("can not initialize zap logger: %+v", err)
+	}
+	defer logger.Sync()
+	e.Use(echozap.ZapLogger(logger))
+
+	err = godotenv.Load(".env")
 	if err != nil {
 		e.Logger.Error(err)
 	}
@@ -91,7 +102,7 @@ func main() {
 		e.Logger.Error(err)
 	}
 
-	postgresDB = db.New(pg, e.Logger)
+	postgresDB = db.New(pg, logger)
 
 	err = postgresDB.MigrateDB()
 	if err != nil {
@@ -114,7 +125,7 @@ func main() {
 
 	e.Debug = true
 
-	e.Logger.Fatal(e.Start(addr))
+	e.Logger.Fatal(e.Start(defaultServicePort))
 }
 
 func handleProcessWebhook(c echo.Context) (err error) {

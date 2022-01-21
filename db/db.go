@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build go1.16
 // +build go1.16
 
 package db
@@ -20,11 +21,11 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"go.uber.org/zap"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/labstack/echo/v4"
 	"github.com/sonatype-nexus-community/the-cla/types"
 )
 
@@ -42,22 +43,20 @@ type IClaDB interface {
 
 type ClaDB struct {
 	db     *sql.DB
-	logger echo.Logger
+	logger *zap.Logger
 }
 
 // Roll that beautiful bean footage
 var _ IClaDB = (*ClaDB)(nil)
 
-func New(db *sql.DB, logger echo.Logger) *ClaDB {
+func New(db *sql.DB, logger *zap.Logger) *ClaDB {
 	return &ClaDB{db: db, logger: logger}
 }
 
 func (p *ClaDB) InsertSignature(user *types.UserSignature) error {
 	_, err := p.db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
 	if err != nil {
-		errWithDetails := fmt.Errorf(msgTemplateErrInsertSignatureDuplicate, user.User, err)
-
-		return errWithDetails
+		return fmt.Errorf(msgTemplateErrInsertSignatureDuplicate, user.User, err)
 	}
 	return nil
 }
@@ -92,8 +91,11 @@ func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
 		if err != nil {
 			return isSigned, err
 		}
-		p.logger.Debugf("Found user signature for author: %s, TimeSigned: %s, CLAVersion: %s",
-			foundUserSignature.User.Login, foundUserSignature.TimeSigned, foundUserSignature.CLAVersion)
+		p.logger.Debug("Found user signature for author: %s, TimeSigned: %s, CLAVersion: %s",
+			zap.String("login", foundUserSignature.User.Login),
+			zap.Time("timeSigned", foundUserSignature.TimeSigned),
+			zap.String("claVersion", foundUserSignature.CLAVersion),
+		)
 	}
 
 	return isSigned, nil
@@ -104,9 +106,11 @@ func (p *ClaDB) MigrateDB() (err error) {
 	if err != nil {
 		return
 	}
+	// @todo Verify we can defer close the DB here
+	//defer driver.Close()
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://db/migrations",
+		"file://migrations",
 		"postgres", driver)
 
 	if err != nil {

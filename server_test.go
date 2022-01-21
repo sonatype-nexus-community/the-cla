@@ -17,24 +17,19 @@
 package main
 
 import (
-	"context"
-	"database/sql"
-	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/go-github/v39/github"
 	"github.com/labstack/echo/v4"
+	"github.com/sonatype-nexus-community/the-cla/types"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/oauth2"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"regexp"
 	"strings"
 	"testing"
-	"time"
 )
 
 func resetEnvVariable(t *testing.T, variableName, originalValue string) {
@@ -504,7 +499,7 @@ func verifyActionHandled(t *testing.T, actionText string) {
 	assert.Equal(t, "", rec.Body.String())
 }
 
-func setupMockContextSignCla(t *testing.T, headers map[string]string, user UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
+func setupMockContextSignCla(t *testing.T, headers map[string]string, user types.UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
 	// Setup
 	e := echo.New()
 
@@ -523,13 +518,13 @@ func setupMockContextSignCla(t *testing.T, headers map[string]string, user UserS
 }
 
 func TestProcessSignClaBindError(t *testing.T) {
-	c, rec := setupMockContextSignCla(t, map[string]string{}, UserSignature{})
+	c, rec := setupMockContextSignCla(t, map[string]string{}, types.UserSignature{})
 	assert.EqualError(t, processSignCla(c), "code=415, message=Unsupported Media Type")
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
 }
 
-func setupMockContextProcessWebhook(t *testing.T, user UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
+func setupMockContextProcessWebhook(t *testing.T, user types.UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
 	// Setup
 	e := echo.New()
 
