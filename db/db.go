@@ -38,7 +38,7 @@ const msgTemplateErrInsertSignatureDuplicate = "insert error. did user previousl
 type IClaDB interface {
 	InsertSignature(u *types.UserSignature) error
 	HasAuthorSignedTheCla(l, c string) (bool, error)
-	MigrateDB() error
+	MigrateDB(migrateSourceURL string) error
 }
 
 type ClaDB struct {
@@ -101,25 +101,26 @@ func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
 	return isSigned, nil
 }
 
-func (p *ClaDB) MigrateDB() (err error) {
+func (p *ClaDB) MigrateDB(migrateSourceURL string) (err error) {
 	driver, err := postgres.WithInstance(p.db, &postgres.Config{})
 	if err != nil {
 		return
 	}
-	// @todo Verify we can defer close the DB here
+	// @todo Verify we can defer closing the DB here
 	//defer driver.Close()
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://migrations",
+		migrateSourceURL,
 		"postgres", driver)
-
 	if err != nil {
 		return
 	}
 
 	if err = m.Up(); err != nil {
-		return
+		if err == migrate.ErrNoChange {
+			// we can ignore (and clear) the "no change" error
+			err = nil
+		}
 	}
-
 	return
 }

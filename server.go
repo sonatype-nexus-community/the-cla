@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/sonatype-nexus-community/the-cla/buildversion"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
 	"github.com/sonatype-nexus-community/the-cla/oauth"
@@ -61,6 +62,15 @@ var postgresDB db.IClaDB
 
 var claCache = make(map[string]string)
 
+const envPGHost = "PG_HOST"
+const envPGPort = "PG_PORT"
+const envPGUsername = "PG_USERNAME"
+const envPGPassword = "PG_PASSWORD"
+const envPGDBName = "PG_DB_NAME"
+const envSSLMode = "SSL_MODE"
+
+var errRecovered error
+
 func main() {
 	e := echo.New()
 
@@ -68,28 +78,41 @@ func main() {
 	if err != nil {
 		e.Logger.Fatal("can not initialize zap logger: %+v", err)
 	}
-	defer logger.Sync()
+	defer func() {
+		_ = logger.Sync()
+	}()
 	e.Use(echozap.ZapLogger(logger))
+
+	e.Use(
+		middleware.Logger(), // Log everything to stdout
+	)
+	e.Debug = true
+
+	defer func() {
+		if r := recover(); r != nil {
+			err, ok := r.(error)
+			if !ok {
+				err = fmt.Errorf("pkg: %v", r)
+			}
+			errRecovered = err
+			e.Logger.Error(err)
+		}
+	}()
+
+	buildInfoMessage := fmt.Sprintf("BuildVersion: %s, BuildTime: %s, BuildCommit: %s",
+		buildversion.BuildVersion, buildversion.BuildTime, buildversion.BuildCommit)
+	e.Logger.Infof(buildInfoMessage)
+	fmt.Println(buildInfoMessage)
 
 	err = godotenv.Load(".env")
 	if err != nil {
 		e.Logger.Error(err)
 	}
 
-	host := os.Getenv("PG_HOST")
-	port, _ := strconv.Atoi(os.Getenv("PG_PORT"))
-	user := os.Getenv("PG_USERNAME")
-	password := os.Getenv("PG_PASSWORD")
-	dbname := os.Getenv("PG_DB_NAME")
-	sslMode := os.Getenv("SSL_MODE")
-
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-		"password=%s dbname=%s sslmode=%s",
-		host, port, user, password, dbname, sslMode)
-	pg, err := sql.Open("postgres", psqlInfo)
-
+	pg, host, port, dbname, _, err := openDB()
 	if err != nil {
 		e.Logger.Error(err)
+		panic(fmt.Errorf("failed to load database driver. host: %s, port: %d, dbname: %s, err: %+v", host, port, dbname, err))
 	}
 	defer func() {
 		if err := pg.Close(); err != nil {
@@ -100,13 +123,15 @@ func main() {
 	err = pg.Ping()
 	if err != nil {
 		e.Logger.Error(err)
+		panic(fmt.Errorf("failed to ping database. host: %s, port: %d, dbname: %s, err: %+v", host, port, dbname, err))
 	}
 
 	postgresDB = db.New(pg, logger)
 
-	err = postgresDB.MigrateDB()
+	err = postgresDB.MigrateDB("file://db/migrations")
 	if err != nil {
 		e.Logger.Error(err)
+		panic(fmt.Errorf("failed to migrate database. err: %+v", err))
 	} else {
 		e.Logger.Info("DB migration has occurred")
 	}
@@ -123,9 +148,27 @@ func main() {
 
 	e.Static("/", buildLocation)
 
-	e.Debug = true
+	routes := e.Routes()
+	for _, v := range routes {
+		fmt.Printf("Registered route: %s %s as %s\n", v.Method, v.Path, v.Name)
+	}
 
 	e.Logger.Fatal(e.Start(defaultServicePort))
+}
+
+func openDB() (db *sql.DB, host string, port int, dbname, sslMode string, err error) {
+	host = os.Getenv(envPGHost)
+	port, _ = strconv.Atoi(os.Getenv(envPGPort))
+	user := os.Getenv(envPGUsername)
+	password := os.Getenv(envPGPassword)
+	dbname = os.Getenv(envPGDBName)
+	sslMode = os.Getenv(envSSLMode)
+
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+		"password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslMode)
+	db, err = sql.Open("postgres", psqlInfo)
+	return
 }
 
 func handleProcessWebhook(c echo.Context) (err error) {
@@ -210,6 +253,10 @@ func handleProcessGitHubOAuth(c echo.Context) (err error) {
 	oauthImpl := oauth.CreateOAuth(os.Getenv(envReactAppGithubClientId), os.Getenv(envGithubClientSecret))
 
 	user, err := oauthImpl.GetOAuthUser(c.Logger(), code)
+	if err != nil {
+		c.Logger().Error(err)
+		return
+	}
 
 	return c.JSON(http.StatusOK, user)
 }

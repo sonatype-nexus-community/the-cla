@@ -40,6 +40,35 @@ func resetEnvVariable(t *testing.T, variableName, originalValue string) {
 	}
 }
 
+func resetEnvVar(t *testing.T, envVarName, origValue string) {
+	if origValue != "" {
+		assert.NoError(t, os.Setenv(envVarName, origValue))
+	} else {
+		assert.NoError(t, os.Unsetenv(envVarName))
+	}
+}
+
+func resetEnvVarPGHost(t *testing.T, origEnvPGHost string) {
+	resetEnvVar(t, envPGHost, origEnvPGHost)
+}
+
+func TestMainDBOpenPanic(t *testing.T) {
+	errRecovered = nil
+	origEnvPGHost := os.Getenv(envPGHost)
+	defer func() {
+		resetEnvVarPGHost(t, origEnvPGHost)
+	}()
+	assert.NoError(t, os.Setenv(envPGHost, "bogus-db-hostname"))
+
+	defer func() {
+		errRecovered = nil
+	}()
+
+	main()
+
+	assert.True(t, strings.HasPrefix(errRecovered.Error(), "failed to ping database. host: bogus-db-hostname, port: "))
+}
+
 const mockClaText = `mock Cla text.`
 
 func setupMockContextCLA() echo.Context {

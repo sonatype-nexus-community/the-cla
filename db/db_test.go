@@ -94,11 +94,14 @@ func TestProcessSignClaSigned(t *testing.T) {
 	assert.NoError(t, db.InsertSignature(&user))
 }
 
+// exclude parent 'db' directory for tests
+const testMigrateSourceURL = "file://migrations"
+
 func TestMigrateDBErrorPostgresWithInstance(t *testing.T) {
 	_, db, closeDbFunc := setupMockDB(t)
 	defer closeDbFunc()
 
-	assert.EqualError(t, db.MigrateDB(), "all expectations were already fulfilled, call to Query 'SELECT CURRENT_DATABASE()' with args [] was not expected in line 0: SELECT CURRENT_DATABASE()")
+	assert.EqualError(t, db.MigrateDB(testMigrateSourceURL), "all expectations were already fulfilled, call to Query 'SELECT CURRENT_DATABASE()' with args [] was not expected in line 0: SELECT CURRENT_DATABASE()")
 }
 
 func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
@@ -134,7 +137,7 @@ func TestMigrateDBErrorMigrateUp(t *testing.T) {
 
 	args := setupMockPostgresWithInstance(mock)
 
-	assert.EqualError(t, db.MigrateDB(), fmt.Sprintf("try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:%s}] was not expected)", args[0]))
+	assert.EqualError(t, db.MigrateDB(testMigrateSourceURL), fmt.Sprintf("try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:%s}] was not expected)", args[0]))
 }
 
 func TestMigrateDB(t *testing.T) {
@@ -173,7 +176,7 @@ func TestMigrateDB(t *testing.T) {
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	assert.NoError(t, db.MigrateDB())
+	assert.NoError(t, db.MigrateDB(testMigrateSourceURL))
 }
 
 func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
