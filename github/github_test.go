@@ -447,20 +447,25 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	defer func() {
 		githubImpl = origGithubImpl
 	}()
-	mockRepositoryCommits := []*github.RepositoryCommit{{Committer: &github.User{}}}
+	mockAuthorLogin := "myAuthorLogin"
+	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
 	forcedError := fmt.Errorf("forced CreateLabel error")
 	githubImpl = &GitHubMock{
 		pullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
-		issuesMock:       IssuesMock{mockCreateLabelError: forcedError},
+		issuesMock: IssuesMock{
+			mockGetLabelResponse: &github.Response{Response: &http.Response{StatusCode: http.StatusNotFound}},
+			mockCreateLabelError: forcedError,
+		},
 	}
 
 	prEvent := webhook.PullRequestPayload{}
 
 	db, logger := setupMockDB(t)
+	db.hasAuthorSignedLogin = mockAuthorLogin
 
 	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
-	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
+	assert.Equal(t, "", res)
 }
 
 func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
@@ -485,20 +490,25 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 	defer func() {
 		githubImpl = origGithubImpl
 	}()
-	mockRepositoryCommits := []*github.RepositoryCommit{{Committer: &github.User{}}}
+	mockAuthorLogin := "myAuthorLogin"
+	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
 	forcedError := fmt.Errorf("forced AddLabelsToIssue error")
 	githubImpl = &GitHubMock{
 		pullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
-		issuesMock:       IssuesMock{mockAddLabelsError: forcedError},
+		issuesMock: IssuesMock{
+			mockGetLabel:       &github.Label{},
+			mockAddLabelsError: forcedError,
+		},
 	}
 
 	prEvent := webhook.PullRequestPayload{}
 
 	db, logger := setupMockDB(t)
+	db.hasAuthorSignedLogin = mockAuthorLogin
 
 	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
-	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
+	assert.Equal(t, "", res)
 }
 
 func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
