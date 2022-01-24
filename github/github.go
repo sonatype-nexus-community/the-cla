@@ -244,6 +244,13 @@ func _createRepoLabelIfNotExists(logger *zap.Logger,
 	logger.Debug(fmt.Sprintf("Attempting to create label: %s", name))
 
 	desiredLabel, res, err := issuesService.GetLabel(context.Background(), owner, repo, name)
+	if err != nil {
+		return
+	}
+	if desiredLabel != nil {
+		logger.Debug(fmt.Sprintf("Found existing label, returning it %+v", desiredLabel))
+		return
+	}
 	if res.StatusCode == 404 {
 		logger.Debug(fmt.Sprintf("Looks like the label doesn't exist, so create it, name: %s, color: %s, description: %s", name, color, description))
 
@@ -252,11 +259,6 @@ func _createRepoLabelIfNotExists(logger *zap.Logger,
 		strDescription := description
 		newLabel := &github.Label{Name: &strName, Color: &strColor, Description: &strDescription}
 		desiredLabel, _, err = issuesService.CreateLabel(context.Background(), owner, repo, newLabel)
-
-		return
-	}
-	if desiredLabel != nil {
-		logger.Debug(fmt.Sprintf("Found existing label, returning it %+v", desiredLabel))
 
 		return
 	}

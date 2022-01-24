@@ -37,7 +37,7 @@ const msgTemplateErrInsertSignatureDuplicate = "insert error. did user previousl
 
 type IClaDB interface {
 	InsertSignature(u *types.UserSignature) error
-	HasAuthorSignedTheCla(l, c string) (bool, error)
+	HasAuthorSignedTheCla(login, claVersion string) (bool, error)
 	MigrateDB(migrateSourceURL string) error
 }
 

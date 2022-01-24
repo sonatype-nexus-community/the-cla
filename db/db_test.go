@@ -1,7 +1,6 @@
 package db
 
 import (
-	"database/sql"
 	"database/sql/driver"
 	"fmt"
 	"go.uber.org/zap/zaptest"
@@ -15,13 +14,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockDb(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
+// should always be followed by a call to the closeDbFunc, like so:
+// 	mock, db, closeDbFunc := SetupMockDB(t)
+//	defer closeDbFunc()
+func SetupMockDB(t *testing.T) (mock sqlmock.Sqlmock, mockDbIf *ClaDB, closeDbFunc func()) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		assert.NoError(t, err)
 	}
-
-	return db, mock
+	closeDbFunc = func() {
+		_ = db.Close()
+	}
+	mockDbIf = New(db, zaptest.NewLogger(t))
+	return
 }
 
 type AnyTime struct{}
@@ -54,17 +59,8 @@ func TestConvertSqlToDbMockExpect(t *testing.T) {
 	assert.Equal(t, `\$\(\)\*`, convertSqlToDbMockExpect(`$()*`))
 }
 
-func setupMockDB(t *testing.T) (mock sqlmock.Sqlmock, mockDbIf *ClaDB, closeDbFunc func()) {
-	db, mock := newMockDb(t)
-	closeDbFunc = func() {
-		_ = db.Close()
-	}
-	mockDbIf = New(db, zaptest.NewLogger(t))
-	return
-}
-
 func TestInsertSignatureError(t *testing.T) {
-	mock, db, closeDbFunc := setupMockDB(t)
+	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
 	user := types.UserSignature{}
@@ -78,7 +74,7 @@ func TestInsertSignatureError(t *testing.T) {
 }
 
 func TestInsertSignatureErrorDuplicateSignature(t *testing.T) {
-	mock, db, closeDbFunc := setupMockDB(t)
+	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
 	user := types.UserSignature{
@@ -98,7 +94,7 @@ func TestInsertSignatureErrorDuplicateSignature(t *testing.T) {
 const testMigrateSourceURL = "file://migrations"
 
 func TestMigrateDBErrorPostgresWithInstance(t *testing.T) {
-	_, db, closeDbFunc := setupMockDB(t)
+	_, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
 	assert.EqualError(t, db.MigrateDB(testMigrateSourceURL), "all expectations were already fulfilled, call to Query 'SELECT CURRENT_DATABASE()' with args [] was not expected in line 0: SELECT CURRENT_DATABASE()")
@@ -132,7 +128,7 @@ func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
 }
 
 func TestMigrateDBErrorMigrateUp(t *testing.T) {
-	mock, db, closeDbFunc := setupMockDB(t)
+	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
 	args := setupMockPostgresWithInstance(mock)
@@ -141,7 +137,7 @@ func TestMigrateDBErrorMigrateUp(t *testing.T) {
 }
 
 func TestMigrateDB(t *testing.T) {
-	mock, db, closeDbFunc := setupMockDB(t)
+	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
 	args := setupMockPostgresWithInstance(mock)
@@ -180,7 +176,7 @@ func TestMigrateDB(t *testing.T) {
 }
 
 func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
-	mock, db, closeDbFunc := setupMockDB(t)
+	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
 	forcedError := fmt.Errorf("forced SQL query error")
@@ -195,7 +191,7 @@ func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
 const mockCLAVersion = "myClaVersion"
 
 func TestHasAuthorSignedTheClaReadRowError(t *testing.T) {
-	mock, db, closeDbFunc := setupMockDB(t)
+	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
 	loginName := "myLoginName"
@@ -210,7 +206,7 @@ func TestHasAuthorSignedTheClaReadRowError(t *testing.T) {
 }
 
 func TestHasAuthorSignedTheClaTrue(t *testing.T) {
-	mock, db, closeDbFunc := setupMockDB(t)
+	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
 	loginName := "myLoginName"

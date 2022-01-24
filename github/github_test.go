@@ -3,21 +3,52 @@ package github
 import (
 	"context"
 	"fmt"
+	"github.com/sonatype-nexus-community/the-cla/db"
+	"github.com/sonatype-nexus-community/the-cla/types"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"net/http"
 	"os"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/go-github/v42/github"
-	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
 
-/*// RepositoriesMock mocks RepositoriesService
+// RepositoriesMock mocks RepositoriesService
 type RepositoriesMock struct {
+	t                                        *testing.T
+	expectedCtx                              context.Context
+	expectedOwner, expectedRepo, expectedRef string
+	expectedOpts                             *github.ListOptions
+	expectedCreateStatusRepoStatus           *github.RepoStatus
+	createStatusRepoStatus                   *github.RepoStatus
+	createStatusResponse                     *github.Response
+	createStatusError                        error
+}
+
+func setupMockRepositoriesService(t *testing.T) (mock *RepositoriesMock) {
+	mock = &RepositoriesMock{
+		t: t,
+	}
+	return mock
+}
+
+func (r *RepositoriesMock) ListStatuses(ctx context.Context, owner, repo, ref string, opts *github.ListOptions) ([]*github.RepoStatus, *github.Response, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (r *RepositoriesMock) CreateStatus(ctx context.Context, owner, repo, ref string, status *github.RepoStatus) (*github.RepoStatus, *github.Response, error) {
+	// @todo Investigate adding assertions of expected mock fields
+	//assert.Equal(r.t, r.expectedCtx, ctx)
+	//assert.Equal(r.t, r.expectedOwner, owner)
+	//assert.Equal(r.t, r.expectedRepo, repo)
+	//assert.Equal(r.t, r.expectedRef, ref)
+	//assert.Equal(r.t, r.expectedCreateStatusRepoStatus, status)
+	return r.createStatusRepoStatus, r.createStatusResponse, r.createStatusError
 }
 
 // Get returns a repository.
@@ -32,7 +63,6 @@ func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Reposit
 		FullName:        github.String("john/wayne"),
 	}, nil, nil
 }
-*/
 
 type OAuthMock struct {
 	exchangeToken *oauth2.Token
@@ -131,6 +161,7 @@ func (i *IssuesMock) ListComments(ctx context.Context, owner string, repo string
 
 // GitHubMock implements GitHubInterface.
 type GitHubMock struct {
+	repositoriesMock RepositoriesMock
 	usersMock        UsersMock
 	pullRequestsMock PullRequestsMock
 	issuesMock       IssuesMock
@@ -140,7 +171,7 @@ type GitHubMock struct {
 //goland:noinspection GoUnusedParameter
 func (g *GitHubMock) NewClient(httpClient *http.Client) GitHubClient {
 	return GitHubClient{
-		//Repositories: &RepositoriesMock{},
+		Repositories: &RepositoriesMock{},
 		Users: &UsersMock{
 			mockGetError: g.usersMock.mockGetError,
 			mockUser:     g.usersMock.mockUser,
@@ -251,7 +282,12 @@ func TestCreateLabelIfNotExists_CreateError(t *testing.T) {
 		githubImpl = origGithubImpl
 	}()
 	forcedError := fmt.Errorf("forced CreateLabel error")
-	githubImpl = &GitHubMock{issuesMock: IssuesMock{mockCreateLabelError: forcedError}}
+	githubImpl = &GitHubMock{issuesMock: IssuesMock{
+		mockGetLabelResponse: &github.Response{
+			Response: &http.Response{StatusCode: http.StatusNotFound},
+		},
+		mockCreateLabelError: forcedError},
+	}
 	client := githubImpl.NewClient(nil)
 
 	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
@@ -268,7 +304,12 @@ func TestCreateLabelIfNotExists(t *testing.T) {
 	labelColor := "fa3a3a"
 	labelDescription := "The CLA is not signed"
 	labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
-	githubImpl = &GitHubMock{issuesMock: IssuesMock{mockCreateLabel: labelToCreate}}
+	githubImpl = &GitHubMock{issuesMock: IssuesMock{
+		mockGetLabelResponse: &github.Response{
+			Response: &http.Response{StatusCode: http.StatusNotFound},
+		},
+		mockCreateLabel: labelToCreate},
+	}
 
 	client := githubImpl.NewClient(nil)
 
@@ -306,7 +347,7 @@ func TestAddLabelToIssueIfNotExists_LabelAlreadyExists(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
+	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, labelName)
 	assert.NoError(t, err)
 	assert.Equal(t, existingLabel, label)
 }
@@ -341,11 +382,48 @@ func Test_AddLabelToIssueIfNotExists(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
+	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, labelNameCLANotSigned)
 	assert.NoError(t, err)
 	// real gitHub API returns different result, but does not matter to us now
 	assert.Nil(t, label)
 }
+
+type mockCLADb struct {
+	t                            *testing.T
+	insertSignatureUserSiganture *types.UserSignature
+	insertSignatureError         error
+	hasAuthorSignedLogin         string
+	hasAuthorSignedCLAVersion    string
+	hasAuthorSignedResult        bool
+	hasAuthorSignedError         error
+	migrateDBSourceURL           string
+	migrateDBSourceError         error
+}
+
+func setupMockDB(t *testing.T) (mock *mockCLADb, logger *zap.Logger) {
+	mock = &mockCLADb{
+		t: t,
+	}
+	return mock, zaptest.NewLogger(t)
+}
+func (m mockCLADb) InsertSignature(u *types.UserSignature) error {
+	assert.Equal(m.t, m.insertSignatureUserSiganture, u)
+	return m.insertSignatureError
+}
+
+func (m mockCLADb) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
+	assert.Equal(m.t, m.hasAuthorSignedLogin, login)
+	assert.Equal(m.t, m.hasAuthorSignedCLAVersion, claVersion)
+	return m.hasAuthorSignedResult, m.hasAuthorSignedError
+}
+
+func (m mockCLADb) MigrateDB(migrateSourceURL string) error {
+	assert.Equal(m.t, m.migrateDBSourceURL, migrateSourceURL)
+	return m.migrateDBSourceError
+}
+
+// Roll that beautiful bean footage
+var _ db.IClaDB = (*mockCLADb)(nil)
 
 func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
@@ -378,21 +456,9 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 
 	prEvent := webhook.PullRequestPayload{}
 
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
+	db, logger := setupMockDB(t)
 
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
-		WithArgs("", getCurrentCLAVersion()).
-		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
-
-	res, err := handlePullRequest(nil, prEvent)
+	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
 }
@@ -428,21 +494,9 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 
 	prEvent := webhook.PullRequestPayload{}
 
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
+	db, logger := setupMockDB(t)
 
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
-		WithArgs("", getCurrentCLAVersion()).
-		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
-
-	res, err := handlePullRequest(nil, prEvent)
+	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
 }
@@ -455,7 +509,8 @@ func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
 	assert.NoError(t, os.Setenv(EnvGhAppId, "nonNumericGHAppID"))
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
+	db, logger := setupMockDB(t)
+	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
 	assert.EqualError(t, err, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`)
 	assert.Equal(t, "", res)
 }
@@ -477,7 +532,8 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	}()
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
+	db, logger := setupMockDB(t)
+	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
 	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
 	assert.Equal(t, "", res)
 }
@@ -506,13 +562,15 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	}()
 	forcedError := fmt.Errorf("forced ListCommits error")
 	githubImpl = &GitHubMock{
+		repositoriesMock: *setupMockRepositoriesService(t),
 		pullRequestsMock: PullRequestsMock{
 			mockListCommitsError: forcedError,
 		},
 	}
 
 	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
+	db, logger := setupMockDB(t)
+	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "", res)
 }
@@ -565,27 +623,8 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 
 	prEvent := webhook.PullRequestPayload{}
 
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
-
-	requiredClaVersion := getCurrentCLAVersion()
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
-		WithArgs(login, requiredClaVersion).
-		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
-		WithArgs(login2, requiredClaVersion).
-		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
-
-	logger := echo.New().Logger
-
-	res, err := handlePullRequest(logger, prEvent)
+	db, logger := setupMockDB(t)
+	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
 	assert.NoError(t, err)
 	assert.Equal(t, `Author: `+login+` Email: j@gmail.com Commit SHA: johnSHA,Author: `+login2+` Email: d@gmail.com Commit SHA: doeSHA`, res)
 }
