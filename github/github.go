@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build go1.16
 // +build go1.16
 
 package github
@@ -20,18 +21,19 @@ package github
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"net/http"
 	"strings"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v42/github"
-	"github.com/labstack/echo/v4"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
 
-const filenameTheClaPem string = "the-cla.pem"
+const FilenameTheClaPem string = "the-cla.pem"
+const EnvGhAppId = "GH_APP_ID"
 
 // RepositoriesService handles communication with the repository related methods
 // of the GitHub API.
@@ -101,7 +103,7 @@ func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
 
 var githubImpl GitHubInterface = &GitHubCreator{}
 
-func HandlePullRequest(logger echo.Logger,
+func HandlePullRequest(logger *zap.Logger,
 	postgres db.IClaDB,
 	payload webhook.PullRequestPayload,
 	appId int,
@@ -113,8 +115,8 @@ func HandlePullRequest(logger echo.Logger,
 	sha := payload.PullRequest.Head.Sha
 	pullRequestID := int(payload.Number)
 
-	logger.Debugf("Transport setup, using appID: %d and installation ID: %d", appId, payload.Installation.ID)
-	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, int64(appId), payload.Installation.ID, filenameTheClaPem)
+	logger.Debug(fmt.Sprintf("Transport setup, using appID: %d and installation ID: %d", appId, payload.Installation.ID))
+	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, int64(appId), payload.Installation.ID, FilenameTheClaPem)
 	if err != nil {
 		return "", err
 	}
@@ -204,7 +206,7 @@ func HandlePullRequest(logger echo.Logger,
 	return "things", nil
 }
 
-func createRepoStatus(logger echo.Logger,
+func createRepoStatus(logger *zap.Logger,
 	repositoryService RepositoriesService,
 	owner, repo, sha, state, description string) error {
 	_, _, err := repositoryService.CreateStatus(context.Background(), owner, repo, sha, &github.RepoStatus{State: &state, Description: &description})
@@ -217,11 +219,11 @@ func createRepoStatus(logger echo.Logger,
 const labelNameCLANotSigned string = ":monocle_face: cla not signed"
 const labelNameCLASigned string = ":heart_eyes: cla signed"
 
-func createRepoLabel(logger echo.Logger,
+func createRepoLabel(logger *zap.Logger,
 	issuesService IssuesService,
 	owner, repo, name, color, description string,
 	pullRequestID int) error {
-	logger.Debugf("Attempting to add or create label for: %s", name)
+	logger.Debug(fmt.Sprintf("Attempting to add or create label for: %s", name))
 
 	lbl, err := _createRepoLabelIfNotExists(logger, issuesService, owner, repo, name, color, description)
 	if err != nil {
@@ -236,14 +238,14 @@ func createRepoLabel(logger echo.Logger,
 	return nil
 }
 
-func _createRepoLabelIfNotExists(logger echo.Logger,
+func _createRepoLabelIfNotExists(logger *zap.Logger,
 	issuesService IssuesService,
 	owner, repo, name, color, description string) (desiredLabel *github.Label, err error) {
-	logger.Debugf("Attempting to create label: %s", name)
+	logger.Debug(fmt.Sprintf("Attempting to create label: %s", name))
 
 	desiredLabel, res, err := issuesService.GetLabel(context.Background(), owner, repo, name)
 	if res.StatusCode == 404 {
-		logger.Debugf("Looks like the label doesn't exist, so create it, name: %s, color: %s, description: %s", name, color, description)
+		logger.Debug(fmt.Sprintf("Looks like the label doesn't exist, so create it, name: %s, color: %s, description: %s", name, color, description))
 
 		strName := name
 		strColor := color
@@ -254,7 +256,7 @@ func _createRepoLabelIfNotExists(logger echo.Logger,
 		return
 	}
 	if desiredLabel != nil {
-		logger.Debugf("Found existing label, returning it %+v", desiredLabel)
+		logger.Debug(fmt.Sprintf("Found existing label, returning it %+v", desiredLabel))
 
 		return
 	}
@@ -262,7 +264,7 @@ func _createRepoLabelIfNotExists(logger echo.Logger,
 	return
 }
 
-func addCommentToIssueIfNotExists(logger echo.Logger, issuesService IssuesService, owner, repo string, issueNumber int, message string) (*github.IssueComment, error) {
+func addCommentToIssueIfNotExists(logger *zap.Logger, issuesService IssuesService, owner, repo string, issueNumber int, message string) (*github.IssueComment, error) {
 	opts := &github.IssueListCommentsOptions{}
 	comments, _, err := issuesService.ListComments(context.Background(), owner, repo, issueNumber, opts)
 	if err != nil {
@@ -289,7 +291,7 @@ func addCommentToIssueIfNotExists(logger echo.Logger, issuesService IssuesServic
 	return nil, nil
 }
 
-func _addLabelToIssueIfNotExists(logger echo.Logger, issuesService IssuesService, owner, repo string, issueNumber int, labelName string) (desiredLabel *github.Label, err error) {
+func _addLabelToIssueIfNotExists(logger *zap.Logger, issuesService IssuesService, owner, repo string, issueNumber int, labelName string) (desiredLabel *github.Label, err error) {
 	// check if label is already added to issue
 	opts := github.ListOptions{}
 	issueLabels, _, err := issuesService.ListLabelsByIssue(context.Background(), owner, repo, issueNumber, &opts)
@@ -308,7 +310,7 @@ func _addLabelToIssueIfNotExists(logger echo.Logger, issuesService IssuesService
 	// didn't find the label on this issue, so add the label to this issue
 	// @TODO Verify this does not remove existing labels (any label not in our "add" array)
 	logger.Debug("Attempting to add label to issue")
-	logger.Debugf("Label: %s", labelName)
+	logger.Debug(fmt.Sprintf("Label: %s", labelName))
 	_, _, err = issuesService.AddLabelsToIssue(
 		context.Background(),
 		owner,

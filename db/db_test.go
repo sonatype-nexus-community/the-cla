@@ -77,7 +77,7 @@ func TestInsertSignatureError(t *testing.T) {
 	assert.Error(t, db.InsertSignature(&user), forcedError.Error())
 }
 
-func TestProcessSignClaSigned(t *testing.T) {
+func TestInsertSignatureErrorDuplicateSignature(t *testing.T) {
 	mock, db, closeDbFunc := setupMockDB(t)
 	defer closeDbFunc()
 
@@ -91,7 +91,7 @@ func TestProcessSignClaSigned(t *testing.T) {
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
 
-	assert.NoError(t, db.InsertSignature(&user))
+	assert.Error(t, db.InsertSignature(&user), forcedError.Error())
 }
 
 // exclude parent 'db' directory for tests

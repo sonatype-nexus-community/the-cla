@@ -13,16 +13,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build go1.16
 // +build go1.16
 
 package oauth
 
 import (
 	"context"
+	"go.uber.org/zap"
 	"net/http"
 
 	"github.com/google/go-github/v42/github"
-	"github.com/labstack/echo/v4"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
 	"golang.org/x/oauth2"
 	githuboauth "golang.org/x/oauth2/github"
@@ -33,7 +34,7 @@ var githubImpl ourGithub.GitHubInterface = &ourGithub.GitHubCreator{}
 type OAuthInterface interface {
 	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
 	Client(ctx context.Context, t *oauth2.Token) *http.Client
-	GetOAuthUser(logger echo.Logger, code string) (user *github.User, err error)
+	GetOAuthUser(logger *zap.Logger, code string) (user *github.User, err error)
 	// for testing only
 	getConf() *oauth2.Config
 }
@@ -53,10 +54,10 @@ func (oa *OAuthImpl) getConf() *oauth2.Config {
 	return oa.oauthConf
 }
 
-func (oa *OAuthImpl) GetOAuthUser(logger echo.Logger, code string) (user *github.User, err error) {
+func (oa *OAuthImpl) GetOAuthUser(logger *zap.Logger, code string) (user *github.User, err error) {
 	token, err := oa.Exchange(context.Background(), code)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("failed to get oauth user", zap.Error(err))
 		return
 	}
 
@@ -66,7 +67,7 @@ func (oa *OAuthImpl) GetOAuthUser(logger echo.Logger, code string) (user *github
 
 	user, _, err = client.Users.Get(context.Background(), "")
 	if err != nil {
-		logger.Error(err)
+		logger.Error("failed to get oauth client user", zap.Error(err))
 		return
 	}
 

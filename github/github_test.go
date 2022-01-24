@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap/zaptest"
 	"net/http"
 	"os"
 	"testing"
@@ -90,6 +91,12 @@ type IssuesMock struct {
 	mockAddLabels                 []*github.Label
 	mockAddLabelsResponse         *github.Response
 	mockAddLabelsError            error
+	mockComment                   *github.IssueComment
+	mockCreateCommentResponse     *github.Response
+	mockCreateCommentError        error
+	mockListComments              []*github.IssueComment
+	mockListCommentsResponse      *github.Response
+	mockListCommentsError         error
 }
 
 //goland:noinspection GoUnusedParameter
@@ -110,6 +117,16 @@ func (i *IssuesMock) ListLabelsByIssue(ctx context.Context, owner string, repo s
 //goland:noinspection GoUnusedParameter
 func (i *IssuesMock) AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error) {
 	return i.mockAddLabels, i.mockAddLabelsResponse, i.mockAddLabelsError
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) CreateComment(ctx context.Context, owner string, repo string, number int, comment *github.IssueComment) (*github.IssueComment, *github.Response, error) {
+	return i.mockComment, i.mockCreateCommentResponse, i.mockCreateCommentError
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) ListComments(ctx context.Context, owner string, repo string, number int, opts *github.IssueListCommentsOptions) ([]*github.IssueComment, *github.Response, error) {
+	return i.mockListComments, i.mockListCommentsResponse, i.mockListCommentsError
 }
 
 // GitHubMock implements GitHubInterface.
@@ -181,8 +198,8 @@ pNEMHXmW70G0upWmOnjZL6WxXcJjbpZ94SOFiD7GFFLgWs9bI4BdxMDX/EyXQafy
 Scy7y5rzNperE0E7Xy1N10NX
 -----END PRIVATE KEY-----`
 
-func setupTestPemFile(t *testing.T) {
-	assert.NoError(t, os.WriteFile(filenameTheClaPem, []byte(testPrivatePem), 0644))
+func SetupTestPemFile(t *testing.T) {
+	assert.NoError(t, os.WriteFile(FilenameTheClaPem, []byte(testPrivatePem), 0644))
 }
 
 func resetEnvVariable(t *testing.T, variableName, originalValue string) {
@@ -205,7 +222,7 @@ func TestCreateLabelIfNotExists_GetLabelError(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := _createRepoLabelIfNotExists(echo.New().Logger, client.Issues, "", "")
+	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Nil(t, label)
 }
@@ -223,7 +240,7 @@ func TestCreateLabelIfNotExists_LabelExists(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := _createRepoLabelIfNotExists(echo.New().Logger, client.Issues, "", "")
+	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
 	assert.NoError(t, err)
 	assert.Equal(t, label, existingLabel)
 }
@@ -237,7 +254,7 @@ func TestCreateLabelIfNotExists_CreateError(t *testing.T) {
 	githubImpl = &GitHubMock{issuesMock: IssuesMock{mockCreateLabelError: forcedError}}
 	client := githubImpl.NewClient(nil)
 
-	label, err := _createRepoLabelIfNotExists(echo.New().Logger, client.Issues, "", "")
+	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Nil(t, label)
 }
@@ -255,7 +272,7 @@ func TestCreateLabelIfNotExists(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := _createRepoLabelIfNotExists(echo.New().Logger, client.Issues, "", "")
+	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
 	assert.NoError(t, err)
 	assert.Equal(t, label, labelToCreate)
 }
@@ -270,7 +287,7 @@ func TestAddLabelToIssueIfNotExists_ListLabelsByIssueError(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
+	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Nil(t, label)
 }
@@ -289,12 +306,12 @@ func TestAddLabelToIssueIfNotExists_LabelAlreadyExists(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
+	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
 	assert.NoError(t, err)
 	assert.Equal(t, existingLabel, label)
 }
 
-func TestAddLabelToIssueIfNotExists_AddLabelError(t *testing.T) {
+func Test_AddLabelToIssueIfNotExists_AddLabelError(t *testing.T) {
 	origGithubImpl := githubImpl
 	defer func() {
 		githubImpl = origGithubImpl
@@ -306,12 +323,12 @@ func TestAddLabelToIssueIfNotExists_AddLabelError(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
+	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Nil(t, label)
 }
 
-func TestAddLabelToIssueIfNotExists(t *testing.T) {
+func Test_AddLabelToIssueIfNotExists(t *testing.T) {
 	origGithubImpl := githubImpl
 	defer func() {
 		githubImpl = origGithubImpl
@@ -324,29 +341,29 @@ func TestAddLabelToIssueIfNotExists(t *testing.T) {
 
 	client := githubImpl.NewClient(nil)
 
-	label, err := addLabelToIssueIfNotExists(client.Issues, "", "", 0, "")
+	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
 	assert.NoError(t, err)
 	// real gitHub API returns different result, but does not matter to us now
 	assert.Nil(t, label)
 }
 
 func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
 	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
 	// move pem file if it exists
-	pemBackupFile := filenameTheClaPem + "_orig"
-	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
 	defer func() {
-		assert.NoError(t, os.Remove(filenameTheClaPem))
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
 		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
 		}
 	}()
-	setupTestPemFile(t)
+	SetupTestPemFile(t)
 
 	origGithubImpl := githubImpl
 	defer func() {
@@ -381,22 +398,22 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 }
 
 func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
 	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
 	// move pem file if it exists
-	pemBackupFile := filenameTheClaPem + "_orig"
-	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
 	defer func() {
-		assert.NoError(t, os.Remove(filenameTheClaPem))
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
 		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
 		}
 	}()
-	setupTestPemFile(t)
+	SetupTestPemFile(t)
 
 	origGithubImpl := githubImpl
 	defer func() {
@@ -428,4 +445,147 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 	res, err := handlePullRequest(nil, prEvent)
 	assert.EqualError(t, err, forcedError.Error())
 	assert.Equal(t, "Author:  Email:  Commit SHA: ", res)
+}
+
+func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "nonNumericGHAppID"))
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
+	assert.EqualError(t, err, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`)
+	assert.Equal(t, "", res)
+}
+
+func TestHandlePullRequestMissingPemFile(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
+	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
+	assert.Equal(t, "", res)
+}
+
+func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced ListCommits error")
+	githubImpl = &GitHubMock{
+		pullRequestsMock: PullRequestsMock{
+			mockListCommitsError: forcedError,
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
+	assert.EqualError(t, err, forcedError.Error())
+	assert.Equal(t, "", res)
+}
+
+func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
+	origGithubImpl := githubImpl
+	defer func() {
+		githubImpl = origGithubImpl
+	}()
+	login := "john"
+	login2 := "doe"
+	mockRepositoryCommits := []*github.RepositoryCommit{
+		{
+			Author: &github.User{
+				Login: github.String(login),
+				Email: github.String("j@gmail.com"),
+			},
+			SHA: github.String("johnSHA"),
+		},
+		{
+			Author: &github.User{
+				Login: github.String(login2),
+				Email: github.String("d@gmail.com"),
+			},
+			SHA: github.String("doeSHA"),
+		},
+	}
+	githubImpl = &GitHubMock{
+		pullRequestsMock: PullRequestsMock{
+			mockRepositoryCommits: mockRepositoryCommits,
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+
+	dbMock, mock := newMockDb(t)
+	defer func() {
+		_ = dbMock.Close()
+	}()
+	origDb := db
+	defer func() {
+		db = origDb
+	}()
+	db = dbMock
+
+	requiredClaVersion := getCurrentCLAVersion()
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+		WithArgs(login, requiredClaVersion).
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
+	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+		WithArgs(login2, requiredClaVersion).
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
+
+	logger := echo.New().Logger
+
+	res, err := handlePullRequest(logger, prEvent)
+	assert.NoError(t, err)
+	assert.Equal(t, `Author: `+login+` Email: j@gmail.com Commit SHA: johnSHA,Author: `+login2+` Email: d@gmail.com Commit SHA: doeSHA`, res)
 }

@@ -50,7 +50,6 @@ const pathWebhook string = "/webhook-integration"
 
 const buildLocation string = "build"
 
-const envGhAppId string = "GH_APP_ID"
 const envReactAppClaVersion string = "REACT_APP_CLA_VERSION"
 const envGhWebhookSecret string = "GH_WEBHOOK_SECRET"
 const envReactAppGithubClientId string = "REACT_APP_GITHUB_CLIENT_ID"
@@ -70,6 +69,7 @@ const envPGDBName = "PG_DB_NAME"
 const envSSLMode = "SSL_MODE"
 
 var errRecovered error
+var logger *zap.Logger
 
 func main() {
 	e := echo.New()
@@ -180,14 +180,14 @@ func handleProcessWebhook(c echo.Context) (err error) {
 
 	if err != nil {
 		if err == webhook.ErrEventNotFound {
-			c.Logger().Debug("Unsupported event type encountered", err)
+			logger.Debug("Unsupported event type encountered", zap.Error(err))
 
 			return c.String(http.StatusBadRequest, msgUnhandledGitHubEventType)
 		}
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 
-	appId, err := strconv.Atoi(os.Getenv(envGhAppId))
+	appId, err := strconv.Atoi(os.Getenv(ourGithub.EnvGhAppId))
 	if err != nil {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
@@ -196,10 +196,9 @@ func handleProcessWebhook(c echo.Context) (err error) {
 	case webhook.PullRequestPayload:
 		switch payload.Action {
 		case "opened", "reopened", "synchronize":
-			res, err := ourGithub.HandlePullRequest(c.Logger(), postgresDB, payload, appId, getCurrentCLAVersion())
-
+			res, err := ourGithub.HandlePullRequest(logger, postgresDB, payload, appId, getCurrentCLAVersion())
 			if err != nil {
-				c.Logger().Error(err)
+				logger.Error("failed to handle pull request", zap.Error(err))
 				return c.String(http.StatusBadRequest, err.Error())
 			}
 
@@ -209,7 +208,7 @@ func handleProcessWebhook(c echo.Context) (err error) {
 		}
 	default:
 		// theoretically can't get here due to hook.Parse() call above (events param), but better safe than sorry
-		c.Logger().Debug("Unhandled payload type encountered")
+		logger.Debug("Unhandled payload type encountered")
 
 		return c.String(http.StatusBadRequest, fmt.Sprintf("I do not handle this type of payload, sorry! Type: %T", payload))
 	}
@@ -221,7 +220,7 @@ func getCurrentCLAVersion() (requiredClaVersion string) {
 }
 
 func handleProcessSignCla(c echo.Context) (err error) {
-	c.Logger().Debug("Attempting to sign the CLA")
+	logger.Debug("Attempting to sign the CLA")
 	user := new(types.UserSignature)
 
 	if err := c.Bind(user); err != nil {
@@ -232,16 +231,16 @@ func handleProcessSignCla(c echo.Context) (err error) {
 
 	err = postgresDB.InsertSignature(user)
 	if err != nil {
-		c.Logger().Error(err)
+		logger.Error("failed to process sign cla", zap.Error(err))
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 
-	c.Logger().Debug("CLA signed successfully")
+	logger.Debug("CLA signed successfully")
 	return c.JSON(http.StatusCreated, user)
 }
 
 func handleProcessGitHubOAuth(c echo.Context) (err error) {
-	c.Logger().Debug("Attempting to fetch GitHub crud")
+	logger.Debug("Attempting to fetch GitHub crud")
 
 	code := c.QueryParam("code")
 
@@ -252,9 +251,9 @@ func handleProcessGitHubOAuth(c echo.Context) (err error) {
 
 	oauthImpl := oauth.CreateOAuth(os.Getenv(envReactAppGithubClientId), os.Getenv(envGithubClientSecret))
 
-	user, err := oauthImpl.GetOAuthUser(c.Logger(), code)
+	user, err := oauthImpl.GetOAuthUser(logger, code)
 	if err != nil {
-		c.Logger().Error(err)
+		logger.Error("failed to get oauth user", zap.Error(err))
 		return
 	}
 
@@ -265,16 +264,16 @@ const envClsUrl = "CLA_URL"
 const msgMissingClaUrl = "missing " + envClsUrl + " environment variable"
 
 func handleRetrieveCLAText(c echo.Context) (err error) {
-	c.Logger().Debug("Attempting to fetch CLA text")
+	logger.Debug("Attempting to fetch CLA text")
 	claURL := os.Getenv(envClsUrl)
 
 	if claCache[claURL] != "" {
-		c.Logger().Debug("CLA text was cached, returning")
+		logger.Debug("CLA text was cached, returning")
 
 		return c.String(http.StatusOK, claCache[claURL])
 	}
 
-	c.Logger().Debug("CLA text not in cache, moving forward to fetch")
+	logger.Debug("CLA text not in cache, moving forward to fetch")
 	if claURL == "" {
 		return fmt.Errorf(msgMissingClaUrl)
 	}
@@ -283,13 +282,13 @@ func handleRetrieveCLAText(c echo.Context) (err error) {
 
 	resp, err := client.Get(claURL)
 	if err != nil {
-		c.Logger().Error(err)
+		logger.Error("failed to get cla url", zap.Error(err))
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("unexpected cla text response code: %d", resp.StatusCode)
-		c.Logger().Error(err)
+		logger.Error("failed to get cla text", zap.Error(err))
 		return
 	}
 
@@ -299,7 +298,7 @@ func handleRetrieveCLAText(c echo.Context) (err error) {
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		c.Logger().Error(err)
+		logger.Error("failed to read cla text", zap.Error(err))
 		return
 	}
 

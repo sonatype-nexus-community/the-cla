@@ -19,11 +19,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/go-github/v42/github"
 	"github.com/labstack/echo/v4"
+	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap/zaptest"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 	"net/http"
 	"net/http/httptest"
@@ -71,7 +72,9 @@ func TestMainDBOpenPanic(t *testing.T) {
 
 const mockClaText = `mock Cla text.`
 
-func setupMockContextCLA() echo.Context {
+func setupMockContextCLA(t *testing.T) echo.Context {
+	logger = zaptest.NewLogger(t)
+
 	// Setup
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, pathClaText, strings.NewReader(mockClaText))
@@ -81,11 +84,11 @@ func setupMockContextCLA() echo.Context {
 	return c
 }
 
-func TestRetrieveCLAText_MissingClaURL(t *testing.T) {
-	assert.EqualError(t, retrieveCLAText(setupMockContextCLA()), msgMissingClaUrl)
+func TestHandleRetrieveCLAText_MissingClaURL(t *testing.T) {
+	assert.EqualError(t, handleRetrieveCLAText(setupMockContextCLA(t)), msgMissingClaUrl)
 }
 
-func TestRetrieveCLAText_BadResponseCode(t *testing.T) {
+func TestHandleRetrieveCLAText_BadResponseCode(t *testing.T) {
 	origClaUrl := os.Getenv(envClsUrl)
 	defer func() {
 		resetEnvVariable(t, envClsUrl, origClaUrl)
@@ -100,10 +103,10 @@ func TestRetrieveCLAText_BadResponseCode(t *testing.T) {
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClsUrl, ts.URL+pathClaText))
-	assert.EqualError(t, retrieveCLAText(setupMockContextCLA()), "unexpected cla text response code: 403")
+	assert.EqualError(t, handleRetrieveCLAText(setupMockContextCLA(t)), "unexpected cla text response code: 403")
 }
 
-func TestRetrieveCLAText(t *testing.T) {
+func TestHandleRetrieveCLAText(t *testing.T) {
 	callCount := 0
 
 	origClaUrl := os.Getenv(envClsUrl)
@@ -123,16 +126,16 @@ func TestRetrieveCLAText(t *testing.T) {
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClsUrl, ts.URL+pathClaText))
-	assert.NoError(t, retrieveCLAText(setupMockContextCLA()))
+	assert.NoError(t, handleRetrieveCLAText(setupMockContextCLA(t)))
 	assert.Equal(t, callCount, 1)
 
 	// Ensure that subsequent calls use the cache
 
-	assert.NoError(t, retrieveCLAText(setupMockContextCLA()))
+	assert.NoError(t, handleRetrieveCLAText(setupMockContextCLA(t)))
 	assert.Equal(t, callCount, 1)
 }
 
-func TestRetrieveCLATextWithBadURL(t *testing.T) {
+func TestHandleRetrieveCLATextWithBadURL(t *testing.T) {
 	callCount := 0
 
 	origClaUrl := os.Getenv(envClsUrl)
@@ -152,7 +155,7 @@ func TestRetrieveCLATextWithBadURL(t *testing.T) {
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClsUrl, "badURLProtocol"+ts.URL+pathClaText))
-	assert.Error(t, retrieveCLAText(setupMockContextCLA()), `unsupported protocol scheme "badurlprotocolhttp"`)
+	assert.Error(t, handleRetrieveCLAText(setupMockContextCLA(t)), `unsupported protocol scheme "badurlprotocolhttp"`)
 	assert.Equal(t, callCount, 0)
 }
 
@@ -172,226 +175,83 @@ func setupMockContextOAuth(queryParams map[string]string) (c echo.Context, rec *
 	return
 }
 
-func TestProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
+func TestHandleProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
 	c, rec := setupMockContextOAuth(map[string]string{})
-	assert.NoError(t, processGitHubOAuth(c))
+	assert.NoError(t, handleProcessGitHubOAuth(c))
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
 }
 
-func TestProcessGitHubOAuthMissingQueryParamCode(t *testing.T) {
-	origOAuth := oauthImpl
-	defer func() {
-		oauthImpl = origOAuth
-	}()
-	oauthImpl = &OAuthMock{}
-
-	origGithubImpl := githubImpl
-	defer func() {
-		githubImpl = origGithubImpl
-	}()
-	githubImpl = &GitHubMock{}
+func TestHandleProcessGitHubOAuthMissingQueryParamCode(t *testing.T) {
+	//origOAuth := oauthImpl
+	//defer func() {
+	//	oauthImpl = origOAuth
+	//}()
+	//oauthImpl = &OAuthMock{}
+	//
+	//origGithubImpl := githubImpl
+	//defer func() {
+	//	githubImpl = origGithubImpl
+	//}()
+	//githubImpl = &GitHubMock{}
 
 	c, rec := setupMockContextOAuth(map[string]string{
 		"state": "testState",
 	})
-	assert.NoError(t, processGitHubOAuth(c))
+	assert.NoError(t, handleProcessGitHubOAuth(c))
 	assert.Equal(t, http.StatusOK, c.Response().Status)
 	assert.Equal(t, `null
 `, rec.Body.String())
 }
 
-func TestProcessGitHubOAuth_ExchangeError(t *testing.T) {
-	origOAuth := oauthImpl
-	defer func() {
-		oauthImpl = origOAuth
-	}()
+func TestHandleProcessGitHubOAuth_ExchangeError(t *testing.T) {
+	//origOAuth := oauthImpl
+	//defer func() {
+	//	oauthImpl = origOAuth
+	//}()
 	forcedError := fmt.Errorf("forced Exchange error")
-	oauthImpl = &OAuthMock{
-		exchangeError: forcedError,
-	}
-
-	origGithubImpl := githubImpl
-	defer func() {
-		githubImpl = origGithubImpl
-	}()
-	githubImpl = &GitHubMock{}
+	//oauthImpl = &OAuthMock{
+	//	exchangeError: forcedError,
+	//}
+	//
+	//origGithubImpl := githubImpl
+	//defer func() {
+	//	githubImpl = origGithubImpl
+	//}()
+	//githubImpl = &GitHubMock{}
 
 	c, rec := setupMockContextOAuth(map[string]string{
 		"state": "testState",
 	})
-	assert.Error(t, forcedError, processGitHubOAuth(c))
+	assert.Error(t, forcedError, handleProcessGitHubOAuth(c))
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
 }
 
-func TestProcessGitHubOAuth_UsersServiceError(t *testing.T) {
-	origOAuth := oauthImpl
-	defer func() {
-		oauthImpl = origOAuth
-	}()
-	oauthImpl = &OAuthMock{}
-
-	origGithubImpl := githubImpl
-	defer func() {
-		githubImpl = origGithubImpl
-	}()
+func TestHandleProcessGitHubOAuth_UsersServiceError(t *testing.T) {
+	//origOAuth := oauthImpl
+	//defer func() {
+	//	oauthImpl = origOAuth
+	//}()
+	//oauthImpl = &OAuthMock{}
+	//
+	//origGithubImpl := githubImpl
+	//defer func() {
+	//	githubImpl = origGithubImpl
+	//}()
 	forcedError := fmt.Errorf("forced Users error")
-	githubImpl = &GitHubMock{
-		usersMock: UsersMock{
-			mockGetError: forcedError,
-		},
-	}
+	//githubImpl = &GitHubMock{
+	//	usersMock: UsersMock{
+	//		mockGetError: forcedError,
+	//	},
+	//}
 
 	c, rec := setupMockContextOAuth(map[string]string{
 		"state": "testState",
 	})
-	assert.Error(t, forcedError, processGitHubOAuth(c))
+	assert.Error(t, forcedError, handleProcessGitHubOAuth(c))
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
-}
-
-func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
-	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "nonNumericGHAppID"))
-
-	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
-	assert.EqualError(t, err, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`)
-	assert.Equal(t, "", res)
-}
-
-func TestHandlePullRequestMissingPemFile(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
-	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
-
-	// move pem file if it exists
-	pemBackupFile := filenameTheClaPem + "_orig"
-	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
-	defer func() {
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-
-	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
-	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
-	assert.Equal(t, "", res)
-}
-
-func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
-	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
-
-	// move pem file if it exists
-	pemBackupFile := filenameTheClaPem + "_orig"
-	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(filenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	setupTestPemFile(t)
-
-	origGithubImpl := githubImpl
-	defer func() {
-		githubImpl = origGithubImpl
-	}()
-	forcedError := fmt.Errorf("forced ListCommits error")
-	githubImpl = &GitHubMock{
-		pullRequestsMock: PullRequestsMock{
-			mockListCommitsError: forcedError,
-		},
-	}
-
-	prEvent := webhook.PullRequestPayload{}
-	res, err := handlePullRequest(setupMockContextLogger(), prEvent)
-	assert.EqualError(t, err, forcedError.Error())
-	assert.Equal(t, "", res)
-}
-
-func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
-	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
-
-	// move pem file if it exists
-	pemBackupFile := filenameTheClaPem + "_orig"
-	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(filenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	setupTestPemFile(t)
-
-	origGithubImpl := githubImpl
-	defer func() {
-		githubImpl = origGithubImpl
-	}()
-	login := "john"
-	login2 := "doe"
-	mockRepositoryCommits := []*github.RepositoryCommit{
-		{
-			Author: &github.User{
-				Login: github.String(login),
-				Email: github.String("j@gmail.com"),
-			},
-			SHA: github.String("johnSHA"),
-		},
-		{
-			Author: &github.User{
-				Login: github.String(login2),
-				Email: github.String("d@gmail.com"),
-			},
-			SHA: github.String("doeSHA"),
-		},
-	}
-	githubImpl = &GitHubMock{
-		pullRequestsMock: PullRequestsMock{
-			mockRepositoryCommits: mockRepositoryCommits,
-		},
-	}
-
-	prEvent := webhook.PullRequestPayload{}
-
-	dbMock, mock := newMockDb(t)
-	defer func() {
-		_ = dbMock.Close()
-	}()
-	origDb := db
-	defer func() {
-		db = origDb
-	}()
-	db = dbMock
-
-	requiredClaVersion := getCurrentCLAVersion()
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
-		WithArgs(login, requiredClaVersion).
-		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
-		WithArgs(login2, requiredClaVersion).
-		WillReturnRows(sqlmock.NewRows([]string{"LoginName,Email,GivenName,SignedAt,ClaVersion"}))
-
-	logger := echo.New().Logger
-
-	res, err := handlePullRequest(logger, prEvent)
-	assert.NoError(t, err)
-	assert.Equal(t, `Author: `+login+` Email: j@gmail.com Commit SHA: johnSHA,Author: `+login2+` Email: d@gmail.com Commit SHA: doeSHA`, res)
 }
 
 func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
@@ -412,83 +272,83 @@ func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent gi
 	return
 }
 
-func TestProcessWebhookMissingHeaderGitHubEvent(t *testing.T) {
+func TestHandleProcessWebhookMissingHeaderGitHubEvent(t *testing.T) {
 	c, rec := setupMockContextWebhook(t, map[string]string{}, github.PullRequestEvent{})
 
-	assert.NoError(t, processWebhook(c))
+	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
 	assert.Equal(t, "missing X-GitHub-Event Header", rec.Body.String())
 }
 
-func TestProcessWebhookUnhandledGitHubEvent(t *testing.T) {
+func TestHandleProcessWebhookUnhandledGitHubEvent(t *testing.T) {
 	c, rec := setupMockContextWebhook(t,
 		map[string]string{
 			"X-GitHub-Event": "unknownGitHubEventHeaderValue",
 		}, github.PullRequestEvent{})
 
-	assert.NoError(t, processWebhook(c))
+	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
 	assert.Equal(t, msgUnhandledGitHubEventType, rec.Body.String())
 }
 
-func TestProcessWebhookGitHubEventPullRequestPayloadActionIgnored(t *testing.T) {
+func TestHandleProcessWebhookGitHubEventPullRequestPayloadActionIgnored(t *testing.T) {
 	actionText := "someIgnoredAction"
 	c, rec := setupMockContextWebhook(t,
 		map[string]string{
 			"X-GitHub-Event": string(webhook.PullRequestEvent),
 		}, github.PullRequestEvent{Action: &actionText})
 
-	assert.NoError(t, processWebhook(c))
+	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusAccepted, c.Response().Status)
 	assert.Equal(t, "No action taken for: someIgnoredAction", rec.Body.String())
 }
 
-func TestProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing.T) {
+func TestHandleProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing.T) {
 	actionText := "opened"
 	c, rec := setupMockContextWebhook(t,
 		map[string]string{
 			"X-GitHub-Event": string(webhook.PullRequestEvent),
 		}, github.PullRequestEvent{Action: &actionText})
 
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	origGHAppIDEnvVar := os.Getenv(ourGithub.EnvGhAppId)
 	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
+		resetEnvVariable(t, ourGithub.EnvGhAppId, origGHAppIDEnvVar)
 	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "nonNumericGHAppID"))
+	assert.NoError(t, os.Setenv(ourGithub.EnvGhAppId, "nonNumericGHAppID"))
 
-	assert.NoError(t, processWebhook(c))
+	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
 	assert.Equal(t, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`, rec.Body.String())
 }
 
-func TestProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) {
+func TestHandleProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) {
 	actionText := "opened"
 	c, rec := setupMockContextWebhook(t,
 		map[string]string{
 			"X-GitHub-Event": string(webhook.PullRequestEvent),
 		}, github.PullRequestEvent{Action: &actionText})
 
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	origGHAppIDEnvVar := os.Getenv(ourGithub.EnvGhAppId)
 	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
+		resetEnvVariable(t, ourGithub.EnvGhAppId, origGHAppIDEnvVar)
 	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+	assert.NoError(t, os.Setenv(ourGithub.EnvGhAppId, "-1"))
 
 	// move pem file if it exists
-	pemBackupFile := filenameTheClaPem + "_orig"
-	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	pemBackupFile := ourGithub.FilenameTheClaPem + "_orig"
+	errRename := os.Rename(ourGithub.FilenameTheClaPem, pemBackupFile)
 	defer func() {
 		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+			assert.NoError(t, os.Rename(pemBackupFile, ourGithub.FilenameTheClaPem), "error renaming pem file in test")
 		}
 	}()
 
-	assert.NoError(t, processWebhook(c))
+	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
 	assert.Equal(t, "could not read private key: open the-cla.pem: no such file or directory", rec.Body.String())
 }
 
-func TestProcessWebhookGitHubEventPullRequestPayloadActionHandled(t *testing.T) {
+func TestHandleProcessWebhookGitHubEventPullRequestPayloadActionHandled(t *testing.T) {
 	verifyActionHandled(t, "opened")
 	verifyActionHandled(t, "reopened")
 	verifyActionHandled(t, "synchronize")
@@ -500,35 +360,37 @@ func verifyActionHandled(t *testing.T, actionText string) {
 			"X-GitHub-Event": string(webhook.PullRequestEvent),
 		}, github.PullRequestEvent{Action: &actionText})
 
-	origGHAppIDEnvVar := os.Getenv(envGhAppId)
+	origGHAppIDEnvVar := os.Getenv(ourGithub.EnvGhAppId)
 	defer func() {
-		resetEnvVariable(t, envGhAppId, origGHAppIDEnvVar)
+		resetEnvVariable(t, ourGithub.EnvGhAppId, origGHAppIDEnvVar)
 	}()
-	assert.NoError(t, os.Setenv(envGhAppId, "-1"))
+	assert.NoError(t, os.Setenv(ourGithub.EnvGhAppId, "-1"))
 
 	// move pem file if it exists
-	pemBackupFile := filenameTheClaPem + "_orig"
-	errRename := os.Rename(filenameTheClaPem, pemBackupFile)
+	pemBackupFile := ourGithub.FilenameTheClaPem + "_orig"
+	errRename := os.Rename(ourGithub.FilenameTheClaPem, pemBackupFile)
 	defer func() {
-		assert.NoError(t, os.Remove(filenameTheClaPem))
+		assert.NoError(t, os.Remove(ourGithub.FilenameTheClaPem))
 		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, filenameTheClaPem), "error renaming pem file in test")
+			assert.NoError(t, os.Rename(pemBackupFile, ourGithub.FilenameTheClaPem), "error renaming pem file in test")
 		}
 	}()
-	setupTestPemFile(t)
+	//ourGithub.SetupTestPemFile(t)
+	//
+	//origGithubImpl := githubImpl
+	//defer func() {
+	//	githubImpl = origGithubImpl
+	//}()
+	//githubImpl = &GitHubMock{}
 
-	origGithubImpl := githubImpl
-	defer func() {
-		githubImpl = origGithubImpl
-	}()
-	githubImpl = &GitHubMock{}
-
-	assert.NoError(t, processWebhook(c))
+	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusAccepted, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
 }
 
 func setupMockContextSignCla(t *testing.T, headers map[string]string, user types.UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
+	logger = zaptest.NewLogger(t)
+
 	// Setup
 	e := echo.New()
 
@@ -546,9 +408,9 @@ func setupMockContextSignCla(t *testing.T, headers map[string]string, user types
 	return
 }
 
-func TestProcessSignClaBindError(t *testing.T) {
+func TestHandleProcessSignClaBindError(t *testing.T) {
 	c, rec := setupMockContextSignCla(t, map[string]string{}, types.UserSignature{})
-	assert.EqualError(t, processSignCla(c), "code=415, message=Unsupported Media Type")
+	assert.EqualError(t, handleProcessSignCla(c), "code=415, message=Unsupported Media Type")
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
 }

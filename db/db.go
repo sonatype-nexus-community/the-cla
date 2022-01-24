@@ -54,8 +54,12 @@ func New(db *sql.DB, logger *zap.Logger) *ClaDB {
 }
 
 func (p *ClaDB) InsertSignature(user *types.UserSignature) error {
-	_, err := p.db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
+	result, err := p.db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
 	if err != nil {
+		return fmt.Errorf(msgTemplateErrInsertSignatureDuplicate, user.User, err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected == 0 {
 		return fmt.Errorf(msgTemplateErrInsertSignatureDuplicate, user.User, err)
 	}
 	return nil
