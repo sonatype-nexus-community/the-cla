@@ -41,16 +41,8 @@ func resetEnvVariable(t *testing.T, variableName, originalValue string) {
 	}
 }
 
-func resetEnvVar(t *testing.T, envVarName, origValue string) {
-	if origValue != "" {
-		assert.NoError(t, os.Setenv(envVarName, origValue))
-	} else {
-		assert.NoError(t, os.Unsetenv(envVarName))
-	}
-}
-
 func resetEnvVarPGHost(t *testing.T, origEnvPGHost string) {
-	resetEnvVar(t, envPGHost, origEnvPGHost)
+	resetEnvVariable(t, envPGHost, origEnvPGHost)
 }
 
 func TestMainDBOpenPanic(t *testing.T) {
@@ -85,6 +77,12 @@ func setupMockContextCLA(t *testing.T) echo.Context {
 }
 
 func TestHandleRetrieveCLAText_MissingClaURL(t *testing.T) {
+	origClaUrl := os.Getenv(envClsUrl)
+	defer func() {
+		resetEnvVariable(t, envClsUrl, origClaUrl)
+	}()
+	resetEnvVariable(t, envClsUrl, "")
+
 	assert.EqualError(t, handleRetrieveCLAText(setupMockContextCLA(t)), msgMissingClaUrl)
 }
 
@@ -159,7 +157,9 @@ func TestHandleRetrieveCLATextWithBadURL(t *testing.T) {
 	assert.Equal(t, callCount, 0)
 }
 
-func setupMockContextOAuth(queryParams map[string]string) (c echo.Context, rec *httptest.ResponseRecorder) {
+func setupMockContextOAuth(t *testing.T, queryParams map[string]string) (c echo.Context, rec *httptest.ResponseRecorder) {
+	logger = zaptest.NewLogger(t)
+
 	// Setup
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, pathOAuthCallback, strings.NewReader("mock OAuth stuff"))
@@ -176,7 +176,7 @@ func setupMockContextOAuth(queryParams map[string]string) (c echo.Context, rec *
 }
 
 func TestHandleProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
-	c, rec := setupMockContextOAuth(map[string]string{})
+	c, rec := setupMockContextOAuth(t, map[string]string{})
 	assert.NoError(t, handleProcessGitHubOAuth(c))
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
@@ -195,7 +195,7 @@ func TestHandleProcessGitHubOAuthMissingQueryParamCode(t *testing.T) {
 	//}()
 	//githubImpl = &GitHubMock{}
 
-	c, rec := setupMockContextOAuth(map[string]string{
+	c, rec := setupMockContextOAuth(t, map[string]string{
 		"state": "testState",
 	})
 	assert.NoError(t, handleProcessGitHubOAuth(c))
@@ -220,7 +220,7 @@ func TestHandleProcessGitHubOAuth_ExchangeError(t *testing.T) {
 	//}()
 	//githubImpl = &GitHubMock{}
 
-	c, rec := setupMockContextOAuth(map[string]string{
+	c, rec := setupMockContextOAuth(t, map[string]string{
 		"state": "testState",
 	})
 	assert.Error(t, forcedError, handleProcessGitHubOAuth(c))
@@ -246,7 +246,7 @@ func TestHandleProcessGitHubOAuth_UsersServiceError(t *testing.T) {
 	//	},
 	//}
 
-	c, rec := setupMockContextOAuth(map[string]string{
+	c, rec := setupMockContextOAuth(t, map[string]string{
 		"state": "testState",
 	})
 	assert.Error(t, forcedError, handleProcessGitHubOAuth(c))

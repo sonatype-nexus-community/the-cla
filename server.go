@@ -273,7 +273,7 @@ func handleRetrieveCLAText(c echo.Context) (err error) {
 		return c.String(http.StatusOK, claCache[claURL])
 	}
 
-	logger.Debug("CLA text not in cache, moving forward to fetch")
+	logger.Debug("CLA text not in cache, moving forward to fetch", zap.String("claURL", claURL))
 	if claURL == "" {
 		return fmt.Errorf(msgMissingClaUrl)
 	}

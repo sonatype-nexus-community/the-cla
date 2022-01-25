@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/go-github/v42/github"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/oauth2"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
 
@@ -29,6 +28,8 @@ type RepositoriesMock struct {
 	createStatusResponse                     *github.Response
 	createStatusError                        error
 }
+
+var _ RepositoriesService = (*RepositoriesMock)(nil)
 
 func setupMockRepositoriesService(t *testing.T, assertParameters bool) (mock *RepositoriesMock) {
 	mock = &RepositoriesMock{
@@ -68,27 +69,6 @@ func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Reposit
 	}, nil, nil
 }
 
-type OAuthMock struct {
-	exchangeToken *oauth2.Token
-	exchangeError error
-}
-
-// Exchange takes the code and returns a real token.
-//goland:noinspection GoUnusedParameter
-func (o *OAuthMock) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
-	return o.exchangeToken, o.exchangeError
-}
-
-// Client returns a new http.Client.
-//goland:noinspection GoUnusedParameter
-func (o *OAuthMock) Client(ctx context.Context, t *oauth2.Token) *http.Client {
-	return &http.Client{}
-}
-
-func (o *OAuthMock) getConf() *oauth2.Config {
-	return nil
-}
-
 // UsersMock mocks UsersService
 type UsersMock struct {
 	mockUser     *github.User
@@ -96,16 +76,21 @@ type UsersMock struct {
 	mockGetError error
 }
 
+var _ UsersService = (*UsersMock)(nil)
+
 // Get returns a user.
 func (u *UsersMock) Get(context.Context, string) (*github.User, *github.Response, error) {
 	return u.mockUser, u.mockResponse, u.mockGetError
 }
 
+// PullRequestsMock mocks PullRequestsService
 type PullRequestsMock struct {
 	mockRepositoryCommits []*github.RepositoryCommit
 	mockResponse          *github.Response
 	mockListCommitsError  error
 }
+
+var _ PullRequestsService = (*PullRequestsMock)(nil)
 
 //goland:noinspection GoUnusedParameter
 func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error) {
@@ -132,6 +117,8 @@ type IssuesMock struct {
 	mockListCommentsResponse      *github.Response
 	mockListCommentsError         error
 }
+
+var _ IssuesService = (*IssuesMock)(nil)
 
 //goland:noinspection GoUnusedParameter
 func (i *IssuesMock) GetLabel(ctx context.Context, owner string, repo string, labelName string) (*github.Label, *github.Response, error) {
@@ -170,6 +157,8 @@ type GitHubMock struct {
 	pullRequestsMock PullRequestsMock
 	issuesMock       IssuesMock
 }
+
+var _ GitHubInterface = (*GitHubMock)(nil)
 
 // NewClient something
 //goland:noinspection GoUnusedParameter
@@ -405,6 +394,8 @@ type mockCLADb struct {
 	migrateDBSourceError         error
 }
 
+var _ db.IClaDB = (*mockCLADb)(nil)
+
 func setupMockDB(t *testing.T, assertParameters bool) (mock *mockCLADb, logger *zap.Logger) {
 	mock = &mockCLADb{
 		t:                t,
@@ -433,9 +424,6 @@ func (m mockCLADb) MigrateDB(migrateSourceURL string) error {
 	}
 	return m.migrateDBSourceError
 }
-
-// Roll that beautiful bean footage
-var _ db.IClaDB = (*mockCLADb)(nil)
 
 func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
