@@ -103,11 +103,7 @@ func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
 
 var githubImpl GitHubInterface = &GitHubCreator{}
 
-func HandlePullRequest(logger *zap.Logger,
-	postgres db.IClaDB,
-	payload webhook.PullRequestPayload,
-	appId int,
-	claVersion string) (string, error) {
+func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.PullRequestPayload, appId int, claVersion string) error {
 	logger.Debug("Attempting to start authenticating with GitHub")
 
 	owner := payload.Repository.Owner.Login
@@ -118,14 +114,14 @@ func HandlePullRequest(logger *zap.Logger,
 	logger.Debug(fmt.Sprintf("Transport setup, using appID: %d and installation ID: %d", appId, payload.Installation.ID))
 	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, int64(appId), payload.Installation.ID, FilenameTheClaPem)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	client := githubImpl.NewClient(&http.Client{Transport: itr})
 
-	err = createRepoStatus(logger, client.Repositories, owner, repo, sha, "pending", "Paul Botsco, the CLA verifier is running")
+	err = createRepoStatus(client.Repositories, owner, repo, sha, "pending", "Paul Botsco, the CLA verifier is running")
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	opts := &github.ListOptions{}
@@ -136,7 +132,7 @@ func HandlePullRequest(logger *zap.Logger,
 		repo,
 		pullRequestID, opts)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	// TODO: Once we have stuff in a DB, we can iterate over the list of commits,
@@ -151,7 +147,7 @@ func HandlePullRequest(logger *zap.Logger,
 
 		hasAuthorSigned, err := postgres.HasAuthorSignedTheCla(*author.Login, claVersion)
 		if err != nil {
-			return "", err
+			return err
 		}
 		if !hasAuthorSigned {
 			usersNeedingToSignCLA = append(usersNeedingToSignCLA,
@@ -170,7 +166,7 @@ func HandlePullRequest(logger *zap.Logger,
 	if len(usersNeedingToSignCLA) > 0 {
 		err := createRepoLabel(logger, client.Issues, owner, repo, labelNameCLANotSigned, "ff3333", "The CLA needs to be signed", pullRequestID)
 		if err != nil {
-			return "", err
+			return err
 		}
 
 		var users []string
@@ -181,34 +177,32 @@ func HandlePullRequest(logger *zap.Logger,
 		message := "Thanks for the contribution. Before we can merge this, we need %s to sign the Contributor License Agreement"
 		userMsg := strings.Join(users, ",")
 
-		_, err = addCommentToIssueIfNotExists(logger, client.Issues, owner, repo, pullRequestID, fmt.Sprintf(message, userMsg))
+		_, err = addCommentToIssueIfNotExists(client.Issues, owner, repo, pullRequestID, fmt.Sprintf(message, userMsg))
 		if err != nil {
-			return "", err
+			return err
 		}
 
-		err = createRepoStatus(logger, client.Repositories, owner, repo, sha, "failure", "One or more contributors need to sign the CLA")
+		err = createRepoStatus(client.Repositories, owner, repo, sha, "failure", "One or more contributors need to sign the CLA")
 		if err != nil {
-			return "", err
+			return err
 		}
 	} else {
 		logger.Debug("Attempting to create label for signed CLA")
 		err = createRepoLabel(logger, client.Issues, owner, repo, labelNameCLASigned, "66CC00", "The CLA is signed", pullRequestID)
 		if err != nil {
-			return "", err
+			return err
 		}
 
-		err = createRepoStatus(logger, client.Repositories, owner, repo, sha, "success", "All contributors have signed the CLA")
+		err = createRepoStatus(client.Repositories, owner, repo, sha, "success", "All contributors have signed the CLA")
 		if err != nil {
-			return "", err
+			return err
 		}
 	}
 
-	return "things", nil
+	return nil
 }
 
-func createRepoStatus(logger *zap.Logger,
-	repositoryService RepositoriesService,
-	owner, repo, sha, state, description string) error {
+func createRepoStatus(repositoryService RepositoriesService, owner, repo, sha, state, description string) error {
 	_, _, err := repositoryService.CreateStatus(context.Background(), owner, repo, sha, &github.RepoStatus{State: &state, Description: &description})
 	if err != nil {
 		return err
@@ -266,7 +260,7 @@ func _createRepoLabelIfNotExists(logger *zap.Logger,
 	return
 }
 
-func addCommentToIssueIfNotExists(logger *zap.Logger, issuesService IssuesService, owner, repo string, issueNumber int, message string) (*github.IssueComment, error) {
+func addCommentToIssueIfNotExists(issuesService IssuesService, owner, repo string, issueNumber int, message string) (*github.IssueComment, error) {
 	opts := &github.IssueListCommentsOptions{}
 	comments, _, err := issuesService.ListComments(context.Background(), owner, repo, issueNumber, opts)
 	if err != nil {

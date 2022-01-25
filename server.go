@@ -196,13 +196,13 @@ func handleProcessWebhook(c echo.Context) (err error) {
 	case webhook.PullRequestPayload:
 		switch payload.Action {
 		case "opened", "reopened", "synchronize":
-			res, err := ourGithub.HandlePullRequest(logger, postgresDB, payload, appId, getCurrentCLAVersion())
+			err := ourGithub.HandlePullRequest(logger, postgresDB, payload, appId, getCurrentCLAVersion())
 			if err != nil {
 				logger.Error("failed to handle pull request", zap.Error(err))
 				return c.String(http.StatusBadRequest, err.Error())
 			}
 
-			return c.String(http.StatusAccepted, res)
+			return c.String(http.StatusAccepted, "accepted pull request for processing")
 		default:
 			return c.String(http.StatusAccepted, fmt.Sprintf("No action taken for: %s", payload.Action))
 		}

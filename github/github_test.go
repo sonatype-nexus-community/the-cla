@@ -20,6 +20,7 @@ import (
 // RepositoriesMock mocks RepositoriesService
 type RepositoriesMock struct {
 	t                                        *testing.T
+	assertParameters                         bool
 	expectedCtx                              context.Context
 	expectedOwner, expectedRepo, expectedRef string
 	expectedOpts                             *github.ListOptions
@@ -29,25 +30,28 @@ type RepositoriesMock struct {
 	createStatusError                        error
 }
 
-func setupMockRepositoriesService(t *testing.T) (mock *RepositoriesMock) {
+func setupMockRepositoriesService(t *testing.T, assertParameters bool) (mock *RepositoriesMock) {
 	mock = &RepositoriesMock{
-		t: t,
+		t:                t,
+		assertParameters: assertParameters,
 	}
 	return mock
 }
 
+//goland:noinspection GoUnusedParameter
 func (r *RepositoriesMock) ListStatuses(ctx context.Context, owner, repo, ref string, opts *github.ListOptions) ([]*github.RepoStatus, *github.Response, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (r *RepositoriesMock) CreateStatus(ctx context.Context, owner, repo, ref string, status *github.RepoStatus) (*github.RepoStatus, *github.Response, error) {
-	// @todo Investigate adding assertions of expected mock fields
-	//assert.Equal(r.t, r.expectedCtx, ctx)
-	//assert.Equal(r.t, r.expectedOwner, owner)
-	//assert.Equal(r.t, r.expectedRepo, repo)
-	//assert.Equal(r.t, r.expectedRef, ref)
-	//assert.Equal(r.t, r.expectedCreateStatusRepoStatus, status)
+	if r.assertParameters {
+		assert.Equal(r.t, r.expectedCtx, ctx)
+		assert.Equal(r.t, r.expectedOwner, owner)
+		assert.Equal(r.t, r.expectedRepo, repo)
+		assert.Equal(r.t, r.expectedRef, ref)
+		assert.Equal(r.t, r.expectedCreateStatusRepoStatus, status)
+	}
 	return r.createStatusRepoStatus, r.createStatusResponse, r.createStatusError
 }
 
@@ -171,7 +175,7 @@ type GitHubMock struct {
 //goland:noinspection GoUnusedParameter
 func (g *GitHubMock) NewClient(httpClient *http.Client) GitHubClient {
 	return GitHubClient{
-		Repositories: &RepositoriesMock{},
+		Repositories: &g.repositoriesMock,
 		Users: &UsersMock{
 			mockGetError: g.usersMock.mockGetError,
 			mockUser:     g.usersMock.mockUser,
@@ -390,7 +394,8 @@ func Test_AddLabelToIssueIfNotExists(t *testing.T) {
 
 type mockCLADb struct {
 	t                            *testing.T
-	insertSignatureUserSiganture *types.UserSignature
+	assertParameters             bool
+	insertSignatureUserSignature *types.UserSignature
 	insertSignatureError         error
 	hasAuthorSignedLogin         string
 	hasAuthorSignedCLAVersion    string
@@ -400,25 +405,32 @@ type mockCLADb struct {
 	migrateDBSourceError         error
 }
 
-func setupMockDB(t *testing.T) (mock *mockCLADb, logger *zap.Logger) {
+func setupMockDB(t *testing.T, assertParameters bool) (mock *mockCLADb, logger *zap.Logger) {
 	mock = &mockCLADb{
-		t: t,
+		t:                t,
+		assertParameters: assertParameters,
 	}
 	return mock, zaptest.NewLogger(t)
 }
 func (m mockCLADb) InsertSignature(u *types.UserSignature) error {
-	assert.Equal(m.t, m.insertSignatureUserSiganture, u)
+	if m.assertParameters {
+		assert.Equal(m.t, m.insertSignatureUserSignature, u)
+	}
 	return m.insertSignatureError
 }
 
 func (m mockCLADb) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
-	assert.Equal(m.t, m.hasAuthorSignedLogin, login)
-	assert.Equal(m.t, m.hasAuthorSignedCLAVersion, claVersion)
+	if m.assertParameters {
+		assert.Equal(m.t, m.hasAuthorSignedLogin, login)
+		assert.Equal(m.t, m.hasAuthorSignedCLAVersion, claVersion)
+	}
 	return m.hasAuthorSignedResult, m.hasAuthorSignedError
 }
 
 func (m mockCLADb) MigrateDB(migrateSourceURL string) error {
-	assert.Equal(m.t, m.migrateDBSourceURL, migrateSourceURL)
+	if m.assertParameters {
+		assert.Equal(m.t, m.migrateDBSourceURL, migrateSourceURL)
+	}
 	return m.migrateDBSourceError
 }
 
@@ -460,12 +472,11 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 
 	prEvent := webhook.PullRequestPayload{}
 
-	db, logger := setupMockDB(t)
-	db.hasAuthorSignedLogin = mockAuthorLogin
+	mockDB, logger := setupMockDB(t, true)
+	mockDB.hasAuthorSignedLogin = mockAuthorLogin
 
-	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
-	assert.Equal(t, "", res)
 }
 
 func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
@@ -503,26 +514,11 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 
 	prEvent := webhook.PullRequestPayload{}
 
-	db, logger := setupMockDB(t)
-	db.hasAuthorSignedLogin = mockAuthorLogin
+	mockDB, logger := setupMockDB(t, true)
+	mockDB.hasAuthorSignedLogin = mockAuthorLogin
 
-	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
-	assert.Equal(t, "", res)
-}
-
-func TestHandlePullRequestBadGH_APP_ID(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
-	defer func() {
-		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(EnvGhAppId, "nonNumericGHAppID"))
-
-	prEvent := webhook.PullRequestPayload{}
-	db, logger := setupMockDB(t)
-	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
-	assert.EqualError(t, err, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`)
-	assert.Equal(t, "", res)
 }
 
 func TestHandlePullRequestMissingPemFile(t *testing.T) {
@@ -542,10 +538,9 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	}()
 
 	prEvent := webhook.PullRequestPayload{}
-	db, logger := setupMockDB(t)
-	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
+	mockDB, logger := setupMockDB(t, true)
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
-	assert.Equal(t, "", res)
 }
 
 func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
@@ -572,17 +567,16 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	}()
 	forcedError := fmt.Errorf("forced ListCommits error")
 	githubImpl = &GitHubMock{
-		repositoriesMock: *setupMockRepositoriesService(t),
+		repositoriesMock: *setupMockRepositoriesService(t, false),
 		pullRequestsMock: PullRequestsMock{
 			mockListCommitsError: forcedError,
 		},
 	}
 
 	prEvent := webhook.PullRequestPayload{}
-	db, logger := setupMockDB(t)
-	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
+	mockDB, logger := setupMockDB(t, true)
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
-	assert.Equal(t, "", res)
 }
 
 func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
@@ -629,12 +623,14 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 		pullRequestsMock: PullRequestsMock{
 			mockRepositoryCommits: mockRepositoryCommits,
 		},
+		issuesMock: IssuesMock{
+			mockGetLabel: &github.Label{},
+		},
 	}
 
 	prEvent := webhook.PullRequestPayload{}
 
-	db, logger := setupMockDB(t)
-	res, err := HandlePullRequest(logger, db, prEvent, 0, "")
+	mockDB, logger := setupMockDB(t, false)
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 	assert.NoError(t, err)
-	assert.Equal(t, `Author: `+login+` Email: j@gmail.com Commit SHA: johnSHA,Author: `+login2+` Email: d@gmail.com Commit SHA: doeSHA`, res)
 }
