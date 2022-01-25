@@ -119,7 +119,6 @@ func TestHandleRetrieveCLAText(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(mockClaText))
 	}))
-
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClsUrl, ts.URL+pathClaText))
@@ -148,7 +147,6 @@ func TestHandleRetrieveCLATextWithBadURL(t *testing.T) {
 		// nobody home, be we should not even be knocking on this door - call should not occur
 		w.WriteHeader(http.StatusNotFound)
 	}))
-
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClsUrl, "badURLProtocol"+ts.URL+pathClaText))
@@ -182,6 +180,8 @@ func TestHandleProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
 }
 
 func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
+	logger = zaptest.NewLogger(t)
+
 	// Setup
 	e := echo.New()
 
