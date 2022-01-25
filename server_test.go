@@ -18,7 +18,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/google/go-github/v42/github"
 	"github.com/labstack/echo/v4"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
@@ -182,78 +181,6 @@ func TestHandleProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
 	assert.Equal(t, "", rec.Body.String())
 }
 
-func TestHandleProcessGitHubOAuthMissingQueryParamCode(t *testing.T) {
-	//origOAuth := oauthImpl
-	//defer func() {
-	//	oauthImpl = origOAuth
-	//}()
-	//oauthImpl = &OAuthMock{}
-	//
-	//origGithubImpl := githubImpl
-	//defer func() {
-	//	githubImpl = origGithubImpl
-	//}()
-	//githubImpl = &GitHubMock{}
-
-	c, rec := setupMockContextOAuth(t, map[string]string{
-		"state": "testState",
-	})
-	assert.NoError(t, handleProcessGitHubOAuth(c))
-	assert.Equal(t, http.StatusOK, c.Response().Status)
-	assert.Equal(t, `null
-`, rec.Body.String())
-}
-
-func TestHandleProcessGitHubOAuth_ExchangeError(t *testing.T) {
-	//origOAuth := oauthImpl
-	//defer func() {
-	//	oauthImpl = origOAuth
-	//}()
-	forcedError := fmt.Errorf("forced Exchange error")
-	//oauthImpl = &OAuthMock{
-	//	exchangeError: forcedError,
-	//}
-	//
-	//origGithubImpl := githubImpl
-	//defer func() {
-	//	githubImpl = origGithubImpl
-	//}()
-	//githubImpl = &GitHubMock{}
-
-	c, rec := setupMockContextOAuth(t, map[string]string{
-		"state": "testState",
-	})
-	assert.Error(t, forcedError, handleProcessGitHubOAuth(c))
-	assert.Equal(t, 0, c.Response().Status)
-	assert.Equal(t, "", rec.Body.String())
-}
-
-func TestHandleProcessGitHubOAuth_UsersServiceError(t *testing.T) {
-	//origOAuth := oauthImpl
-	//defer func() {
-	//	oauthImpl = origOAuth
-	//}()
-	//oauthImpl = &OAuthMock{}
-	//
-	//origGithubImpl := githubImpl
-	//defer func() {
-	//	githubImpl = origGithubImpl
-	//}()
-	forcedError := fmt.Errorf("forced Users error")
-	//githubImpl = &GitHubMock{
-	//	usersMock: UsersMock{
-	//		mockGetError: forcedError,
-	//	},
-	//}
-
-	c, rec := setupMockContextOAuth(t, map[string]string{
-		"state": "testState",
-	})
-	assert.Error(t, forcedError, handleProcessGitHubOAuth(c))
-	assert.Equal(t, 0, c.Response().Status)
-	assert.Equal(t, "", rec.Body.String())
-}
-
 func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
 	// Setup
 	e := echo.New()
@@ -297,6 +224,12 @@ func TestHandleProcessWebhookGitHubEventPullRequestPayloadActionIgnored(t *testi
 		map[string]string{
 			"X-GitHub-Event": string(webhook.PullRequestEvent),
 		}, github.PullRequestEvent{Action: &actionText})
+
+	origGHAppIDEnvVar := os.Getenv(ourGithub.EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, ourGithub.EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(ourGithub.EnvGhAppId, "-1"))
 
 	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusAccepted, c.Response().Status)

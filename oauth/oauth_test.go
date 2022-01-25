@@ -88,11 +88,21 @@ func setupMockOAuth(t *testing.T, assertParameters bool) (mockOAuth OAuthMock, l
 	return
 }
 
-func TestGetOAuthUser(t *testing.T) {
+// TODO We can likely delete the OAuth mock and this test
+func TestGetOAuthUserMock(t *testing.T) {
 	oauth, logger := setupMockOAuth(t, true)
 	oauth.getUserLogger = logger
 
 	user, err := oauth.GetOAuthUser(logger, "")
-	assert.Equal(t, "myUser", user)
-	assert.Equal(t, "myErr", err)
+	assert.Equal(t, (*github.User)(nil), user)
+	assert.Equal(t, nil, err)
+}
+
+func TestGetOAuthUserFail(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	oauth := CreateOAuth("myClientId", "myClientSecret")
+
+	user, err := oauth.GetOAuthUser(logger, "myOAuthCode")
+	assert.Nil(t, user)
+	assert.True(t, err != nil)
 }
