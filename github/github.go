@@ -101,7 +101,7 @@ func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
 	}
 }
 
-var githubImpl GitHubInterface = &GitHubCreator{}
+var GithubImpl GitHubInterface = &GitHubCreator{}
 
 func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.PullRequestPayload, appId int, claVersion string) error {
 	logger.Debug("Attempting to start authenticating with GitHub")
@@ -117,7 +117,7 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 		return err
 	}
 
-	client := githubImpl.NewClient(&http.Client{Transport: itr})
+	client := GithubImpl.NewClient(&http.Client{Transport: itr})
 
 	err = createRepoStatus(client.Repositories, owner, repo, sha, "pending", "Paul Botsco, the CLA verifier is running")
 	if err != nil {
