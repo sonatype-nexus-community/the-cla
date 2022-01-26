@@ -333,11 +333,11 @@ func verifyActionHandled(t *testing.T, actionText string) {
 	}()
 	ourGithub.SetupTestPemFile(t)
 
-	origGithubImpl := ourGithub.GithubImpl
+	origGithubImpl := ourGithub.GHImpl
 	defer func() {
-		ourGithub.GithubImpl = origGithubImpl
+		ourGithub.GHImpl = origGithubImpl
 	}()
-	ourGithub.GithubImpl = &ourGithub.GHInterfaceMock{
+	ourGithub.GHImpl = &ourGithub.GHInterfaceMock{
 		IssuesMock: ourGithub.IssuesMock{
 			MockGetLabelResponse: &github.Response{
 				Response: &http.Response{},

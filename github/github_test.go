@@ -34,16 +34,21 @@ import (
 )
 
 func TestCreateLabelIfNotExists_GetLabelError(t *testing.T) {
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	forcedError := fmt.Errorf("forced GetLabel error")
-	GithubImpl = &GHInterfaceMock{
-		IssuesMock: IssuesMock{mockGetLabelError: forcedError},
+	GHImpl = &GHInterfaceMock{
+		IssuesMock: IssuesMock{
+			mockGetLabelError: forcedError,
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		},
 	}
 
-	client := GithubImpl.NewClient(nil)
+	client := GHImpl.NewClient(nil)
 
 	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
 	assert.EqualError(t, err, forcedError.Error())
@@ -51,17 +56,22 @@ func TestCreateLabelIfNotExists_GetLabelError(t *testing.T) {
 }
 
 func TestCreateLabelIfNotExists_LabelExists(t *testing.T) {
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	labelName := "we already got one"
 	existingLabel := &github.Label{Name: &labelName}
-	GithubImpl = &GHInterfaceMock{
-		IssuesMock: IssuesMock{mockGetLabel: existingLabel},
+	GHImpl = &GHInterfaceMock{
+		IssuesMock: IssuesMock{
+			mockGetLabel: existingLabel,
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		},
 	}
 
-	client := GithubImpl.NewClient(nil)
+	client := GHImpl.NewClient(nil)
 
 	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
 	assert.NoError(t, err)
@@ -69,18 +79,18 @@ func TestCreateLabelIfNotExists_LabelExists(t *testing.T) {
 }
 
 func TestCreateLabelIfNotExists_CreateError(t *testing.T) {
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	forcedError := fmt.Errorf("forced CreateLabel error")
-	GithubImpl = &GHInterfaceMock{IssuesMock: IssuesMock{
+	GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{
 		MockGetLabelResponse: &github.Response{
 			Response: &http.Response{StatusCode: http.StatusNotFound},
 		},
 		mockCreateLabelError: forcedError},
 	}
-	client := GithubImpl.NewClient(nil)
+	client := GHImpl.NewClient(nil)
 
 	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
 	assert.EqualError(t, err, forcedError.Error())
@@ -88,22 +98,22 @@ func TestCreateLabelIfNotExists_CreateError(t *testing.T) {
 }
 
 func TestCreateLabelIfNotExists(t *testing.T) {
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	labelName := labelNameCLANotSigned
 	labelColor := "fa3a3a"
 	labelDescription := "The CLA is not signed"
 	labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
-	GithubImpl = &GHInterfaceMock{IssuesMock: IssuesMock{
+	GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{
 		MockGetLabelResponse: &github.Response{
 			Response: &http.Response{StatusCode: http.StatusNotFound},
 		},
 		mockCreateLabel: labelToCreate},
 	}
 
-	client := GithubImpl.NewClient(nil)
+	client := GHImpl.NewClient(nil)
 
 	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
 	assert.NoError(t, err)
@@ -111,14 +121,14 @@ func TestCreateLabelIfNotExists(t *testing.T) {
 }
 
 func TestAddLabelToIssueIfNotExists_ListLabelsByIssueError(t *testing.T) {
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	forcedError := fmt.Errorf("forced ListLabelsByIssue error")
-	GithubImpl = &GHInterfaceMock{IssuesMock: IssuesMock{mockListLabelsByIssueError: forcedError}}
+	GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{mockListLabelsByIssueError: forcedError}}
 
-	client := GithubImpl.NewClient(nil)
+	client := GHImpl.NewClient(nil)
 
 	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
 	assert.EqualError(t, err, forcedError.Error())
@@ -126,18 +136,18 @@ func TestAddLabelToIssueIfNotExists_ListLabelsByIssueError(t *testing.T) {
 }
 
 func TestAddLabelToIssueIfNotExists_LabelAlreadyExists(t *testing.T) {
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	labelName := labelNameCLANotSigned
 	existingLabel := &github.Label{Name: &labelName}
 	existingLabelList := []*github.Label{existingLabel}
-	GithubImpl = &GHInterfaceMock{
+	GHImpl = &GHInterfaceMock{
 		IssuesMock: IssuesMock{mockListLabelsByIssue: existingLabelList},
 	}
 
-	client := GithubImpl.NewClient(nil)
+	client := GHImpl.NewClient(nil)
 
 	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, labelName)
 	assert.NoError(t, err)
@@ -145,16 +155,16 @@ func TestAddLabelToIssueIfNotExists_LabelAlreadyExists(t *testing.T) {
 }
 
 func Test_AddLabelToIssueIfNotExists_AddLabelError(t *testing.T) {
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	forcedError := fmt.Errorf("forced AddLabels error")
-	GithubImpl = &GHInterfaceMock{
+	GHImpl = &GHInterfaceMock{
 		IssuesMock: IssuesMock{mockAddLabelsError: forcedError},
 	}
 
-	client := GithubImpl.NewClient(nil)
+	client := GHImpl.NewClient(nil)
 
 	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
 	assert.EqualError(t, err, forcedError.Error())
@@ -162,17 +172,17 @@ func Test_AddLabelToIssueIfNotExists_AddLabelError(t *testing.T) {
 }
 
 func Test_AddLabelToIssueIfNotExists(t *testing.T) {
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	labelName := labelNameCLANotSigned
 	labelColor := "fa3a3a"
 	labelDescription := "The CLA is not signed"
 	labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
-	GithubImpl = &GHInterfaceMock{IssuesMock: IssuesMock{mockAddLabels: []*github.Label{labelToCreate}}}
+	GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{mockAddLabels: []*github.Label{labelToCreate}}}
 
-	client := GithubImpl.NewClient(nil)
+	client := GHImpl.NewClient(nil)
 
 	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, labelNameCLANotSigned)
 	assert.NoError(t, err)
@@ -242,14 +252,14 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	mockAuthorLogin := "myAuthorLogin"
 	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
 	forcedError := fmt.Errorf("forced CreateLabel error")
-	GithubImpl = &GHInterfaceMock{
+	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
 		IssuesMock: IssuesMock{
 			MockGetLabelResponse: &github.Response{Response: &http.Response{StatusCode: http.StatusNotFound}},
@@ -284,18 +294,21 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	mockAuthorLogin := "myAuthorLogin"
 	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
 	forcedError := fmt.Errorf("forced AddLabelsToIssue error")
-	GithubImpl = &GHInterfaceMock{
+	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
 		IssuesMock: IssuesMock{
 			mockGetLabel:       &github.Label{},
 			mockAddLabelsError: forcedError,
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
 		},
 	}
 
@@ -348,12 +361,12 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	forcedError := fmt.Errorf("forced ListCommits error")
-	GithubImpl = &GHInterfaceMock{
+	GHImpl = &GHInterfaceMock{
 		RepositoriesMock: *setupMockRepositoriesService(t, false),
 		PullRequestsMock: PullRequestsMock{
 			mockListCommitsError: forcedError,
@@ -384,9 +397,9 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
-	origGithubImpl := GithubImpl
+	origGithubImpl := GHImpl
 	defer func() {
-		GithubImpl = origGithubImpl
+		GHImpl = origGithubImpl
 	}()
 	login := "john"
 	login2 := "doe"
@@ -406,12 +419,15 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 			SHA: github.String("doeSHA"),
 		},
 	}
-	GithubImpl = &GHInterfaceMock{
+	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{
 			mockRepositoryCommits: mockRepositoryCommits,
 		},
 		IssuesMock: IssuesMock{
 			mockGetLabel: &github.Label{},
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
 		},
 	}
 

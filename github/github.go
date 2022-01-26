@@ -72,28 +72,28 @@ type IssuesService interface {
 	ListComments(ctx context.Context, owner string, repo string, number int, opts *github.IssueListCommentsOptions) ([]*github.IssueComment, *github.Response, error)
 }
 
-// GitHubClient manages communication with the GitHub API.
+// GHClient manages communication with the GitHub API.
 // https://github.com/google/go-github/issues/113
-type GitHubClient struct {
+type GHClient struct {
 	Repositories RepositoriesService
 	Users        UsersService
 	PullRequests PullRequestsService
 	Issues       IssuesService
 }
 
-// GitHubInterface defines all necessary methods.
+// GHInterface defines all necessary methods.
 // https://godoc.org/github.com/google/go-github/github#NewClient
-type GitHubInterface interface {
-	NewClient(httpClient *http.Client) GitHubClient
+type GHInterface interface {
+	NewClient(httpClient *http.Client) GHClient
 }
 
-// GitHubCreator implements GitHubInterface.
-type GitHubCreator struct{}
+// GHCreator implements GHInterface.
+type GHCreator struct{}
 
-// NewClient returns a new GitHubInterface instance.
-func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
+// NewClient returns a new GHInterface instance.
+func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 	client := github.NewClient(httpClient)
-	return GitHubClient{
+	return GHClient{
 		Repositories: client.Repositories,
 		Users:        client.Users,
 		PullRequests: client.PullRequests,
@@ -101,7 +101,7 @@ func (g *GitHubCreator) NewClient(httpClient *http.Client) GitHubClient {
 	}
 }
 
-var GithubImpl GitHubInterface = &GitHubCreator{}
+var GHImpl GHInterface = &GHCreator{}
 
 func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.PullRequestPayload, appId int, claVersion string) error {
 	logger.Debug("Attempting to start authenticating with GitHub")
@@ -117,7 +117,7 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 		return err
 	}
 
-	client := GithubImpl.NewClient(&http.Client{Transport: itr})
+	client := GHImpl.NewClient(&http.Client{Transport: itr})
 
 	err = createRepoStatus(client.Repositories, owner, repo, sha, "pending", "Paul Botsco, the CLA verifier is running")
 	if err != nil {
@@ -238,13 +238,6 @@ func _createRepoLabelIfNotExists(logger *zap.Logger,
 	logger.Debug(fmt.Sprintf("Attempting to create label: %s", name))
 
 	desiredLabel, res, err := issuesService.GetLabel(context.Background(), owner, repo, name)
-	if err != nil {
-		return
-	}
-	if desiredLabel != nil {
-		logger.Debug(fmt.Sprintf("Found existing label, returning it %+v", desiredLabel))
-		return
-	}
 	if res.StatusCode == 404 {
 		logger.Debug(fmt.Sprintf("Looks like the label doesn't exist, so create it, name: %s, color: %s, description: %s", name, color, description))
 
@@ -254,6 +247,13 @@ func _createRepoLabelIfNotExists(logger *zap.Logger,
 		newLabel := &github.Label{Name: &strName, Color: &strColor, Description: &strDescription}
 		desiredLabel, _, err = issuesService.CreateLabel(context.Background(), owner, repo, newLabel)
 
+		return
+	}
+	if err != nil {
+		return
+	}
+	if desiredLabel != nil {
+		logger.Debug(fmt.Sprintf("Found existing label, returning it %+v", desiredLabel))
 		return
 	}
 

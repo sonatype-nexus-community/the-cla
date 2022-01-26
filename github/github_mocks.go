@@ -161,7 +161,7 @@ func (i *IssuesMock) ListComments(ctx context.Context, owner string, repo string
 	return i.mockListComments, i.mockListCommentsResponse, i.mockListCommentsError
 }
 
-// GHInterfaceMock implements GitHubInterface.
+// GHInterfaceMock implements GHInterface.
 type GHInterfaceMock struct {
 	RepositoriesMock RepositoriesMock
 	UsersMock        UsersMock
@@ -169,12 +169,12 @@ type GHInterfaceMock struct {
 	IssuesMock       IssuesMock
 }
 
-var _ GitHubInterface = (*GHInterfaceMock)(nil)
+var _ GHInterface = (*GHInterfaceMock)(nil)
 
 // NewClient something
 //goland:noinspection GoUnusedParameter
-func (g *GHInterfaceMock) NewClient(httpClient *http.Client) GitHubClient {
-	return GitHubClient{
+func (g *GHInterfaceMock) NewClient(httpClient *http.Client) GHClient {
+	return GHClient{
 		Repositories: &g.RepositoriesMock,
 		Users: &UsersMock{
 			mockGetError: g.UsersMock.mockGetError,
