@@ -102,7 +102,10 @@ Give it a name. I like naming it `Paul Botsco`. You should like that too.
   Actually you will get an error from the Github web page if you try to use localhost 
   (`Webhook URL host localhost is not supported because it isn't reachable over the public Internet`), so gotta use ngrok. 
 
-`Webhook Secret`: this is something you can choose, out of thin air, to increase security. It's important that the value you use here in GH also gets populated in your `.env` file for `GH_WEBHOOK_SECRET`, because it's how your service will know how to do the super secret GH handshake.
+`Webhook Secret`: this is something you can choose, out of thin air, to increase security. It's important that the 
+  value you use here in GH also gets populated in your `.env` file for `GH_WEBHOOK_SECRET`, because it's how your 
+  service will know how to do the super secret GH handshake. NOTE: In our case this "optional" setting is not optional!
+  If forget to set this value, you will see errors like: `missing X-Hub-Signature Header`
 
 For `Repository permissions`:
 
@@ -157,6 +160,17 @@ Since these are all environment variables, you can just set them that way if you
 - `REACT_APP_COMPANY_NAME`, `REACT_APP_CLA_APP_NAME`, `REACT_APP_GITHUB_CLIENT_ID`
 
 Additionally, to communicate with the GitHub API, you will need to have the pem file that is generated when you set up your GitHub App, in the root of this repo. All of our scripts have it named `the-cla.pem`, so if you name it that, you change nothing, and the Docker build works, etc...
+
+#### App Installation on Repository
+
+One more step...install the [GitHub App](https://github.com/settings/apps) you created above on a repository, so it can 
+do it's thang. See [Installing GitHub Apps](https://docs.github.com/en/developers/apps/managing-github-apps/installing-github-apps).
+
+Click the `Edit` button to edit the GitHub App. This will show a sidebar on the left that includes a 
+`Install App` link. Click it, and chose an organization or account under which to install the app, and click `Install`.
+Select which repositories (e.g. `all` or `some`) in which to install the app.
+
+To verify `the-cla` is working, you can create a new Pull Request in a repository you just setup with the app.
 
 ### Deploy Application to AWS
 
