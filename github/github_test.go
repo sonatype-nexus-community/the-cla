@@ -428,6 +428,9 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 			MockGetLabelResponse: &github.Response{
 				Response: &http.Response{},
 			},
+			mockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
 		},
 	}
 
@@ -436,4 +439,34 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 	mockDB, logger := setupMockDB(t, false)
 	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 	assert.NoError(t, err)
+}
+
+func Test_removeLabelFromIssueIfExists_Removed(t *testing.T) {
+	issuesMock := &IssuesMock{
+		mockRemoveLabelResponse: &github.Response{
+			Response: &http.Response{},
+		},
+	}
+	assert.NoError(t, _removeLabelFromIssueIfApplied(issuesMock, "", "", 0, ""))
+}
+
+func Test_removeLabelFromIssueIfExists_NotExistsIsIgnored(t *testing.T) {
+	issuesMock := &IssuesMock{
+		mockRemoveLabelResponse: &github.Response{
+			Response: &http.Response{StatusCode: http.StatusNotFound},
+		},
+	}
+	assert.NoError(t, _removeLabelFromIssueIfApplied(issuesMock, "", "", 0, ""))
+}
+
+func Test_removeLabelFromIssueIfExists_Error(t *testing.T) {
+	forcedError := fmt.Errorf("forced label remove error")
+	issuesMock := &IssuesMock{
+		mockRemoveLabelResponse: &github.Response{
+			Response: &http.Response{},
+		},
+		mockRemoveLabelError: forcedError,
+	}
+	assert.EqualError(t, _removeLabelFromIssueIfApplied(issuesMock, "", "", 0, ""),
+		forcedError.Error())
 }

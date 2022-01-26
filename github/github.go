@@ -68,6 +68,7 @@ type IssuesService interface {
 	ListLabelsByIssue(ctx context.Context, owner string, repo string, issueNumber int, opts *github.ListOptions) ([]*github.Label, *github.Response, error)
 	CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (*github.Label, *github.Response, error)
 	AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error)
+	RemoveLabelForIssue(ctx context.Context, owner string, repo string, number int, label string) (*github.Response, error)
 	CreateComment(ctx context.Context, owner string, repo string, number int, comment *github.IssueComment) (*github.IssueComment, *github.Response, error)
 	ListComments(ctx context.Context, owner string, repo string, number int, opts *github.IssueListCommentsOptions) ([]*github.IssueComment, *github.Response, error)
 }
@@ -141,7 +142,7 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 	var usersNeedingToSignCLA []types.UserSignature
 
 	for _, v := range commits {
-		// It is important to use GetAuthor() instead of v.Commit.GetCommitter() because the committer can be the GH webflow user, where as the author is
+		// It is important to use GetAuthor() instead of v.Commit.GetCommitter() because the committer can be the GH webflow user, whereas the author is
 		// the canonical author of the commit
 		author := *v.GetAuthor()
 
@@ -168,6 +169,11 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 		if err != nil {
 			return err
 		}
+		// handle case where PR was previously open and all authors had signed cla - meaning the old "all signed" label is applied
+		err = _removeLabelFromIssueIfApplied(client.Issues, owner, repo, pullRequestID, labelNameCLASigned)
+		if err != nil {
+			return err
+		}
 
 		var users []string
 		for _, v := range usersNeedingToSignCLA {
@@ -189,6 +195,11 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 	} else {
 		logger.Debug("Attempting to create label for signed CLA")
 		err = createRepoLabel(logger, client.Issues, owner, repo, labelNameCLASigned, "66CC00", "The CLA is signed", pullRequestID)
+		if err != nil {
+			return err
+		}
+		// handle case where PR was previously open and some authors had NOT signed cla - meaning the old "not signed" label is applied
+		err = _removeLabelFromIssueIfApplied(client.Issues, owner, repo, pullRequestID, labelNameCLANotSigned)
 		if err != nil {
 			return err
 		}
@@ -314,5 +325,15 @@ func _addLabelToIssueIfNotExists(logger *zap.Logger, issuesService IssuesService
 		issueNumber,
 		[]string{labelName},
 	)
+	return
+}
+
+func _removeLabelFromIssueIfApplied(issuesService IssuesService, owner string, repo string, pullRequestID int, labelToRemove string) (err error) {
+	var resp *github.Response
+	resp, err = issuesService.RemoveLabelForIssue(context.Background(), owner, repo, pullRequestID, labelToRemove)
+	if resp.StatusCode == http.StatusNotFound {
+		// the label was not applied, so move along as if no error occurred
+		err = nil
+	}
 	return
 }

@@ -121,6 +121,8 @@ type IssuesMock struct {
 	mockAddLabels                 []*github.Label
 	mockAddLabelsResponse         *github.Response
 	mockAddLabelsError            error
+	mockRemoveLabelResponse       *github.Response
+	mockRemoveLabelError          error
 	mockComment                   *github.IssueComment
 	mockCreateCommentResponse     *github.Response
 	mockCreateCommentError        error
@@ -149,6 +151,11 @@ func (i *IssuesMock) ListLabelsByIssue(ctx context.Context, owner string, repo s
 //goland:noinspection GoUnusedParameter
 func (i *IssuesMock) AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, *github.Response, error) {
 	return i.mockAddLabels, i.mockAddLabelsResponse, i.mockAddLabelsError
+}
+
+//goland:noinspection GoUnusedParameter
+func (i *IssuesMock) RemoveLabelForIssue(ctx context.Context, owner string, repo string, number int, label string) (*github.Response, error) {
+	return i.mockRemoveLabelResponse, i.mockRemoveLabelError
 }
 
 //goland:noinspection GoUnusedParameter
@@ -199,6 +206,8 @@ func (g *GHInterfaceMock) NewClient(httpClient *http.Client) GHClient {
 			mockAddLabels:                 g.IssuesMock.mockAddLabels,
 			mockAddLabelsResponse:         g.IssuesMock.mockAddLabelsResponse,
 			mockAddLabelsError:            g.IssuesMock.mockAddLabelsError,
+			mockRemoveLabelResponse:       g.IssuesMock.mockRemoveLabelResponse,
+			mockRemoveLabelError:          g.IssuesMock.mockRemoveLabelError,
 		},
 	}
 }
