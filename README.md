@@ -90,28 +90,33 @@ Of course your value will be different.
 
 #### GitHub Application
 
-You will need to create a GitHub application, as well. You can get to the creation page [at this link](https://github.com/settings/apps/new).
+You will need to create a [GitHub application](https://github.com/settings/apps/), as well. You can get to the creation page [at this link](https://github.com/settings/apps/new).
 
 Give it a name. I like naming it `Paul Botsco`. You should like that too.
 
-Homepage URL will be: http://localhost:4200/, or ngrok URL (if you are using ngrok), or the actual URL of the deployed AWS service!
+`Homepage URL` will be: http://localhost:4200/, or ngrok URL (if you are using [ngrok](ngrok.com), or the actual URL of the deployed AWS service!
 
-Callback URL will be: http://localhost:4200/, basically where you want people sent back to.
+`Callback URL` will be: http://localhost:4200/, basically where you want people sent back to.
 
-Webhook Integration URL will be: http://localhost:4200/webhook-integration (strongly suggest you use ngrok for testing, it makes it way easier)
+`Webhook URL` will be: http://localhost:4200/webhook-integration (strongly suggest you use ngrok for testing, it makes it way easier).
+  Actually you will get an error from the Github web page if you try to use localhost 
+  (`Webhook URL host localhost is not supported because it isn't reachable over the public Internet`), so gotta use ngrok. 
 
-Webhook Secret: this is something you can choose, out of thin air, to increase security. It's important that the value you use here in GH also gets populated in your `.env` file for `GH_WEBHOOK_SECRET`, because it's how your service will know how to do the super secret GH handshake.
+`Webhook Secret`: this is something you can choose, out of thin air, to increase security. It's important that the value you use here in GH also gets populated in your `.env` file for `GH_WEBHOOK_SECRET`, because it's how your service will know how to do the super secret GH handshake.
 
-For permissions:
+For `Repository permissions`:
 
-- Repository administration = Read-only
-- Commit statuses = Read & Write
-- Issues = Read & Write
-- Pull requests = Read & Write
-- Repository contents = Read-only
-- Organization members = Read-only
+- `Administration` = Read-only
+- `Contents` = Read-only
+- `Issues` = Read & Write
+- `Pull requests` = Read & Write
+- `Commit statuses` = Read & Write
 
-Under Subscribe to events select Pull request
+For `Organization permissions`:
+
+- `Members` = Read-only
+
+Under `Subscribe to events` select `Pull request`
 
 Once you have created the app, generate and save a new private key. You should save this as `thecla.pem`, and copy it into the root of this project, it'll be noted in the next section on app environment configuration.
 
