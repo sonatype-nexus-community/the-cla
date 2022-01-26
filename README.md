@@ -100,7 +100,8 @@ Give it a name. I like naming it `Paul Botsco`. You should like that too.
 
 `Webhook URL` will be: http://localhost:4200/webhook-integration (strongly suggest you use ngrok for testing, it makes it way easier).
   Actually you will get an error from the Github web page if you try to use localhost 
-  (`Webhook URL host localhost is not supported because it isn't reachable over the public Internet`), so gotta use ngrok. 
+  (`Webhook URL host localhost is not supported because it isn't reachable over the public Internet`), so gotta use ngrok.
+  Here's the command I use to launch ngrok locally: `path-to-ngrok/ngrok http 4200`
 
 `Webhook Secret`: this is something you can choose, out of thin air, to increase security. It's important that the 
   value you use here in GH also gets populated in your `.env` file for `GH_WEBHOOK_SECRET`, because it's how your 
