@@ -17,7 +17,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"github.com/google/go-github/v42/github"
 	"github.com/labstack/echo/v4"
@@ -311,123 +310,6 @@ func TestHandleProcessWebhookGitHubEventPullRequestPayloadActionHandled(t *testi
 	verifyActionHandled(t, "synchronize")
 }
 
-// generated via: openssl genpkey -algorithm RSA  -outform PEM -out private_key.pem -pkeyopt rsa_keygen_bits:2048
-const testPrivatePem = `-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDtQtWKdnW9OKJk
-XuSx45oixrJqWqpaly23iXvAAcTqg+pFD7Yw1bL9viAYoc7ATcd6Uonz7/d6RugO
-JuozsC4X1xYotEWYlB7tKrp+InQ2H0fRC6afGiCdDUgLINfmqShPWgGft4cA7mwH
-JSHB6XAGwVsZsxqYIi4wXVPYYJaI3OX5nA/BiRvZMrsaF2PT8dt/5rptMIXxXlwK
-tuQVvICxh5CXn5/FaeQcnkXoDESoZcG9nhqSmRdeUJxoiGZ7epVljj7Ef5XKJYoz
-uv8vJVTVXwxb7MbcjQ6Zna4iJj4FscwkQyaoFQOzBf+1H5ypZ8CFn/E236tLpwh0
-7Xspu5CrAgMBAAECggEBAOd51CKBjj8s+OpZ1l9jgea52il/CULWyciNvolGcJqo
-VrBIMuUUKMv8aQ3/F1pwx9QkoOi4TsciVJYyCz6gfWfO9ZSCxH+my0Fx9X7IGH8R
-J5zg9A+3iugOpCIPSfSFRomcc4cio/kZo5WY+YVZPW2pyTqajbCtcEjJVNr+6P7e
-PAWKI6RXbwGa4Fp8dLHMRq+/i2zuznEzdrTJPBSoW5HUMDvPixhjd+WeYT9pNfZP
-P8V2HhSt1qvuVM/epZ8llnmyPaw7ojwAOurG19fDGUvEfjAORYJopOvxeJ1mCY++
-HVxcumbx4N2D8IQ/dwbtarMBLpw89GQztxCxokJ7a5ECgYEA/QFTsgQKFQbdlv1z
-ooBq3EZPfzebx4mkyCcLmQAliSArJezRewCyelP2A102p5125SMEA1vcsSkZOes8
-h4z4HaptHZob1OxG2EBNdOzY41TaG1nzbOAJEkF71ksT30dpaLRCECUfcEWc0waB
-cwia1v1xUvfcvwhPJIdzye5V7hkCgYEA8BHMYRfvIMtRgHNPoFNoRxr6BU/gjfV/
-FRJLNdMSk3KYve459XGPFvLSAh0eucOVjmkZY8y0BJJdeFVdTjPa2nvk70i9yhGk
-MhjVHs1Y7VIRYB6SSoA7hPK3zMELTbMudZS1/Dxe8fCc1/oDhamLAcT1474hXIR2
-AYe8T97qBWMCgYA77yWJhSVyR7cUfqP2+d7WoZ1RcLXpdfTgKUe5DezWaBVwnYIe
-VlLxYZRkxZ8d49J3g2z+8rL8ENVWACDNp5pbRLUmjwxKy1IZBlqS+UyDxeUJF6zv
-vL7JYVPZtt1VRlB1KkaAFps0+HinEOJ3grFTfqRq2Cal5m0BJUlLq7cVeQKBgHLB
-Hz/+L9kuNxw+gn5xwDPVClRFtWJGSmPpJbhp18RRj/+iA2R2zt46XfaSsuA7RJ8Z
-UACrlhVlXXaq33oFQYUUmf9jdw1DV4h25FDf+bUfeJzIoEcqesj3OLKQSHXww7GC
-z2bt+LiPunlm0g4vV/oVizA87zeJPdtHZdWMCbNfAoGBALEVP1RXKsI9M7R01ML5
-cocpE9qF81DkPzYsQxDRnheFNE9GOK2snADOiXa/ObvzQ5g57FJ7sJVkm2YECI9N
-pNEMHXmW70G0upWmOnjZL6WxXcJjbpZ94SOFiD7GFFLgWs9bI4BdxMDX/EyXQafy
-Scy7y5rzNperE0E7Xy1N10NX
------END PRIVATE KEY-----`
-
-func setupTestPemFile(t *testing.T) {
-	assert.NoError(t, os.WriteFile(ourGithub.FilenameTheClaPem, []byte(testPrivatePem), 0644))
-}
-
-type mockGitHub struct {
-	t                *testing.T
-	assertParameters bool
-	newClientHttp    *http.Client
-	newGithubClient  ourGithub.GitHubClient
-}
-
-func (m mockGitHub) NewClient(httpClient *http.Client) ourGithub.GitHubClient {
-	if m.assertParameters {
-		assert.Equal(m.t, m.newClientHttp, httpClient)
-	}
-	return m.newGithubClient
-}
-
-var _ ourGithub.GitHubInterface = (*mockGitHub)(nil)
-
-type mockRepositories struct {
-}
-
-var _ ourGithub.RepositoriesService = (*mockRepositories)(nil)
-
-//goland:noinspection GoUnusedParameter
-func (m mockRepositories) Get(ctx context.Context, s string, s2 string) (repository *github.Repository, resp *github.Response, err error) {
-	return
-}
-
-//goland:noinspection GoUnusedParameter
-func (m mockRepositories) ListStatuses(ctx context.Context, owner, repo, ref string, opts *github.ListOptions) (repoStatus []*github.RepoStatus, resp *github.Response, err error) {
-	return
-}
-
-//goland:noinspection GoUnusedParameter
-func (m mockRepositories) CreateStatus(ctx context.Context, owner, repo, ref string, status *github.RepoStatus) (repoStatus *github.RepoStatus, resp *github.Response, err error) {
-	return
-}
-
-type mockPullRequests struct {
-}
-
-var _ ourGithub.PullRequestsService = (*mockPullRequests)(nil)
-
-//goland:noinspection GoUnusedParameter
-func (m mockPullRequests) ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) (repoCommits []*github.RepositoryCommit, resp *github.Response, err error) {
-	return
-}
-
-type mockIssues struct {
-	getLabelResp *github.Response
-}
-
-var _ ourGithub.IssuesService = (*mockIssues)(nil)
-
-//goland:noinspection GoUnusedParameter
-func (m mockIssues) GetLabel(ctx context.Context, owner string, repo string, name string) (label *github.Label, resp *github.Response, err error) {
-	resp = m.getLabelResp
-	return
-}
-
-//goland:noinspection GoUnusedParameter
-func (m mockIssues) ListLabelsByIssue(ctx context.Context, owner string, repo string, issueNumber int, opts *github.ListOptions) (labels []*github.Label, resp *github.Response, err error) {
-	return
-}
-
-//goland:noinspection GoUnusedParameter
-func (m mockIssues) CreateLabel(ctx context.Context, owner string, repo string, label *github.Label) (resultLabel *github.Label, resp *github.Response, err error) {
-	return
-}
-
-//goland:noinspection GoUnusedParameter
-func (m mockIssues) AddLabelsToIssue(ctx context.Context, owner string, repo string, number int, labels []string) (resultLabels []*github.Label, resp *github.Response, err error) {
-	return
-}
-
-//goland:noinspection GoUnusedParameter
-func (m mockIssues) CreateComment(ctx context.Context, owner string, repo string, number int, comment *github.IssueComment) (resultComment *github.IssueComment, resp *github.Response, err error) {
-	return
-}
-
-//goland:noinspection GoUnusedParameter
-func (m mockIssues) ListComments(ctx context.Context, owner string, repo string, number int, opts *github.IssueListCommentsOptions) (comments []*github.IssueComment, resp *github.Response, err error) {
-	return
-}
-
 func verifyActionHandled(t *testing.T, actionText string) {
 	c, rec := setupMockContextWebhook(t,
 		map[string]string{
@@ -449,23 +331,16 @@ func verifyActionHandled(t *testing.T, actionText string) {
 			assert.NoError(t, os.Rename(pemBackupFile, ourGithub.FilenameTheClaPem), "error renaming pem file in test")
 		}
 	}()
-	setupTestPemFile(t)
+	ourGithub.SetupTestPemFile(t)
 
 	origGithubImpl := ourGithub.GithubImpl
 	defer func() {
 		ourGithub.GithubImpl = origGithubImpl
 	}()
-	ourGithub.GithubImpl = mockGitHub{
-		t:                t,
-		assertParameters: false,
-		newGithubClient: ourGithub.GitHubClient{
-			Repositories: mockRepositories{},
-			Users:        nil,
-			PullRequests: mockPullRequests{},
-			Issues: mockIssues{
-				getLabelResp: &github.Response{
-					Response: &http.Response{},
-				},
+	ourGithub.GithubImpl = &ourGithub.GHInterfaceMock{
+		IssuesMock: ourGithub.IssuesMock{
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
 			},
 		},
 	}
