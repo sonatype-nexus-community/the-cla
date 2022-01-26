@@ -173,6 +173,7 @@ func openDB() (db *sql.DB, host string, port int, dbname, sslMode string, err er
 
 func handleProcessWebhook(c echo.Context) (err error) {
 	ghSecret := os.Getenv(envGhWebhookSecret)
+	logger.Debug("secret in hook", zap.String("secret", ghSecret))
 
 	hook, _ := webhook.New(webhook.Options.Secret(ghSecret))
 
@@ -184,6 +185,7 @@ func handleProcessWebhook(c echo.Context) (err error) {
 
 			return c.String(http.StatusBadRequest, msgUnhandledGitHubEventType)
 		}
+		logger.Debug("error parsing pull request event", zap.Error(err))
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 

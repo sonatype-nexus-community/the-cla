@@ -219,6 +219,14 @@ func TestHandleProcessWebhookUnhandledGitHubEvent(t *testing.T) {
 	assert.Equal(t, msgUnhandledGitHubEventType, rec.Body.String())
 }
 
+// Deal with side effect if local machine has a .env file setup, so we clear the webhook secret for sanity's sake,
+// env variable value should be restored in defer() call.
+func clearEnvGHWebhookSecretMadness(t *testing.T) (origGHWebhookSecret string) {
+	origGHWebhookSecret = os.Getenv(envGhWebhookSecret)
+	resetEnvVariable(t, envGhWebhookSecret, "") // clear it
+	return origGHWebhookSecret
+}
+
 func TestHandleProcessWebhookGitHubEventPullRequestPayloadActionIgnored(t *testing.T) {
 	actionText := "someIgnoredAction"
 	c, rec := setupMockContextWebhook(t,
@@ -231,6 +239,11 @@ func TestHandleProcessWebhookGitHubEventPullRequestPayloadActionIgnored(t *testi
 		resetEnvVariable(t, ourGithub.EnvGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(ourGithub.EnvGhAppId, "-1"))
+
+	origGHWebhookSecret := clearEnvGHWebhookSecretMadness(t)
+	defer func() {
+		resetEnvVariable(t, envGhWebhookSecret, origGHWebhookSecret)
+	}()
 
 	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusAccepted, c.Response().Status)
@@ -249,6 +262,11 @@ func TestHandleProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing
 		resetEnvVariable(t, ourGithub.EnvGhAppId, origGHAppIDEnvVar)
 	}()
 	assert.NoError(t, os.Setenv(ourGithub.EnvGhAppId, "nonNumericGHAppID"))
+
+	origGHWebhookSecret := clearEnvGHWebhookSecretMadness(t)
+	defer func() {
+		resetEnvVariable(t, envGhWebhookSecret, origGHWebhookSecret)
+	}()
 
 	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
@@ -275,6 +293,11 @@ func TestHandleProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testi
 		if errRename == nil {
 			assert.NoError(t, os.Rename(pemBackupFile, ourGithub.FilenameTheClaPem), "error renaming pem file in test")
 		}
+	}()
+
+	origGHWebhookSecret := clearEnvGHWebhookSecretMadness(t)
+	defer func() {
+		resetEnvVariable(t, envGhWebhookSecret, origGHWebhookSecret)
 	}()
 
 	assert.NoError(t, handleProcessWebhook(c))
@@ -447,6 +470,11 @@ func verifyActionHandled(t *testing.T, actionText string) {
 		},
 	}
 
+	origGHWebhookSecret := clearEnvGHWebhookSecretMadness(t)
+	defer func() {
+		resetEnvVariable(t, envGhWebhookSecret, origGHWebhookSecret)
+	}()
+
 	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusAccepted, c.Response().Status)
 	assert.Equal(t, "accepted pull request for processing", rec.Body.String())
@@ -477,18 +505,4 @@ func TestHandleProcessSignClaBindError(t *testing.T) {
 	assert.EqualError(t, handleProcessSignCla(c), "code=415, message=Unsupported Media Type")
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
-}
-
-func setupMockContextProcessWebhook(t *testing.T, user types.UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
-	// Setup
-	e := echo.New()
-
-	reqBody, err := json.Marshal(user)
-	assert.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, pathWebhook, strings.NewReader(string(reqBody)))
-
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec)
-	return
 }
