@@ -118,7 +118,7 @@ For `Organization permissions`:
 
 Under `Subscribe to events` select `Pull request`
 
-Once you have created the app, generate and save a new private key. You should save this as `thecla.pem`, and copy it into the root of this project, it'll be noted in the next section on app environment configuration.
+Once you have created the app, generate and save a new private key (via `Generate a private key` button). You should save this as `the-cla.pem`, and copy it into the root of this project, it'll be noted in the next section on app environment configuration.
 
 Set `GH_APP_ID` in `.env` to the ID for your app that was just generated! 
 
@@ -148,8 +148,8 @@ The important things to update are:
 - `REACT_APP_CLA_APP_NAME` - if you don't like Toy Story references for a CLA bot, feel free to change this to whatever you want the app to say publicly
 - `REACT_APP_GITHUB_CLIENT_ID` - this is the oAuth Client ID you will get from setting up your [GitHub oAuth application](#github-oauth-application)
 - `GITHUB_CLIENT_SECRET` - this is the oAuth Client Secret you will get from setting up your [GitHub oAuth application](#github-oauth-application)
-- `GH_WEBHOOK_SECRET` - if this isn't filled out, you won't be able to process webhooks! This is the value you set on your GitHub App for an "Optional" secret (authors note, it's not optional)
-- `GH_APP_ID` - this is the generated ID for the GitHub app you set up!
+- `GH_WEBHOOK_SECRET` - if this isn't filled out, you won't be able to process webhooks! This is the value you set on your [GitHub App](#github-application) for an "Optional" secret (authors note, it's not optional)
+- `GH_APP_ID` - this is the generated ID for the [GitHub App](#github-application) you set up!
 - `SSL_MODE=disable` - this only exists to enable local development with a local database. Remove this setting for deployment to AWS.
 
 Since these are all environment variables, you can just set them that way if you prefer, but it's important these variables are available at build time, as we inject these into the React code, which is honestly pretty sweet!
