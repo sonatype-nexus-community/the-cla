@@ -342,6 +342,9 @@ func verifyActionHandled(t *testing.T, actionText string) {
 			MockGetLabelResponse: &github.Response{
 				Response: &http.Response{},
 			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
 		},
 	}
 
