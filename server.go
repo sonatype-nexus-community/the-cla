@@ -74,7 +74,8 @@ var logger *zap.Logger
 func main() {
 	e := echo.New()
 
-	logger, err := zap.NewProduction()
+	var err error
+	logger, err = zap.NewProduction()
 	if err != nil {
 		e.Logger.Fatal("can not initialize zap logger: %+v", err)
 	}
