@@ -311,7 +311,7 @@ func _addLabelToIssueIfNotExists(logger *zap.Logger, issuesService IssuesService
 	}
 	for _, existingLabel := range issueLabels {
 		if *existingLabel.Name == labelName {
-			logger.Debug("found label on issue, getting out of here", zap.Any("existingLabel", existingLabel))
+			logger.Debug("found label on issue, getting out of here", zap.String("labelName", labelName))
 			// label already exists on this issue
 			desiredLabel = existingLabel
 			return
