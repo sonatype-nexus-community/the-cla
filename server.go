@@ -89,6 +89,7 @@ func main() {
 	//e.Use(echozap.ZapLogger(logger))
 	e.Use(ZapLoggerFilterAWS_ELB(logger))
 
+	// NOTE: using middleware.Logger() makes lots of AWS ELB Healthcheck noise in server logs
 	//e.Use(
 	//	middleware.Logger(), // Log everything to stdout
 	//)
