@@ -105,14 +105,16 @@ func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 var GHImpl GHInterface = &GHCreator{}
 
 func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.PullRequestPayload, appId int, claVersion string) error {
-	logger.Debug("start authenticating with GitHub")
-
 	owner := payload.Repository.Owner.Login
 	repo := payload.Repository.Name
 	sha := payload.PullRequest.Head.Sha
 	pullRequestID := int(payload.Number)
 
-	logger.Debug("transport setup",
+	logger.Debug("start authenticating with GitHub",
+		zap.String("owner", owner),
+		zap.String("repo", repo),
+		zap.String("sha", sha),
+		zap.Int("pullRequestID", pullRequestID),
 		zap.Int("appId", appId),
 		zap.Int64("installation ID", payload.Installation.ID),
 	)
@@ -342,12 +344,13 @@ func _removeLabelFromIssueIfApplied(logger *zap.Logger, issuesService IssuesServ
 	if resp.StatusCode == http.StatusNotFound {
 		// the label was not applied, so move along as if no error occurred
 		err = nil
+	} else {
+		logger.Debug("removed old label",
+			zap.String("owner", owner),
+			zap.String("repo", repo),
+			zap.Int("pullRequestID", pullRequestID),
+			zap.String("labelToRemove", labelToRemove),
+		)
 	}
-	logger.Debug("removed old label",
-		zap.String("owner", owner),
-		zap.String("repo", repo),
-		zap.Int("pullRequestID", pullRequestID),
-		zap.String("labelToRemove", labelToRemove),
-	)
 	return
 }
