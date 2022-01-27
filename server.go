@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sonatype-nexus-community/the-cla/buildversion"
@@ -36,7 +37,6 @@ import (
 	"github.com/sonatype-nexus-community/the-cla/oauth"
 	"github.com/sonatype-nexus-community/the-cla/types"
 
-	"github.com/brpaz/echozap"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -86,7 +86,8 @@ func main() {
 	defer func() {
 		_ = logger.Sync()
 	}()
-	e.Use(echozap.ZapLogger(logger))
+	//e.Use(echozap.ZapLogger(logger))
+	e.Use(ZapLoggerFilterAWS_ELB(logger))
 
 	//e.Use(
 	//	middleware.Logger(), // Log everything to stdout
@@ -160,6 +161,61 @@ func main() {
 	}
 
 	logger.Fatal("application end", zap.Error(e.Start(defaultServicePort)))
+}
+
+// ZapLoggerFilterAWS_ELB is a middleware and zap to provide an "access log" like logging for each request.
+// Adapted from ZapLogger, until I find a better way to filter out AWS ELB Healthcheck messages.
+func ZapLoggerFilterAWS_ELB(log *zap.Logger) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			start := time.Now()
+
+			err := next(c)
+			if err != nil {
+				c.Error(err)
+			}
+
+			req := c.Request()
+			res := c.Response()
+
+			fields := []zapcore.Field{
+				zap.String("remote_ip", c.RealIP()),
+				zap.String("latency", time.Since(start).String()),
+				zap.String("host", req.Host),
+				zap.String("request", fmt.Sprintf("%s %s", req.Method, req.RequestURI)),
+				zap.Int("status", res.Status),
+				zap.Int64("size", res.Size),
+				zap.String("user_agent", req.UserAgent()),
+			}
+
+			userAgent := req.UserAgent()
+			if strings.Contains(userAgent, "ELB-HealthChecker") {
+				//fmt.Printf("userAgent: %s\n", userAgent)
+				// skip logging of this AWS ELB healthcheck
+				return nil
+			}
+
+			id := req.Header.Get(echo.HeaderXRequestID)
+			if id == "" {
+				id = res.Header().Get(echo.HeaderXRequestID)
+				fields = append(fields, zap.String("request_id", id))
+			}
+
+			n := res.Status
+			switch {
+			case n >= 500:
+				log.With(zap.Error(err)).Error("Server error", fields...)
+			case n >= 400:
+				log.With(zap.Error(err)).Warn("Client error", fields...)
+			case n >= 300:
+				log.Info("Redirection", fields...)
+			default:
+				log.Info("Success", fields...)
+			}
+
+			return nil
+		}
+	}
 }
 
 func openDB() (db *sql.DB, host string, port int, dbname, sslMode string, err error) {
