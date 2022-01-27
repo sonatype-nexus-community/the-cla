@@ -286,7 +286,7 @@ func handleRetrieveCLAText(c echo.Context) (err error) {
 	claURL := os.Getenv(envClsUrl)
 
 	if claCache[claURL] != "" {
-		logger.Debug("CLA text was cached, returning")
+		logger.Debug("CLA text was cached, returning", zap.String("claURL", claURL))
 
 		return c.String(http.StatusOK, claCache[claURL])
 	}
