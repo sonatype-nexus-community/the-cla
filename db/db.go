@@ -72,8 +72,10 @@ const sqlSelectUserSignature = `SELECT
 		AND ClaVersion = $2`
 
 func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
-	p.logger.Debug("Checking to see if author signed the CLA")
-	p.logger.Debug(login)
+	p.logger.Debug("did author sign the CLA",
+		zap.String("login", login),
+		zap.String("claVersion", claVersion),
+	)
 
 	rows, err := p.db.Query(sqlSelectUserSignature, login, claVersion)
 	if err != nil {
@@ -95,7 +97,7 @@ func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
 		if err != nil {
 			return isSigned, err
 		}
-		p.logger.Debug("Found user signature for author: %s, TimeSigned: %s, CLAVersion: %s",
+		p.logger.Debug("found author signature",
 			zap.String("login", foundUserSignature.User.Login),
 			zap.Time("timeSigned", foundUserSignature.TimeSigned),
 			zap.String("claVersion", foundUserSignature.CLAVersion),

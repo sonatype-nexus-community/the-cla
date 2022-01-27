@@ -105,14 +105,17 @@ func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 var GHImpl GHInterface = &GHCreator{}
 
 func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.PullRequestPayload, appId int, claVersion string) error {
-	logger.Debug("Attempting to start authenticating with GitHub")
+	logger.Debug("start authenticating with GitHub")
 
 	owner := payload.Repository.Owner.Login
 	repo := payload.Repository.Name
 	sha := payload.PullRequest.Head.Sha
 	pullRequestID := int(payload.Number)
 
-	logger.Debug(fmt.Sprintf("Transport setup, using appID: %d and installation ID: %d", appId, payload.Installation.ID))
+	logger.Debug("transport setup",
+		zap.Int("appId", appId),
+		zap.Int64("installation ID", payload.Installation.ID),
+	)
 	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, int64(appId), payload.Installation.ID, FilenameTheClaPem)
 	if err != nil {
 		return err
@@ -151,16 +154,18 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 			return err
 		}
 		if !hasAuthorSigned {
-			usersNeedingToSignCLA = append(usersNeedingToSignCLA,
-				types.UserSignature{
-					User: types.User{
-						Login:     author.GetLogin(),
-						Email:     author.GetEmail(),
-						GivenName: author.GetName(),
-					},
-					CLAVersion: claVersion,
-					//TimeSigned: time.Time{},
-				})
+			userMissingSignature := types.UserSignature{
+				User: types.User{
+					Login:     author.GetLogin(),
+					Email:     author.GetEmail(),
+					GivenName: author.GetName(),
+				},
+				CLAVersion: claVersion,
+				//TimeSigned: time.Time{},
+			}
+			logger.Debug("missing author signature",
+				zap.Any("UserSignature", userMissingSignature))
+			usersNeedingToSignCLA = append(usersNeedingToSignCLA, userMissingSignature)
 		}
 	}
 
@@ -170,7 +175,7 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 			return err
 		}
 		// handle case where PR was previously open and all authors had signed cla - meaning the old "all signed" label is applied
-		err = _removeLabelFromIssueIfApplied(client.Issues, owner, repo, pullRequestID, labelNameCLASigned)
+		err = _removeLabelFromIssueIfApplied(logger, client.Issues, owner, repo, pullRequestID, labelNameCLASigned)
 		if err != nil {
 			return err
 		}
@@ -193,13 +198,13 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 			return err
 		}
 	} else {
-		logger.Debug("Attempting to create label for signed CLA")
+		logger.Debug("create label for signed CLA")
 		err = createRepoLabel(logger, client.Issues, owner, repo, labelNameCLASigned, "66CC00", "The CLA is signed", pullRequestID)
 		if err != nil {
 			return err
 		}
 		// handle case where PR was previously open and some authors had NOT signed cla - meaning the old "not signed" label is applied
-		err = _removeLabelFromIssueIfApplied(client.Issues, owner, repo, pullRequestID, labelNameCLANotSigned)
+		err = _removeLabelFromIssueIfApplied(logger, client.Issues, owner, repo, pullRequestID, labelNameCLANotSigned)
 		if err != nil {
 			return err
 		}
@@ -228,7 +233,7 @@ func createRepoLabel(logger *zap.Logger,
 	issuesService IssuesService,
 	owner, repo, name, color, description string,
 	pullRequestID int) error {
-	logger.Debug(fmt.Sprintf("Attempting to add or create label for: %s", name))
+	logger.Debug("add or create label", zap.String("name", name))
 
 	lbl, err := _createRepoLabelIfNotExists(logger, issuesService, owner, repo, name, color, description)
 	if err != nil {
@@ -246,16 +251,15 @@ func createRepoLabel(logger *zap.Logger,
 func _createRepoLabelIfNotExists(logger *zap.Logger,
 	issuesService IssuesService,
 	owner, repo, name, color, description string) (desiredLabel *github.Label, err error) {
-	logger.Debug(fmt.Sprintf("Attempting to create label: %s", name))
+	logger.Debug("create label", zap.String("name", name))
 
 	desiredLabel, res, err := issuesService.GetLabel(context.Background(), owner, repo, name)
 	if res.StatusCode == 404 {
-		logger.Debug(fmt.Sprintf("Looks like the label doesn't exist, so create it, name: %s, color: %s, description: %s", name, color, description))
-
 		strName := name
 		strColor := color
 		strDescription := description
 		newLabel := &github.Label{Name: &strName, Color: &strColor, Description: &strDescription}
+		logger.Debug("label doesn't exist, so create it", zap.Any("newLabel", newLabel))
 		desiredLabel, _, err = issuesService.CreateLabel(context.Background(), owner, repo, newLabel)
 
 		return
@@ -264,7 +268,7 @@ func _createRepoLabelIfNotExists(logger *zap.Logger,
 		return
 	}
 	if desiredLabel != nil {
-		logger.Debug(fmt.Sprintf("Found existing label, returning it %+v", desiredLabel))
+		logger.Debug("found existing label", zap.Any("desiredLabel", desiredLabel))
 		return
 	}
 
@@ -307,7 +311,7 @@ func _addLabelToIssueIfNotExists(logger *zap.Logger, issuesService IssuesService
 	}
 	for _, existingLabel := range issueLabels {
 		if *existingLabel.Name == labelName {
-			logger.Debug("Found label on issue, getting out of here")
+			logger.Debug("found label on issue, getting out of here", zap.Any("existingLabel", existingLabel))
 			// label already exists on this issue
 			desiredLabel = existingLabel
 			return
@@ -315,9 +319,13 @@ func _addLabelToIssueIfNotExists(logger *zap.Logger, issuesService IssuesService
 	}
 
 	// didn't find the label on this issue, so add the label to this issue
-	// @TODO Verify this does not remove existing labels (any label not in our "add" array)
-	logger.Debug("Attempting to add label to issue")
-	logger.Debug(fmt.Sprintf("Label: %s", labelName))
+	// note: this does not remove existing labels (any label not in our "add" array)
+	logger.Debug("add label to issue",
+		zap.String("owner", owner),
+		zap.String("repo", repo),
+		zap.Int("issueNumber", issueNumber),
+		zap.String("labelName", labelName),
+	)
 	_, _, err = issuesService.AddLabelsToIssue(
 		context.Background(),
 		owner,
@@ -328,12 +336,18 @@ func _addLabelToIssueIfNotExists(logger *zap.Logger, issuesService IssuesService
 	return
 }
 
-func _removeLabelFromIssueIfApplied(issuesService IssuesService, owner string, repo string, pullRequestID int, labelToRemove string) (err error) {
+func _removeLabelFromIssueIfApplied(logger *zap.Logger, issuesService IssuesService, owner string, repo string, pullRequestID int, labelToRemove string) (err error) {
 	var resp *github.Response
 	resp, err = issuesService.RemoveLabelForIssue(context.Background(), owner, repo, pullRequestID, labelToRemove)
 	if resp.StatusCode == http.StatusNotFound {
 		// the label was not applied, so move along as if no error occurred
 		err = nil
 	}
+	logger.Debug("removed old label",
+		zap.String("owner", owner),
+		zap.String("repo", repo),
+		zap.Int("pullRequestID", pullRequestID),
+		zap.String("labelToRemove", labelToRemove),
+	)
 	return
 }

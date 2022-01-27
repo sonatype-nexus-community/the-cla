@@ -21,6 +21,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"io/ioutil"
@@ -177,6 +178,16 @@ func openDB() (db *sql.DB, host string, port int, dbname, sslMode string, err er
 }
 
 func handleProcessWebhook(c echo.Context) (err error) {
+	callId := uuid.New()
+	logger.Info("handleProcessWebhook-start",
+		zap.Any("callId", callId),
+	)
+	defer func() {
+		logger.Info("handleProcessWebhook-end",
+			zap.Any("callId", callId),
+		)
+	}()
+
 	ghSecret := os.Getenv(envGhWebhookSecret)
 
 	hook, _ := webhook.New(webhook.Options.Secret(ghSecret))

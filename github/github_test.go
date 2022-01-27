@@ -447,7 +447,7 @@ func Test_removeLabelFromIssueIfExists_Removed(t *testing.T) {
 			Response: &http.Response{},
 		},
 	}
-	assert.NoError(t, _removeLabelFromIssueIfApplied(issuesMock, "", "", 0, ""))
+	assert.NoError(t, _removeLabelFromIssueIfApplied(zaptest.NewLogger(t), issuesMock, "", "", 0, ""))
 }
 
 func Test_removeLabelFromIssueIfExists_NotExistsIsIgnored(t *testing.T) {
@@ -456,7 +456,7 @@ func Test_removeLabelFromIssueIfExists_NotExistsIsIgnored(t *testing.T) {
 			Response: &http.Response{StatusCode: http.StatusNotFound},
 		},
 	}
-	assert.NoError(t, _removeLabelFromIssueIfApplied(issuesMock, "", "", 0, ""))
+	assert.NoError(t, _removeLabelFromIssueIfApplied(zaptest.NewLogger(t), issuesMock, "", "", 0, ""))
 }
 
 func Test_removeLabelFromIssueIfExists_Error(t *testing.T) {
@@ -467,6 +467,6 @@ func Test_removeLabelFromIssueIfExists_Error(t *testing.T) {
 		},
 		mockRemoveLabelError: forcedError,
 	}
-	assert.EqualError(t, _removeLabelFromIssueIfApplied(issuesMock, "", "", 0, ""),
+	assert.EqualError(t, _removeLabelFromIssueIfApplied(zaptest.NewLogger(t), issuesMock, "", "", 0, ""),
 		forcedError.Error())
 }
