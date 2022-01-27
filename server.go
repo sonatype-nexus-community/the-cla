@@ -155,7 +155,7 @@ func main() {
 
 	routes := e.Routes()
 	for _, v := range routes {
-		routeInfo := fmt.Sprintf(" %s %s as %s\n", v.Method, v.Path, v.Name)
+		routeInfo := fmt.Sprintf("%s %s as %s", v.Method, v.Path, v.Name)
 		logger.Info("route", zap.String("info", routeInfo))
 	}
 
