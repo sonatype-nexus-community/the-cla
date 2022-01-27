@@ -205,6 +205,27 @@ To create the docker image:
 
 #### Deployment
 
+Some pre-requisite/one-time setup steps:
+
+* setup aws cli configuration to verify working credentials. see: [AWS CLI on mac](https://docs.aws.amazon.com/cli/latest/userguide/install-macos.html)
+
+* install `aws-vault`
+
+      $ brew install --cask aws-vault
+
+* add aws-vault profile ("<your_profile>" in steps below) for use in pushing images
+
+      $ aws-vault add my-bbash-profile
+
+* (One-time) initialize terraform
+
+      $ aws-vault exec <your_profile> terraform init
+
+* View terraform actions to be taken:
+
+      $ aws-vault exec <your_profile> terraform plan
+
+
 An executable bash script (`docker.sh`?) similar to the following will make pushing images easier:
 
 ```bash
@@ -218,6 +239,10 @@ aws-vault exec <your_profile> -- aws ecs update-service --cluster the-cla-cluste
 Replace the stuff in the `<>` with your values (and remove the `<>` characters if that isn't immediately apparent), `chmod +x docker.sh`, and `./docker.sh`
 
 After you have done this, you SHOULD have a running service, somewhere in AWS :)
+
+With all the above configured, here's the deployment command in full:
+
+    make && make docker && ./docker.sh
 
 ## The Fine Print
 
