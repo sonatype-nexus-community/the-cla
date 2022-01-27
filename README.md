@@ -205,7 +205,7 @@ To create the docker image:
 
 #### Deployment
 
-An executable bash script similar to the following will make pushing images easier:
+An executable bash script (`docker.sh`?) similar to the following will make pushing images easier:
 
 ```bash
 #!/bin/bash
