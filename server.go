@@ -88,9 +88,9 @@ func main() {
 	}()
 	e.Use(echozap.ZapLogger(logger))
 
-	e.Use(
-		middleware.Logger(), // Log everything to stdout
-	)
+	//e.Use(
+	//	middleware.Logger(), // Log everything to stdout
+	//)
 	e.Debug = true
 
 	defer func() {
