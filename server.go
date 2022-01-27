@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"fmt"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -75,7 +76,9 @@ func main() {
 	e := echo.New()
 
 	var err error
-	logger, err = zap.NewProduction()
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	logger, err = config.Build()
 	if err != nil {
 		e.Logger.Fatal("can not initialize zap logger: %+v", err)
 	}
@@ -96,34 +99,34 @@ func main() {
 				err = fmt.Errorf("pkg: %v", r)
 			}
 			errRecovered = err
-			e.Logger.Error(err)
+			logger.Error("panic", zap.Error(err))
 		}
 	}()
 
 	buildInfoMessage := fmt.Sprintf("BuildVersion: %s, BuildTime: %s, BuildCommit: %s",
 		buildversion.BuildVersion, buildversion.BuildTime, buildversion.BuildCommit)
-	e.Logger.Infof(buildInfoMessage)
+	logger.Info("build", zap.String("buildMsg", buildInfoMessage))
 	fmt.Println(buildInfoMessage)
 
 	err = godotenv.Load(".env")
 	if err != nil {
-		e.Logger.Error(err)
+		logger.Error("env load", zap.Error(err))
 	}
 
 	pg, host, port, dbname, _, err := openDB()
 	if err != nil {
-		e.Logger.Error(err)
+		logger.Error("db open", zap.Error(err))
 		panic(fmt.Errorf("failed to load database driver. host: %s, port: %d, dbname: %s, err: %+v", host, port, dbname, err))
 	}
 	defer func() {
 		if err := pg.Close(); err != nil {
-			e.Logger.Error(err)
+			logger.Error("db close", zap.Error(err))
 		}
 	}()
 
 	err = pg.Ping()
 	if err != nil {
-		e.Logger.Error(err)
+		logger.Error("db ping", zap.Error(err))
 		panic(fmt.Errorf("failed to ping database. host: %s, port: %d, dbname: %s, err: %+v", host, port, dbname, err))
 	}
 
@@ -131,10 +134,10 @@ func main() {
 
 	err = postgresDB.MigrateDB("file://db/migrations")
 	if err != nil {
-		e.Logger.Error(err)
+		logger.Error("db migrate", zap.Error(err))
 		panic(fmt.Errorf("failed to migrate database. err: %+v", err))
 	} else {
-		e.Logger.Info("DB migration has occurred")
+		logger.Info("db migration complete")
 	}
 
 	e.Use(middleware.CORS())
@@ -151,10 +154,11 @@ func main() {
 
 	routes := e.Routes()
 	for _, v := range routes {
-		fmt.Printf("Registered route: %s %s as %s\n", v.Method, v.Path, v.Name)
+		routeInfo := fmt.Sprintf(" %s %s as %s\n", v.Method, v.Path, v.Name)
+		logger.Info("route", zap.String("info", routeInfo))
 	}
 
-	e.Logger.Fatal(e.Start(defaultServicePort))
+	logger.Fatal("application end", zap.Error(e.Start(defaultServicePort)))
 }
 
 func openDB() (db *sql.DB, host string, port int, dbname, sslMode string, err error) {
@@ -206,6 +210,7 @@ func handleProcessWebhook(c echo.Context) (err error) {
 
 			return c.String(http.StatusAccepted, "accepted pull request for processing")
 		default:
+			logger.Debug("ignore pull request payload", zap.String("action", payload.Action))
 			return c.String(http.StatusAccepted, fmt.Sprintf("No action taken for: %s", payload.Action))
 		}
 	default:
