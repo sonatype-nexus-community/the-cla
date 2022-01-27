@@ -102,6 +102,10 @@ Give it a name. I like naming it `Paul Botsco`. You should like that too.
   Actually you will get an error from the Github web page if you try to use localhost 
   (`Webhook URL host localhost is not supported because it isn't reachable over the public Internet`), so gotta use ngrok.
   Here's the command I use to launch ngrok locally: `path-to-ngrok/ngrok http 4200`
+  That command spins up ngrok, which show you a URL to use for connections, 
+  like: `Forwarding    https://dc7d-73-194-147-232.ngrok.io -> http://localhost:4200 `
+  In this case you would use `https://dc7d-73-194-147-232.ngrok.io/webhook-integration` as your `Webhook URL`.
+  NOTE: Each time you launch ngrok, this endpoint will change and thus the `Webhook URL` needs to be changed.
 
 `Webhook Secret`: this is something you can choose, out of thin air, to increase security. It's important that the 
   value you use here in GH also gets populated in your `.env` file for `GH_WEBHOOK_SECRET`, because it's how your 
@@ -172,6 +176,8 @@ Click the `Edit` button to edit the GitHub App. This will show a sidebar on the 
 Select which repositories (e.g. `all` or `some`) in which to install the app.
 
 To verify `the-cla` is working, you can create a new Pull Request in a repository you just setup with the app.
+You can view the deliveries made by the app in the `Advanced` tab (after clicking `Edit`) of [Developer Settings - GitHub Apps](https://github.com/settings/apps)
+for your `Paul Botsco` GitHub App.
 
 ### Deploy Application to AWS
 
