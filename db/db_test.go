@@ -186,6 +186,26 @@ func TestMigrateDB(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
+	// 002 begin - added this after db migration 002 was added
+	mock.ExpectBegin()
+	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(convertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
+		WithArgs(2, true).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	mock.ExpectExec(convertSqlToDbMockExpect(`ALTER TABLE signatures DROP CONSTRAINT signatures_loginname_key; ALTER TABLE signatures ADD UNIQUE (LoginName, ClaVersion);`)).
+		WithArgs().
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectBegin()
+	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(convertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
+		WithArgs(2, false).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	// 002 end
+
 	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_unlock($1)`)).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
