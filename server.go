@@ -278,12 +278,17 @@ func handleProcessWebhook(c echo.Context) (err error) {
 
 			return c.String(http.StatusAccepted, "accepted pull request for processing")
 		default:
-			logger.Debug("ignore pull request payload", zap.String("action", payload.Action))
+			logger.Debug("ignore pull request payload",
+				zap.String("action", payload.Action),
+				zap.String("owner", payload.Repository.Owner.Login),
+				zap.String("repo", payload.Repository.Name),
+				zap.Int64("pullRequestID", payload.Number),
+			)
 			return c.String(http.StatusAccepted, fmt.Sprintf("No action taken for: %s", payload.Action))
 		}
 	default:
 		// theoretically can't get here due to hook.Parse() call above (events param), but better safe than sorry
-		logger.Debug("Unhandled payload type encountered")
+		logger.Debug("Unhandled payload type encountered", zap.Any("payload", payload))
 
 		return c.String(http.StatusBadRequest, fmt.Sprintf("I do not handle this type of payload, sorry! Type: %T", payload))
 	}

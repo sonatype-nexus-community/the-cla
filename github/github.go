@@ -253,7 +253,7 @@ func createRepoLabel(logger *zap.Logger,
 func _createRepoLabelIfNotExists(logger *zap.Logger,
 	issuesService IssuesService,
 	owner, repo, name, color, description string) (desiredLabel *github.Label, err error) {
-	logger.Debug("create label", zap.String("name", name))
+	logger.Debug("maybe create label", zap.String("name", name))
 
 	desiredLabel, res, err := issuesService.GetLabel(context.Background(), owner, repo, name)
 	if res.StatusCode == 404 {
