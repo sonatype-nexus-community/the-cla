@@ -94,7 +94,8 @@ You will need to create a [GitHub application](https://github.com/settings/apps/
 
 Give it a name. I like naming it `Paul Botsco`. You should like that too.
 
-`Homepage URL` will be: http://localhost:4200/, or ngrok URL (if you are using [ngrok](ngrok.com), or the actual URL of the deployed AWS service!
+`Homepage URL` will be: http://localhost:4200/, or ngrok URL (if you are using [ngrok](ngrok.com), 
+  or the actual URL of the deployed AWS service (like: https://the-cla.innovations-sandbox.sonatype.dev).
 
 `Callback URL` will be: http://localhost:4200/, basically where you want people sent back to.
 
