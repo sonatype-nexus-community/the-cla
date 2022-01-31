@@ -234,7 +234,7 @@ func (m mockCLADb) MigrateDB(migrateSourceURL string) error {
 	return m.migrateDBSourceError
 }
 
-func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
+func TestHandlePullRequestCreateLabelError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
 		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
@@ -276,7 +276,7 @@ func TestHandlePullRequestPullRequestsCreateLabelError(t *testing.T) {
 	assert.EqualError(t, err, forcedError.Error())
 }
 
-func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
+func TestHandlePullRequestAddLabelsToIssueError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
 		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
@@ -321,6 +321,56 @@ func TestHandlePullRequestPullRequestsAddLabelsToIssueError(t *testing.T) {
 	assert.EqualError(t, err, forcedError.Error())
 }
 
+func TestHandlePullRequestGetAppError(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
+
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	mockAuthorLogin := "myAuthorLogin"
+	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	forcedError := fmt.Errorf("forced Get App error")
+	GHImpl = &GHInterfaceMock{
+		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
+		IssuesMock: IssuesMock{
+			mockGetLabel: &github.Label{},
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{StatusCode: http.StatusNotFound},
+			},
+		},
+		AppsMock: AppsMock{
+			mockAppErr: forcedError,
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+
+	mockDB, logger := setupMockDB(t, true)
+	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+	assert.EqualError(t, err, forcedError.Error())
+}
+
 func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
@@ -343,7 +393,7 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
 }
 
-func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
+func TestHandlePullRequestListCommitsError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
 		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
@@ -379,7 +429,7 @@ func TestHandlePullRequestPullRequestsListCommitsError(t *testing.T) {
 	assert.EqualError(t, err, forcedError.Error())
 }
 
-func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
+func TestHandlePullRequestListCommits(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
 		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
@@ -419,6 +469,7 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 			SHA: github.String("doeSHA"),
 		},
 	}
+	mockExternalUrl := "fakeExternalURL"
 	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{
 			mockRepositoryCommits: mockRepositoryCommits,
@@ -431,6 +482,9 @@ func TestHandlePullRequestPullRequestsListCommits(t *testing.T) {
 			MockRemoveLabelResponse: &github.Response{
 				Response: &http.Response{},
 			},
+		},
+		AppsMock: AppsMock{
+			mockApp: &github.App{ExternalURL: &mockExternalUrl},
 		},
 	}
 
