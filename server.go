@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build go1.16
 // +build go1.16
 
 package main
@@ -160,6 +161,14 @@ func handleProcessWebhook(c echo.Context) (err error) {
 				c.Logger().Error(err)
 				return c.String(http.StatusBadRequest, err.Error())
 			}
+
+			app, err := ghJWTClient.Get()
+			if err != nil {
+				c.Logger().Error(err)
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+			c.Logger().Debugf("app name: %s", *app.Name)                // for display in status messages on GH
+			c.Logger().Debugf("app external url: %s", *app.ExternalURL) // the link for the user to sign the CLA
 
 			// See if we can move this to a longer lived thing, maybe? It's going to recreate the transport and http Client each time we get a payload
 			c.Logger().Debugf("Transport setup, using appID: %d and installation ID: %d", appId, payload.Installation.ID)

@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build go1.16
 // +build go1.16
 
 package github
@@ -68,6 +69,7 @@ type IssuesService interface {
 }
 
 type AppsService interface {
+	Get(ctx context.Context, appSlug string) (*github.App, *github.Response, error)
 	GetInstallation(ctx context.Context, id int64) (*github.Installation, *github.Response, error)
 }
 
@@ -103,6 +105,7 @@ type OAuthGitHubClient struct {
 }
 
 type IGitHubJWTClient interface {
+	Get() (*github.App, error)
 	GetInstallInfo() (*github.Installation, error)
 }
 
@@ -115,6 +118,17 @@ type GitHubJWTClient struct {
 func NewJWTClient(httpClient *http.Client, logger echo.Logger, installID int) IGitHubJWTClient {
 	client := github.NewClient(httpClient)
 	return &GitHubJWTClient{logger: logger, apps: client.Apps, installID: installID}
+}
+
+func (ghj *GitHubJWTClient) Get() (app *github.App, err error) {
+	var resp *github.Response
+	app, resp, err = ghj.apps.Get(context.Background(), "") // empty appSlug here returns current authenticated app
+	if resp.StatusCode != http.StatusOK {
+		// prolly just log this, instead of returning an error
+		err = fmt.Errorf("it done broke: %+v", resp)
+		return
+	}
+	return
 }
 
 func (ghj *GitHubJWTClient) GetInstallInfo() (*github.Installation, error) {
