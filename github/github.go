@@ -242,14 +242,15 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 }
 
 func getApp(logger *zap.Logger, appId int) (app *github.App, err error) {
-	// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as installInfo
-	atr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(appId), FilenameTheClaPem)
+	// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as App
+	var atr *ghinstallation.AppsTransport
+	atr, err = ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(appId), FilenameTheClaPem)
 	if err != nil {
 		logger.Error("failed to get JWT",
 			zap.Int("appId", appId),
 			zap.Error(err),
 		)
-		return nil, err
+		return
 	}
 	jwtClient := GHImpl.NewClient(&http.Client{Transport: atr})
 	app, _, err = jwtClient.Apps.Get(context.Background(),
@@ -260,9 +261,9 @@ func getApp(logger *zap.Logger, appId int) (app *github.App, err error) {
 			zap.Int("appId", appId),
 			zap.Error(err),
 		)
-		return nil, err
+		return
 	}
-	return app, nil
+	return
 }
 
 func createRepoStatus(repositoryService RepositoriesService, owner, repo, sha, state, description string) error {
