@@ -49,7 +49,7 @@ const pathClaText string = "/cla-text"
 const pathOAuthCallback string = "/oauth-callback"
 const pathSignCla string = "/sign-cla"
 const pathWebhook string = "/webhook-integration"
-
+const pathSignature = "/signature"
 const buildLocation string = "build"
 
 const envReactAppClaVersion string = "REACT_APP_CLA_VERSION"
@@ -153,6 +153,8 @@ func main() {
 
 	e.PUT(pathSignCla, handleProcessSignCla)
 
+	e.GET(pathSignature, handleSignature)
+
 	e.Static("/", buildLocation)
 
 	routes := e.Routes()
@@ -162,6 +164,48 @@ func main() {
 	}
 
 	logger.Fatal("application end", zap.Error(e.Start(defaultServicePort)))
+}
+
+const queryParameterLogin = "login"
+const queryParameterCLAVersion = "claversion"
+const msgTemplateMissingQueryParam = "missing required query parameter: %s"
+const hiddenFieldValue = "hidden"
+
+func handleSignature(c echo.Context) (err error) {
+	login, err := getRequiredQueryParameter(c, queryParameterLogin)
+	if err != nil {
+		return c.String(http.StatusUnprocessableEntity, err.Error())
+	}
+
+	claVersion, err := getRequiredQueryParameter(c, queryParameterCLAVersion)
+	if err != nil {
+		return c.String(http.StatusUnprocessableEntity, err.Error())
+	}
+
+	hasUserSignedCLA, foundUserSignature, err := postgresDB.HasAuthorSignedTheCla(login, claVersion)
+	if err != nil {
+		logger.Error("error checking signature", zap.Error(err))
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	if !hasUserSignedCLA {
+		logger.Debug("cla not signed", zap.String("login", login))
+		return c.String(http.StatusOK, fmt.Sprintf("cla version %s not signed by %s", claVersion, login))
+	}
+
+	// hide sensitive info
+	foundUserSignature.User.Email = hiddenFieldValue
+	foundUserSignature.User.GivenName = hiddenFieldValue
+	return c.JSON(http.StatusOK, foundUserSignature)
+}
+
+func getRequiredQueryParameter(c echo.Context, parameterName string) (parameterValue string, err error) {
+	parameterValue = c.QueryParam(parameterName)
+	if parameterValue == "" {
+		err = fmt.Errorf(msgTemplateMissingQueryParam, parameterName)
+		logger.Error("invalid request", zap.Error(err))
+		return
+	}
+	return
 }
 
 // ZapLoggerFilterAWS_ELB is a middleware and zap to provide an "access log" like logging for each request.

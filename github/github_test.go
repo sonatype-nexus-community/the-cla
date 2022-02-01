@@ -198,6 +198,7 @@ type mockCLADb struct {
 	hasAuthorSignedLogin         string
 	hasAuthorSignedCLAVersion    string
 	hasAuthorSignedResult        bool
+	hasAuthorSignedSignature     *types.UserSignature
 	hasAuthorSignedError         error
 	migrateDBSourceURL           string
 	migrateDBSourceError         error
@@ -219,12 +220,12 @@ func (m mockCLADb) InsertSignature(u *types.UserSignature) error {
 	return m.insertSignatureError
 }
 
-func (m mockCLADb) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
+func (m mockCLADb) HasAuthorSignedTheCla(login, claVersion string) (bool, *types.UserSignature, error) {
 	if m.assertParameters {
 		assert.Equal(m.t, m.hasAuthorSignedLogin, login)
 		assert.Equal(m.t, m.hasAuthorSignedCLAVersion, claVersion)
 	}
-	return m.hasAuthorSignedResult, m.hasAuthorSignedError
+	return m.hasAuthorSignedResult, m.hasAuthorSignedSignature, m.hasAuthorSignedError
 }
 
 func (m mockCLADb) MigrateDB(migrateSourceURL string) error {

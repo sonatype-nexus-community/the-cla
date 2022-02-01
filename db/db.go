@@ -37,7 +37,7 @@ const msgTemplateErrInsertSignatureDuplicate = "insert error. did user previousl
 
 type IClaDB interface {
 	InsertSignature(u *types.UserSignature) error
-	HasAuthorSignedTheCla(login, claVersion string) (bool, error)
+	HasAuthorSignedTheCla(login, claVersion string) (bool, *types.UserSignature, error)
 	MigrateDB(migrateSourceURL string) error
 }
 
@@ -65,28 +65,26 @@ func (p *ClaDB) InsertSignature(user *types.UserSignature) error {
 	return nil
 }
 
-const sqlSelectUserSignature = `SELECT 
+const SqlSelectUserSignature = `SELECT 
 		LoginName, Email, GivenName, SignedAt, ClaVersion 
 		FROM signatures		
 		WHERE LoginName = $1
 		AND ClaVersion = $2`
 
-func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
+func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (isSigned bool, foundUserSignature *types.UserSignature, err error) {
 	p.logger.Debug("did author sign the CLA",
 		zap.String("login", login),
 		zap.String("claVersion", claVersion),
 	)
 
-	rows, err := p.db.Query(sqlSelectUserSignature, login, claVersion)
+	rows, err := p.db.Query(SqlSelectUserSignature, login, claVersion)
 	if err != nil {
-		return false, err
+		return
 	}
 
-	var foundUserSignature types.UserSignature
-	isSigned := false
 	for rows.Next() {
 		isSigned = true
-		foundUserSignature = types.UserSignature{}
+		foundUserSignature = &types.UserSignature{}
 		err = rows.Scan(
 			&foundUserSignature.User.Login,
 			&foundUserSignature.User.Email,
@@ -95,7 +93,7 @@ func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
 			&foundUserSignature.CLAVersion,
 		)
 		if err != nil {
-			return isSigned, err
+			return
 		}
 		p.logger.Debug("found author signature",
 			zap.String("login", foundUserSignature.User.Login),
@@ -104,7 +102,7 @@ func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (bool, error) {
 		)
 	}
 
-	return isSigned, nil
+	return
 }
 
 func (p *ClaDB) MigrateDB(migrateSourceURL string) (err error) {

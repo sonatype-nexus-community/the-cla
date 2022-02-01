@@ -18,8 +18,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/go-github/v42/github"
 	"github.com/labstack/echo/v4"
+	"github.com/sonatype-nexus-community/the-cla/db"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +33,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func resetEnvVariable(t *testing.T, variableName, originalValue string) {
@@ -399,4 +403,109 @@ func TestHandleProcessSignClaBindError(t *testing.T) {
 	assert.EqualError(t, handleProcessSignCla(c), "code=415, message=Unsupported Media Type")
 	assert.Equal(t, 0, c.Response().Status)
 	assert.Equal(t, "", rec.Body.String())
+}
+
+func setupMockContextSignature(t *testing.T, queryParams map[string]string) (c echo.Context, rec *httptest.ResponseRecorder) {
+	logger = zaptest.NewLogger(t)
+
+	// Setup
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodGet, pathSignCla, nil)
+
+	q := req.URL.Query()
+	for k, v := range queryParams {
+		q.Add(k, v)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	rec = httptest.NewRecorder()
+	c = e.NewContext(req, rec)
+	return
+}
+
+func TestHandleSignatureMissingLogin(t *testing.T) {
+	c, rec := setupMockContextSignature(t, map[string]string{})
+
+	assert.NoError(t, handleSignature(c))
+	assert.Equal(t, http.StatusUnprocessableEntity, c.Response().Status)
+	assert.Equal(t, fmt.Sprintf(msgTemplateMissingQueryParam, queryParameterLogin), rec.Body.String())
+}
+
+func TestHandleSignatureMissingCLAVersion(t *testing.T) {
+	c, rec := setupMockContextSignature(t, map[string]string{queryParameterLogin: "myLogin"})
+
+	assert.NoError(t, handleSignature(c))
+	assert.Equal(t, http.StatusUnprocessableEntity, c.Response().Status)
+	assert.Equal(t, fmt.Sprintf(msgTemplateMissingQueryParam, queryParameterCLAVersion), rec.Body.String())
+}
+
+func TestHandleSignatureHasAuthorSignedError(t *testing.T) {
+	c, rec := setupMockContextSignature(t, map[string]string{
+		queryParameterLogin:      "myLogin",
+		queryParameterCLAVersion: "myCLAVersion",
+	})
+
+	mock, dbIF, closeDbFunc := db.SetupMockDB(t)
+	defer closeDbFunc()
+	postgresDB = dbIF
+
+	forcedError := fmt.Errorf("forced SQL query error")
+	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUserSignature)).
+		WillReturnError(forcedError)
+
+	assert.NoError(t, handleSignature(c))
+	assert.Equal(t, http.StatusInternalServerError, c.Response().Status)
+	assert.Equal(t, forcedError.Error(), rec.Body.String())
+}
+
+func TestHandleSignatureHasAuthorSignedFalse(t *testing.T) {
+	c, rec := setupMockContextSignature(t, map[string]string{
+		queryParameterLogin:      "myLogin",
+		queryParameterCLAVersion: "myCLAVersion",
+	})
+
+	mock, dbIF, closeDbFunc := db.SetupMockDB(t)
+	defer closeDbFunc()
+	postgresDB = dbIF
+
+	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUserSignature)).
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}))
+
+	assert.NoError(t, handleSignature(c))
+	assert.Equal(t, http.StatusOK, c.Response().Status)
+	assert.Equal(t, "cla version myCLAVersion not signed by myLogin", rec.Body.String())
+}
+
+func TestHandleSignatureHasAuthorSignedAndHidesFields(t *testing.T) {
+	const testLogin = "myLogin"
+	const testCLAVersion = "myCLAVersion"
+	c, rec := setupMockContextSignature(t, map[string]string{
+		queryParameterLogin:      testLogin,
+		queryParameterCLAVersion: testCLAVersion,
+	})
+
+	mock, dbIF, closeDbFunc := db.SetupMockDB(t)
+	defer closeDbFunc()
+	postgresDB = dbIF
+
+	now := time.Now()
+	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUserSignature)).
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}).
+			AddRow(testLogin, "myEmail", "myGivenName", now, testCLAVersion))
+
+	assert.NoError(t, handleSignature(c))
+	assert.Equal(t, http.StatusOK, c.Response().Status)
+
+	expectedJsonSignature, err := json.Marshal(types.UserSignature{
+		User: types.User{
+			Login:     testLogin,
+			Email:     hiddenFieldValue, // hide email
+			GivenName: hiddenFieldValue, // hide given name
+		},
+		CLAVersion: testCLAVersion,
+		TimeSigned: now,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, string(expectedJsonSignature)+"\n", rec.Body.String())
 }

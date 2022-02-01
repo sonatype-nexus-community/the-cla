@@ -163,7 +163,7 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 		// the canonical author of the commit
 		author := *v.GetAuthor()
 
-		hasAuthorSigned, err := postgres.HasAuthorSignedTheCla(*author.Login, claVersion)
+		hasAuthorSigned, _, err := postgres.HasAuthorSignedTheCla(*author.Login, claVersion)
 		if err != nil {
 			return err
 		}

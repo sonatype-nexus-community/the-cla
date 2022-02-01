@@ -21,8 +21,6 @@ package db
 import (
 	"database/sql/driver"
 	"fmt"
-	"go.uber.org/zap/zaptest"
-	"regexp"
 	"testing"
 	"time"
 
@@ -32,49 +30,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// should always be followed by a call to the closeDbFunc, like so:
-// 	mock, db, closeDbFunc := SetupMockDB(t)
-//	defer closeDbFunc()
-func SetupMockDB(t *testing.T) (mock sqlmock.Sqlmock, mockDbIf *ClaDB, closeDbFunc func()) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		assert.NoError(t, err)
-	}
-	closeDbFunc = func() {
-		_ = db.Close()
-	}
-	mockDbIf = New(db, zaptest.NewLogger(t))
-	return
-}
-
-type AnyTime struct{}
-
-// Match satisfies sqlmock.Argument interface
-func (a AnyTime) Match(v driver.Value) bool {
-	_, ok := v.(time.Time)
-	return ok
-}
-
-// convertSqlToDbMockExpect takes a "real" sql string and adds escape characters as needed to produce a
-// regex matching string for use with database mock expect calls.
-func convertSqlToDbMockExpect(realSql string) string {
-	reDollarSign := regexp.MustCompile(`(\$)`)
-	sqlMatch := reDollarSign.ReplaceAll([]byte(realSql), []byte(`\$`))
-
-	reLeftParen := regexp.MustCompile(`(\()`)
-	sqlMatch = reLeftParen.ReplaceAll(sqlMatch, []byte(`\(`))
-
-	reRightParen := regexp.MustCompile(`(\))`)
-	sqlMatch = reRightParen.ReplaceAll(sqlMatch, []byte(`\)`))
-
-	reStar := regexp.MustCompile(`(\*)`)
-	sqlMatch = reStar.ReplaceAll(sqlMatch, []byte(`\*`))
-	return string(sqlMatch)
-}
-
 func TestConvertSqlToDbMockExpect(t *testing.T) {
 	// sanity check all the cases we've found so far
-	assert.Equal(t, `\$\(\)\*`, convertSqlToDbMockExpect(`$()*`))
+	assert.Equal(t, `\$\(\)\*`, ConvertSqlToDbMockExpect(`$()*`))
 }
 
 func TestInsertSignatureError(t *testing.T) {
@@ -83,7 +41,7 @@ func TestInsertSignatureError(t *testing.T) {
 
 	user := types.UserSignature{}
 	forcedError := fmt.Errorf("forced SQL insert error")
-	mock.ExpectExec(convertSqlToDbMockExpect(sqlInsertSignature)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnError(forcedError).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
@@ -101,7 +59,7 @@ func TestInsertSignatureErrorDuplicateSignature(t *testing.T) {
 	}
 
 	forcedError := fmt.Errorf("forced SQL insert error")
-	mock.ExpectExec(convertSqlToDbMockExpect(sqlInsertSignature)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
 
@@ -127,19 +85,19 @@ func setupMockPostgresWithInstance(mock sqlmock.Sqlmock) (args []driver.Value) {
 
 	//args = []driver.Value{"1014225327"}
 	args = []driver.Value{"1560208929"}
-	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_lock($1)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`SELECT pg_advisory_lock($1)`)).
 		WithArgs(args...).
 		//WithArgs(sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	mock.ExpectQuery(convertSqlToDbMockExpect(`SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2 LIMIT 1`)).
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(`SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2 LIMIT 1`)).
 		WithArgs("theDatabaseSchema", "schema_migrations").
 		WillReturnRows(sqlmock.NewRows([]string{"theCount"}).AddRow(0))
 
-	mock.ExpectExec(convertSqlToDbMockExpect(`CREATE TABLE IF NOT EXISTS "theDatabaseSchema"."schema_migrations" (version bigint not null primary key, dirty boolean not null)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`CREATE TABLE IF NOT EXISTS "theDatabaseSchema"."schema_migrations" (version bigint not null primary key, dirty boolean not null)`)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_unlock($1)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`SELECT pg_advisory_unlock($1)`)).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	return
@@ -161,7 +119,7 @@ func TestMigrateDB(t *testing.T) {
 	args := setupMockPostgresWithInstance(mock)
 
 	// mocks for migrate.Up()
-	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_lock($1)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`SELECT pg_advisory_lock($1)`)).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
@@ -171,7 +129,7 @@ func TestMigrateDB(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(convertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
 		WithArgs(1, true).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
@@ -181,7 +139,7 @@ func TestMigrateDB(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(convertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
 		WithArgs(1, false).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
@@ -190,23 +148,23 @@ func TestMigrateDB(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(convertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
 		WithArgs(2, true).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
-	mock.ExpectExec(convertSqlToDbMockExpect(`ALTER TABLE signatures DROP CONSTRAINT signatures_loginname_key; ALTER TABLE signatures ADD UNIQUE (LoginName, ClaVersion);`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`ALTER TABLE signatures DROP CONSTRAINT signatures_loginname_key; ALTER TABLE signatures ADD UNIQUE (LoginName, ClaVersion);`)).
 		WithArgs().
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
 	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(convertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
 		WithArgs(2, false).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 	// 002 end
 
-	mock.ExpectExec(convertSqlToDbMockExpect(`SELECT pg_advisory_unlock($1)`)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(`SELECT pg_advisory_unlock($1)`)).
 		WithArgs(args...).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
@@ -218,10 +176,10 @@ func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
 	defer closeDbFunc()
 
 	forcedError := fmt.Errorf("forced SQL query error")
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUserSignature)).
 		WillReturnError(forcedError)
 
-	hasSigned, err := db.HasAuthorSignedTheCla("", "")
+	hasSigned, _, err := db.HasAuthorSignedTheCla("", "")
 	assert.EqualError(t, err, forcedError.Error())
 	assert.False(t, hasSigned)
 }
@@ -233,31 +191,40 @@ func TestHasAuthorSignedTheClaReadRowError(t *testing.T) {
 	defer closeDbFunc()
 
 	loginName := "myLoginName"
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUserSignature)).
 		WithArgs(loginName, mockCLAVersion).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}).
 			FromCSVString(`myLoginName,myEmail,myGivenName,INVALID_TIME_VALUE_TO_CAUSE_ROW_READ_ERROR,` + mockCLAVersion))
 
-	hasSigned, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
+	hasSigned, foundSignature, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
 	assert.EqualError(t, err, "sql: Scan error on column index 3, name \"SignedAt\": unsupported Scan, storing driver.Value type []uint8 into type *time.Time")
 	assert.True(t, hasSigned)
+	assert.NotNil(t, foundSignature)
 }
 
 func TestHasAuthorSignedTheClaTrue(t *testing.T) {
 	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
-	loginName := "myLoginName"
 	rs := sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"})
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
 	now := time.Now()
-	rs.AddRow(loginName, "myEmail", "myGivenName", now, "myClaVersion")
-	mock.ExpectQuery(convertSqlToDbMockExpect(sqlSelectUserSignature)).
+	claVersion := "myCLAVersion"
+	rs.AddRow(loginName, email, givenName, now, claVersion)
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUserSignature)).
 		WithArgs(loginName, mockCLAVersion).
 		WillReturnRows(rs)
 
 	committer := github.User{}
 	committer.Login = &loginName
-	hasSigned, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
+	hasSigned, foundSignature, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
 	assert.NoError(t, err)
 	assert.True(t, hasSigned)
+	assert.Equal(t, loginName, foundSignature.User.Login)
+	assert.Equal(t, email, foundSignature.User.Email)
+	assert.Equal(t, givenName, foundSignature.User.GivenName)
+	assert.Equal(t, now, foundSignature.TimeSigned)
+	assert.Equal(t, claVersion, foundSignature.CLAVersion)
 }
