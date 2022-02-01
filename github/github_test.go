@@ -321,6 +321,90 @@ func TestHandlePullRequestAddLabelsToIssueError(t *testing.T) {
 	assert.EqualError(t, err, forcedError.Error())
 }
 
+func TestGetAppPemFileError(t *testing.T) {
+	// remove any existing pem file, and do not set up test pem file
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced apps service get error")
+	GHImpl = &GHInterfaceMock{
+		AppsMock: AppsMock{
+			mockAppErr: forcedError,
+		},
+	}
+
+	app, err := getApp(zaptest.NewLogger(t), 0)
+	assert.Nil(t, app)
+	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
+}
+
+func TestGetAppGetError(t *testing.T) {
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced apps service get error")
+	GHImpl = &GHInterfaceMock{
+		AppsMock: AppsMock{
+			mockAppErr: forcedError,
+		},
+	}
+
+	app, err := getApp(zaptest.NewLogger(t), 0)
+	assert.Nil(t, app)
+	assert.EqualError(t, err, forcedError.Error())
+}
+
+func TestGetAppExternalURLStringPointerMadness(t *testing.T) {
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	expectedExternalURL := "myAppHomepage"
+	GHImpl = &GHInterfaceMock{
+		AppsMock: AppsMock{
+			mockApp: &github.App{
+				ExternalURL: &expectedExternalURL,
+			},
+		},
+	}
+
+	app, err := getApp(zaptest.NewLogger(t), 0)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedExternalURL, *app.ExternalURL)
+}
+
 func TestHandlePullRequestGetAppError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {

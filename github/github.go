@@ -200,26 +200,9 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 		}
 
 		// get info needed to show link to sign the cla
-
-		// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as installInfo
-		atr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(appId), FilenameTheClaPem)
-		if err != nil {
-			logger.Error("failed to get JWT",
-				zap.Int("appId", appId),
-				zap.Error(err),
-			)
-			return err
-		}
-		jwtClient := GHImpl.NewClient(&http.Client{Transport: atr})
-		app, _, err := jwtClient.Apps.Get(context.Background(),
-			// Passing the empty string will get the authenticated GitHub App.
-			"")
-		if err != nil {
-			logger.Error("failed to get app",
-				zap.Int("appId", appId),
-				zap.Error(err),
-			)
-			return err
+		app, err2 := getApp(logger, appId)
+		if err2 != nil {
+			return err2
 		}
 		// TODO Maybe use app.Name in the remaining hard coded Paul Botsco repo status message above...or not.
 		//appName := app.Name
@@ -256,6 +239,30 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 	}
 
 	return nil
+}
+
+func getApp(logger *zap.Logger, appId int) (app *github.App, err error) {
+	// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as installInfo
+	atr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(appId), FilenameTheClaPem)
+	if err != nil {
+		logger.Error("failed to get JWT",
+			zap.Int("appId", appId),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+	jwtClient := GHImpl.NewClient(&http.Client{Transport: atr})
+	app, _, err = jwtClient.Apps.Get(context.Background(),
+		// Passing the empty string will get the authenticated GitHub App.
+		"")
+	if err != nil {
+		logger.Error("failed to get app",
+			zap.Int("appId", appId),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+	return app, nil
 }
 
 func createRepoStatus(repositoryService RepositoriesService, owner, repo, sha, state, description string) error {
