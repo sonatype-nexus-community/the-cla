@@ -112,65 +112,6 @@ func TestMigrateDBErrorMigrateUp(t *testing.T) {
 	assert.EqualError(t, db.MigrateDB(testMigrateSourceURL), fmt.Sprintf("try lock failed in line 0: SELECT pg_advisory_lock($1) (details: all expectations were already fulfilled, call to ExecQuery 'SELECT pg_advisory_lock($1)' with args [{Name: Ordinal:1 Value:%s}] was not expected)", args[0]))
 }
 
-func TestMigrateDB(t *testing.T) {
-	mock, db, closeDbFunc := SetupMockDB(t)
-	defer closeDbFunc()
-
-	args := setupMockPostgresWithInstance(mock)
-
-	// mocks for migrate.Up()
-	mock.ExpectExec(ConvertSqlToDbMockExpect(`SELECT pg_advisory_lock($1)`)).
-		WithArgs(args...).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-
-	mock.ExpectQuery(`SELECT version, dirty FROM "theDatabaseSchema"."schema_migrations" LIMIT 1`).
-		WillReturnRows(sqlmock.NewRows([]string{"version", "dirty"}).FromCSVString("-1,false"))
-
-	mock.ExpectBegin()
-	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(ConvertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
-		WithArgs(1, true).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
-
-	mock.ExpectExec(`BEGIN; CREATE EXTENSION pgcrypto; CREATE TABLE signatures*`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectBegin()
-	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(ConvertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
-		WithArgs(1, false).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
-
-	// 002 begin - added this after db migration 002 was added
-	mock.ExpectBegin()
-	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(ConvertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
-		WithArgs(2, true).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
-	mock.ExpectExec(ConvertSqlToDbMockExpect(`ALTER TABLE signatures DROP CONSTRAINT signatures_loginname_key; ALTER TABLE signatures ADD UNIQUE (LoginName, ClaVersion);`)).
-		WithArgs().
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectBegin()
-	mock.ExpectExec(`TRUNCATE "theDatabaseSchema"."schema_migrations"`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(ConvertSqlToDbMockExpect(`INSERT INTO "theDatabaseSchema"."schema_migrations" (version, dirty) VALUES ($1, $2)`)).
-		WithArgs(2, false).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
-	// 002 end
-
-	mock.ExpectExec(ConvertSqlToDbMockExpect(`SELECT pg_advisory_unlock($1)`)).
-		WithArgs(args...).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-
-	assert.NoError(t, db.MigrateDB(testMigrateSourceURL))
-}
-
 func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
 	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()

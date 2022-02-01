@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-github/v42/github"
 	"github.com/stretchr/testify/assert"
@@ -191,17 +192,23 @@ func Test_AddLabelToIssueIfNotExists(t *testing.T) {
 }
 
 type mockCLADb struct {
-	t                            *testing.T
-	assertParameters             bool
-	insertSignatureUserSignature *types.UserSignature
-	insertSignatureError         error
-	hasAuthorSignedLogin         string
-	hasAuthorSignedCLAVersion    string
-	hasAuthorSignedResult        bool
-	hasAuthorSignedSignature     *types.UserSignature
-	hasAuthorSignedError         error
-	migrateDBSourceURL           string
-	migrateDBSourceError         error
+	t                             *testing.T
+	assertParameters              bool
+	insertSignatureUserSignature  *types.UserSignature
+	insertSignatureError          error
+	hasAuthorSignedLogin          string
+	hasAuthorSignedCLAVersion     string
+	hasAuthorSignedResult         bool
+	hasAuthorSignedSignature      *types.UserSignature
+	hasAuthorSignedError          error
+	migrateDBSourceURL            string
+	migrateDBSourceError          error
+	storeUsersNeedingToSignOwner  string
+	storeUsersNeedingToSignRepo   string
+	storeUsersNeedingToSignPRid   int
+	storeUsersNeedingToSignCLA    []types.UserSignature
+	storeUsersNeedingToSignTime   time.Time
+	storeUsersNeedingToSignCLAErr error
 }
 
 var _ db.IClaDB = (*mockCLADb)(nil)
@@ -233,6 +240,17 @@ func (m mockCLADb) MigrateDB(migrateSourceURL string) error {
 		assert.Equal(m.t, m.migrateDBSourceURL, migrateSourceURL)
 	}
 	return m.migrateDBSourceError
+}
+
+func (m mockCLADb) StorePRAuthorsMissingSignature(owner, repo string, pullRequestID int, usersNeedingToSignCLA []types.UserSignature, checkedAt time.Time) error {
+	if m.assertParameters {
+		assert.Equal(m.t, m.storeUsersNeedingToSignOwner, owner)
+		assert.Equal(m.t, m.storeUsersNeedingToSignRepo, repo)
+		assert.Equal(m.t, m.storeUsersNeedingToSignPRid, pullRequestID)
+		assert.Equal(m.t, m.storeUsersNeedingToSignCLA, usersNeedingToSignCLA)
+		assert.NotNil(m.t, checkedAt) // not gonna go nuts over time check here
+	}
+	return m.storeUsersNeedingToSignCLAErr
 }
 
 func TestHandlePullRequestCreateLabelError(t *testing.T) {
@@ -451,6 +469,13 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 
 	mockDB, logger := setupMockDB(t, true)
 	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+	mockDB.storeUsersNeedingToSignCLA = []types.UserSignature{
+		{
+			User: types.User{
+				Login: mockAuthorLogin,
+			},
+		},
+	}
 
 	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())

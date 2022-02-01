@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v42/github"
@@ -197,6 +198,13 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 		var users []string
 		for _, v := range usersNeedingToSignCLA {
 			users = append(users, " @"+v.User.Login)
+		}
+
+		// store failed users, so we can reevaluate their PR's after they sign the CLA
+		now := time.Now()
+		err = postgres.StorePRAuthorsMissingSignature(owner, repo, pullRequestID, usersNeedingToSignCLA, now)
+		if err != nil {
+			return err
 		}
 
 		// get info needed to show link to sign the cla

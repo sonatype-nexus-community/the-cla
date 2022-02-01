@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"fmt"
 	"go.uber.org/zap"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -38,6 +39,7 @@ const msgTemplateErrInsertSignatureDuplicate = "insert error. did user previousl
 type IClaDB interface {
 	InsertSignature(u *types.UserSignature) error
 	HasAuthorSignedTheCla(login, claVersion string) (bool, *types.UserSignature, error)
+	StorePRAuthorsMissingSignature(owner, repo string, pullRequestID int, usersNeedingToSignCLA []types.UserSignature, checkedAt time.Time) error
 	MigrateDB(migrateSourceURL string) error
 }
 
@@ -110,8 +112,6 @@ func (p *ClaDB) MigrateDB(migrateSourceURL string) (err error) {
 	if err != nil {
 		return
 	}
-	// @todo Verify we can defer closing the DB here
-	//defer driver.Close()
 
 	m, err := migrate.NewWithDatabaseInstance(
 		migrateSourceURL,
@@ -125,6 +125,23 @@ func (p *ClaDB) MigrateDB(migrateSourceURL string) (err error) {
 			// we can ignore (and clear) the "no change" error
 			err = nil
 		}
+	}
+	return
+}
+
+const sqlInsertAuthorMissing = `INSERT INTO unsigned_pr
+		(repo_owner, repo_name, pr_number, login_name, ClaVersion, CheckedAt)
+		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`
+
+const msgTemplateErrInsertAuthorMissing = "insert error tracking missing author CLA. user: %+v, error: %+v"
+
+func (p *ClaDB) StorePRAuthorsMissingSignature(owner, repo string, pullRequestID int, usersNeedingToSignCLA []types.UserSignature, checkedAt time.Time) (err error) {
+	for _, missingAuthor := range usersNeedingToSignCLA {
+		_, err = p.db.Exec(sqlInsertAuthorMissing, owner, repo, pullRequestID, missingAuthor.User.Login, missingAuthor.CLAVersion, checkedAt)
+		if err != nil {
+			return fmt.Errorf(msgTemplateErrInsertAuthorMissing, missingAuthor.User.Login, err)
+		}
+		// We ignore lack of insert (rowsAffected) for cases where a PR is closed and reopened - ON CONFLICT DO NOTHING
 	}
 	return
 }
