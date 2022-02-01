@@ -200,11 +200,11 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 		}
 
 		// get info needed to show link to sign the cla
-		app, err2 := getApp(logger, appId)
-		if err2 != nil {
-			return err2
+		app, err := getApp(logger, appId)
+		if err != nil {
+			return err
 		}
-		// TODO Maybe use app.Name in the remaining hard coded Paul Botsco repo status message above...or not.
+		// Maybe use app.Name in the remaining hard coded Paul Botsco repo status message above...or not.
 		//appName := app.Name
 		appExternalUrl := *app.ExternalURL
 
@@ -246,7 +246,7 @@ func getApp(logger *zap.Logger, appId int) (app *github.App, err error) {
 	var atr *ghinstallation.AppsTransport
 	atr, err = ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(appId), FilenameTheClaPem)
 	if err != nil {
-		logger.Error("failed to get JWT",
+		logger.Error("failed to get JWT key",
 			zap.Int("appId", appId),
 			zap.Error(err),
 		)
