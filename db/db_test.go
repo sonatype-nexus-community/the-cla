@@ -169,3 +169,90 @@ func TestHasAuthorSignedTheClaTrue(t *testing.T) {
 	assert.Equal(t, now, foundSignature.TimeSigned)
 	assert.Equal(t, claVersion, foundSignature.CLAVersion)
 }
+
+func TestStorePRAuthorsMissingSignatureInsertError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	repoOwner := "myRepoOwner"
+	repoName := "myRepoName"
+	sha := "mySha"
+	pullRequestID := int64(-1)
+	appId := int64(-2)
+	installId := int64(-3)
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
+	users := []types.UserSignature{
+		{
+			User: types.User{
+				Login:     loginName,
+				Email:     email,
+				GivenName: givenName,
+			},
+			CLAVersion: mockCLAVersion,
+		},
+	}
+	evalInfo := types.EvaluationInfo{
+		RepoOwner:      repoOwner,
+		RepoName:       repoName,
+		Sha:            sha,
+		PRNumber:       pullRequestID,
+		AppId:          appId,
+		InstallId:      installId,
+		UserSignatures: users,
+	}
+
+	forcedError := fmt.Errorf("forced insert error")
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertAuthorMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId,
+			evalInfo.UserSignatures[0].User.Login, evalInfo.UserSignatures[0].User.GivenName, evalInfo.UserSignatures[0].User.Email,
+			mockCLAVersion, AnyTime{}).
+		WillReturnError(forcedError)
+
+	err := db.StorePRAuthorsMissingSignature(&evalInfo, time.Now())
+	assert.EqualError(t, err, fmt.Sprintf(msgTemplateErrInsertAuthorMissing, loginName, forcedError))
+}
+
+func TestStorePRAuthorsMissingSignature(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	repoOwner := "myRepoOwner"
+	repoName := "myRepoName"
+	sha := "mySha"
+	pullRequestID := int64(-1)
+	appId := int64(-2)
+	installId := int64(-3)
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
+	users := []types.UserSignature{
+		{
+			User: types.User{
+				Login:     loginName,
+				Email:     email,
+				GivenName: givenName,
+			},
+			CLAVersion: mockCLAVersion,
+		},
+	}
+	evalInfo := types.EvaluationInfo{
+		RepoOwner:      repoOwner,
+		RepoName:       repoName,
+		Sha:            sha,
+		PRNumber:       pullRequestID,
+		AppId:          appId,
+		InstallId:      installId,
+		UserSignatures: users,
+	}
+
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertAuthorMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId,
+			evalInfo.UserSignatures[0].User.Login, evalInfo.UserSignatures[0].User.GivenName, evalInfo.UserSignatures[0].User.Email,
+			mockCLAVersion, AnyTime{}).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := db.StorePRAuthorsMissingSignature(&evalInfo, time.Now())
+	assert.NoError(t, err)
+}

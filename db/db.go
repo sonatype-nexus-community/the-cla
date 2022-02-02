@@ -39,7 +39,7 @@ const msgTemplateErrInsertSignatureDuplicate = "insert error. did user previousl
 type IClaDB interface {
 	InsertSignature(u *types.UserSignature) error
 	HasAuthorSignedTheCla(login, claVersion string) (bool, *types.UserSignature, error)
-	StorePRAuthorsMissingSignature(owner, repo string, pullRequestID int, usersNeedingToSignCLA []types.UserSignature, checkedAt time.Time) error
+	StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) error
 	MigrateDB(migrateSourceURL string) error
 }
 
@@ -130,14 +130,14 @@ func (p *ClaDB) MigrateDB(migrateSourceURL string) (err error) {
 }
 
 const sqlInsertAuthorMissing = `INSERT INTO unsigned_pr
-		(repo_owner, repo_name, pr_number, login_name, ClaVersion, CheckedAt)
-		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`
+		(repo_owner, repo_name, sha, pr_number, app_id, install_id, login_name, given_name, email, ClaVersion, CheckedAt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT DO NOTHING`
 
 const msgTemplateErrInsertAuthorMissing = "insert error tracking missing author CLA. user: %+v, error: %+v"
 
-func (p *ClaDB) StorePRAuthorsMissingSignature(owner, repo string, pullRequestID int, usersNeedingToSignCLA []types.UserSignature, checkedAt time.Time) (err error) {
-	for _, missingAuthor := range usersNeedingToSignCLA {
-		_, err = p.db.Exec(sqlInsertAuthorMissing, owner, repo, pullRequestID, missingAuthor.User.Login, missingAuthor.CLAVersion, checkedAt)
+func (p *ClaDB) StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) (err error) {
+	for _, missingAuthor := range evalInfo.UserSignatures {
+		_, err = p.db.Exec(sqlInsertAuthorMissing, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId, missingAuthor.User.Login, missingAuthor.User.GivenName, missingAuthor.User.Email, missingAuthor.CLAVersion, checkedAt)
 		if err != nil {
 			return fmt.Errorf(msgTemplateErrInsertAuthorMissing, missingAuthor.User.Login, err)
 		}

@@ -306,7 +306,7 @@ func handleProcessWebhook(c echo.Context) (err error) {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 
-	appId, err := strconv.Atoi(os.Getenv(ourGithub.EnvGhAppId))
+	appId, err := strconv.ParseInt(os.Getenv(ourGithub.EnvGhAppId), 10, 64)
 	if err != nil {
 		return c.String(http.StatusBadRequest, err.Error())
 	}

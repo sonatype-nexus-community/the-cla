@@ -50,7 +50,7 @@ func resetEnvVarPGHost(t *testing.T, origEnvPGHost string) {
 
 func TestZapLoggerFilterSkipsELB(t *testing.T) {
 	req := httptest.NewRequest("", "/", nil)
-	req.Header.Set("User-Agent", "bing ELB-HealthChecker yadda")
+	req.Header.Set("UserSignatures-Agent", "bing ELB-HealthChecker yadda")
 	logger := zaptest.NewLogger(t)
 	result := ZapLoggerFilterAWS_ELB(logger)
 	//handlerFunc := func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -289,7 +289,7 @@ func TestHandleProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing
 
 	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
-	assert.Equal(t, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`, rec.Body.String())
+	assert.Equal(t, `strconv.ParseInt: parsing "nonNumericGHAppID": invalid syntax`, rec.Body.String())
 }
 
 func TestHandleProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) {
