@@ -195,6 +195,7 @@ func handleSignature(c echo.Context) (err error) {
 	// hide sensitive info
 	foundUserSignature.User.Email = hiddenFieldValue
 	foundUserSignature.User.GivenName = hiddenFieldValue
+	logger.Debug("found login signature", zap.Any("foundUserSignature", foundUserSignature))
 	return c.JSON(http.StatusOK, foundUserSignature)
 }
 

@@ -73,6 +73,16 @@ type IssuesService interface {
 	ListComments(ctx context.Context, owner string, repo string, number int, opts *github.IssueListCommentsOptions) ([]*github.IssueComment, *github.Response, error)
 }
 
+// AppsService provides access to the installation related functions
+// in the GitHub API.
+//
+// GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/apps/
+type AppsService interface {
+	// Get a single GitHub App. Passing the empty string will get
+	// the authenticated GitHub App.
+	Get(ctx context.Context, appSlug string) (*github.App, *github.Response, error)
+}
+
 // GHClient manages communication with the GitHub API.
 // https://github.com/google/go-github/issues/113
 type GHClient struct {
@@ -80,6 +90,7 @@ type GHClient struct {
 	Users        UsersService
 	PullRequests PullRequestsService
 	Issues       IssuesService
+	Apps         AppsService
 }
 
 // GHInterface defines all necessary methods.
@@ -99,6 +110,7 @@ func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 		Users:        client.Users,
 		PullRequests: client.PullRequests,
 		Issues:       client.Issues,
+		Apps:         client.Apps,
 	}
 }
 
@@ -187,10 +199,19 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 			users = append(users, " @"+v.User.Login)
 		}
 
-		message := "Thanks for the contribution. Before we can merge this, we need %s to sign the Contributor License Agreement"
+		// get info needed to show link to sign the cla
+		app, err := getApp(logger, appId)
+		if err != nil {
+			return err
+		}
+		// Maybe use app.Name in the remaining hard coded Paul Botsco repo status message above...or not.
+		//appName := app.Name
+		appExternalUrl := *app.ExternalURL
+
+		message := "Thanks for the contribution. Before we can merge this, we need %s to [sign the Contributor License Agreement](%s)"
 		userMsg := strings.Join(users, ",")
 
-		_, err = addCommentToIssueIfNotExists(client.Issues, owner, repo, pullRequestID, fmt.Sprintf(message, userMsg))
+		_, err = addCommentToIssueIfNotExists(client.Issues, owner, repo, pullRequestID, fmt.Sprintf(message, userMsg, appExternalUrl))
 		if err != nil {
 			return err
 		}
@@ -218,6 +239,31 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 	}
 
 	return nil
+}
+
+func getApp(logger *zap.Logger, appId int) (app *github.App, err error) {
+	// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as App
+	var atr *ghinstallation.AppsTransport
+	atr, err = ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(appId), FilenameTheClaPem)
+	if err != nil {
+		logger.Error("failed to get JWT key",
+			zap.Int("appId", appId),
+			zap.Error(err),
+		)
+		return
+	}
+	jwtClient := GHImpl.NewClient(&http.Client{Transport: atr})
+	app, _, err = jwtClient.Apps.Get(context.Background(),
+		// Passing the empty string will get the authenticated GitHub App.
+		"")
+	if err != nil {
+		logger.Error("failed to get app",
+			zap.Int("appId", appId),
+			zap.Error(err),
+		)
+		return
+	}
+	return
 }
 
 func createRepoStatus(repositoryService RepositoriesService, owner, repo, sha, state, description string) error {

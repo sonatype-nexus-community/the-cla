@@ -168,12 +168,26 @@ func (i *IssuesMock) ListComments(ctx context.Context, owner string, repo string
 	return i.mockListComments, i.mockListCommentsResponse, i.mockListCommentsError
 }
 
+type AppsMock struct {
+	mockApp     *github.App
+	mockAppResp *github.Response
+	mockAppErr  error
+}
+
+var _ AppsService = (*AppsMock)(nil)
+
+//goland:noinspection GoUnusedParameter
+func (a *AppsMock) Get(ctx context.Context, appSlug string) (*github.App, *github.Response, error) {
+	return a.mockApp, a.mockAppResp, a.mockAppErr
+}
+
 // GHInterfaceMock implements GHInterface.
 type GHInterfaceMock struct {
 	RepositoriesMock RepositoriesMock
 	UsersMock        UsersMock
 	PullRequestsMock PullRequestsMock
 	IssuesMock       IssuesMock
+	AppsMock         AppsMock
 }
 
 var _ GHInterface = (*GHInterfaceMock)(nil)
@@ -208,6 +222,11 @@ func (g *GHInterfaceMock) NewClient(httpClient *http.Client) GHClient {
 			mockAddLabelsError:            g.IssuesMock.mockAddLabelsError,
 			MockRemoveLabelResponse:       g.IssuesMock.MockRemoveLabelResponse,
 			mockRemoveLabelError:          g.IssuesMock.mockRemoveLabelError,
+		},
+		Apps: &AppsMock{
+			mockApp:     g.AppsMock.mockApp,
+			mockAppResp: g.AppsMock.mockAppResp,
+			mockAppErr:  g.AppsMock.mockAppErr,
 		},
 	}
 }
