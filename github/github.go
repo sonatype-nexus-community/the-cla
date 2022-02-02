@@ -176,7 +176,7 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 					GivenName: author.GetName(),
 				},
 				CLAVersion: claVersion,
-				//TimeSigned: time.Time{},
+				// do not populate TimeSigned
 			}
 			logger.Debug("missing author signature",
 				zap.Any("UserSignature", userMissingSignature))
@@ -210,8 +210,7 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 			InstallId:      payload.Installation.ID,
 			UserSignatures: usersNeedingToSignCLA,
 		}
-		now := time.Now()
-		err = postgres.StorePRAuthorsMissingSignature(&evalInfo, now)
+		err = postgres.StorePRAuthorsMissingSignature(&evalInfo, time.Now())
 		if err != nil {
 			return err
 		}
