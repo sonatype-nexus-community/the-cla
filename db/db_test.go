@@ -204,17 +204,15 @@ func TestStorePRAuthorsMissingSignatureInsertError(t *testing.T) {
 	}
 
 	forcedError := fmt.Errorf("forced insert error")
-	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertAuthorMissing)).
-		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId,
-			evalInfo.UserSignatures[0].User.Login, evalInfo.UserSignatures[0].User.GivenName, evalInfo.UserSignatures[0].User.Email,
-			mockCLAVersion, AnyTime{}).
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
 		WillReturnError(forcedError)
 
-	err := db.StorePRAuthorsMissingSignature(&evalInfo, time.Now())
-	assert.EqualError(t, err, fmt.Sprintf(msgTemplateErrInsertAuthorMissing, loginName, forcedError))
+	assert.EqualError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()),
+		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, forcedError))
 }
 
-func TestStorePRAuthorsMissingSignature(t *testing.T) {
+func TestStorePRAuthorsMissingSignatureInsertErrorRowExists(t *testing.T) {
 	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
@@ -247,12 +245,289 @@ func TestStorePRAuthorsMissingSignature(t *testing.T) {
 		UserSignatures: users,
 	}
 
-	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertAuthorMissing)).
-		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId,
-			evalInfo.UserSignatures[0].User.Login, evalInfo.UserSignatures[0].User.GivenName, evalInfo.UserSignatures[0].User.Email,
-			mockCLAVersion, AnyTime{}).
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	forcedRowExistsError := fmt.Errorf(errMsgInsertedRowExists)
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		WillReturnError(forcedRowExistsError)
 
-	err := db.StorePRAuthorsMissingSignature(&evalInfo, time.Now())
-	assert.NoError(t, err)
+	forcedError := fmt.Errorf("forced insert error")
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPR)).
+		WithArgs(evalInfo.RepoName, evalInfo.PRNumber).
+		WillReturnError(forcedError)
+
+	assert.EqualError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()),
+		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, forcedError))
+}
+
+func TestStorePRAuthorsMissingSignatureQueryParentPRError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	repoOwner := "myRepoOwner"
+	repoName := "myRepoName"
+	sha := "mySha"
+	pullRequestID := int64(-1)
+	appId := int64(-2)
+	installId := int64(-3)
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
+	users := []types.UserSignature{
+		{
+			User: types.User{
+				Login:     loginName,
+				Email:     email,
+				GivenName: givenName,
+			},
+			CLAVersion: mockCLAVersion,
+		},
+	}
+	evalInfo := types.EvaluationInfo{
+		RepoOwner:      repoOwner,
+		RepoName:       repoName,
+		Sha:            sha,
+		PRNumber:       pullRequestID,
+		AppId:          appId,
+		InstallId:      installId,
+		UserSignatures: users,
+	}
+
+	forcedRowExistsError := fmt.Errorf(errMsgInsertedRowExists)
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		WillReturnError(forcedRowExistsError)
+
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPR)).
+		WithArgs(evalInfo.RepoName, evalInfo.PRNumber).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	assert.EqualError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()),
+		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, fmt.Errorf(errMsgInsertedRowExists)))
+}
+
+func TestStorePRAuthorsMissingSignatureInsertEmptyParentUUID(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	repoOwner := "myRepoOwner"
+	repoName := "myRepoName"
+	sha := "mySha"
+	pullRequestID := int64(-1)
+	appId := int64(-2)
+	installId := int64(-3)
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
+	users := []types.UserSignature{
+		{
+			User: types.User{
+				Login:     loginName,
+				Email:     email,
+				GivenName: givenName,
+			},
+			CLAVersion: mockCLAVersion,
+		},
+	}
+	evalInfo := types.EvaluationInfo{
+		RepoOwner:      repoOwner,
+		RepoName:       repoName,
+		Sha:            sha,
+		PRNumber:       pullRequestID,
+		AppId:          appId,
+		InstallId:      installId,
+		UserSignatures: users,
+	}
+
+	forcedRowExistsError := fmt.Errorf(errMsgInsertedRowExists)
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		WillReturnError(forcedRowExistsError)
+
+	parentUUID := ""
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPR)).
+		WithArgs(evalInfo.RepoName, evalInfo.PRNumber).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(parentUUID))
+
+	assert.EqualError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()),
+		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, fmt.Errorf("empty parentUUID")))
+}
+
+func TestStorePRAuthorsMissingSignatureParentInsertError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	repoOwner := "myRepoOwner"
+	repoName := "myRepoName"
+	sha := "mySha"
+	pullRequestID := int64(-1)
+	appId := int64(-2)
+	installId := int64(-3)
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
+	users := []types.UserSignature{
+		{
+			User: types.User{
+				Login:     loginName,
+				Email:     email,
+				GivenName: givenName,
+			},
+			CLAVersion: mockCLAVersion,
+		},
+	}
+	evalInfo := types.EvaluationInfo{
+		RepoOwner:      repoOwner,
+		RepoName:       repoName,
+		Sha:            sha,
+		PRNumber:       pullRequestID,
+		AppId:          appId,
+		InstallId:      installId,
+		UserSignatures: users,
+	}
+
+	forcedError := fmt.Errorf("forced insert error")
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		WillReturnError(forcedError)
+
+	assert.EqualError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()),
+		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, forcedError))
+}
+
+func TestStorePRAuthorsMissingSignatureUserInsertError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	repoOwner := "myRepoOwner"
+	repoName := "myRepoName"
+	sha := "mySha"
+	pullRequestID := int64(-1)
+	appId := int64(-2)
+	installId := int64(-3)
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
+	users := []types.UserSignature{
+		{
+			User: types.User{
+				Login:     loginName,
+				Email:     email,
+				GivenName: givenName,
+			},
+			CLAVersion: mockCLAVersion,
+		},
+	}
+	evalInfo := types.EvaluationInfo{
+		RepoOwner:      repoOwner,
+		RepoName:       repoName,
+		Sha:            sha,
+		PRNumber:       pullRequestID,
+		AppId:          appId,
+		InstallId:      installId,
+		UserSignatures: users,
+	}
+
+	parentUUID := "myParentUUID"
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(parentUUID))
+
+	forcedError := fmt.Errorf("forced insert error")
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertUserMissing)).
+		WithArgs(parentUUID, users[0].User.Login, users[0].User.Email, users[0].User.GivenName, users[0].CLAVersion, AnyTime{}).
+		WillReturnError(forcedError)
+
+	assert.EqualError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()),
+		fmt.Sprintf(msgTemplateErrInsertAuthorMissing, loginName, forcedError))
+}
+
+func TestStorePRAuthorsMissingSignatureUserInsertZero(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	repoOwner := "myRepoOwner"
+	repoName := "myRepoName"
+	sha := "mySha"
+	pullRequestID := int64(-1)
+	appId := int64(-2)
+	installId := int64(-3)
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
+	users := []types.UserSignature{
+		{
+			User: types.User{
+				Login:     loginName,
+				Email:     email,
+				GivenName: givenName,
+			},
+			CLAVersion: mockCLAVersion,
+		},
+	}
+	evalInfo := types.EvaluationInfo{
+		RepoOwner:      repoOwner,
+		RepoName:       repoName,
+		Sha:            sha,
+		PRNumber:       pullRequestID,
+		AppId:          appId,
+		InstallId:      installId,
+		UserSignatures: users,
+	}
+
+	parentUUID := "myParentUUID"
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(parentUUID))
+
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertUserMissing)).
+		WithArgs(parentUUID, users[0].User.Login, users[0].User.Email, users[0].User.GivenName, users[0].CLAVersion, AnyTime{}).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	assert.NoError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()))
+}
+
+func TestStorePRAuthorsMissingSignatureUserInsert(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	repoOwner := "myRepoOwner"
+	repoName := "myRepoName"
+	sha := "mySha"
+	pullRequestID := int64(-1)
+	appId := int64(-2)
+	installId := int64(-3)
+	loginName := "myLoginName"
+	email := "myEmail"
+	givenName := "myGivenName"
+	users := []types.UserSignature{
+		{
+			User: types.User{
+				Login:     loginName,
+				Email:     email,
+				GivenName: givenName,
+			},
+			CLAVersion: mockCLAVersion,
+		},
+	}
+	evalInfo := types.EvaluationInfo{
+		RepoOwner:      repoOwner,
+		RepoName:       repoName,
+		Sha:            sha,
+		PRNumber:       pullRequestID,
+		AppId:          appId,
+		InstallId:      installId,
+		UserSignatures: users,
+	}
+
+	parentUUID := "myParentUUID"
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
+		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(parentUUID))
+
+	authorUUID := "myAuthorUUID"
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertUserMissing)).
+		WithArgs(parentUUID, users[0].User.Login, users[0].User.Email, users[0].User.GivenName, users[0].CLAVersion, AnyTime{}).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(authorUUID))
+
+	assert.NoError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()))
 }

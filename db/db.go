@@ -129,19 +129,61 @@ func (p *ClaDB) MigrateDB(migrateSourceURL string) (err error) {
 	return
 }
 
-const sqlInsertAuthorMissing = `INSERT INTO unsigned_pr
-		(repo_owner, repo_name, sha, pr_number, app_id, install_id, login_name, given_name, email, ClaVersion, CheckedAt)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT DO NOTHING`
+const sqlInsertPRMissing = `INSERT INTO unsigned_pr
+		(RepoOwner, RepoName, sha, PRNumber, AppID, InstallID)
+		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`
+const msgTemplateErrInsertPRMissing = "insert error tracking missing PR CLA. repo: %s, PR: %d, error: %+v"
+
+const errMsgInsertedRowExists = "sql: no rows in result set"
+const sqlSelectPR = `SELECT Id from unsigned_pr WHERE RepoName = $1 AND PRNumber = $2`
+
+const sqlInsertUserMissing = `INSERT INTO unsigned_user
+		(UnsignedPRID, LoginName, Email, GivenName, ClaVersion, CheckedAt)
+		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`
 
 const msgTemplateErrInsertAuthorMissing = "insert error tracking missing author CLA. user: %+v, error: %+v"
 
 func (p *ClaDB) StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) (err error) {
-	for _, missingAuthor := range evalInfo.UserSignatures {
-		_, err = p.db.Exec(sqlInsertAuthorMissing, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId, missingAuthor.User.Login, missingAuthor.User.GivenName, missingAuthor.User.Email, missingAuthor.CLAVersion, checkedAt)
-		if err != nil {
-			return fmt.Errorf(msgTemplateErrInsertAuthorMissing, missingAuthor.User.Login, err)
+	var parentUUID string
+	err = p.db.QueryRow(sqlInsertPRMissing, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		Scan(&parentUUID)
+	if err != nil {
+		if errMsgInsertedRowExists == err.Error() {
+			p.logger.Info("special case, try to read the UUID of the existing parent",
+				zap.String("repoName", evalInfo.RepoName),
+				zap.Int64("PRNumber", evalInfo.PRNumber),
+			)
+			err = p.db.QueryRow(sqlSelectPR, evalInfo.RepoName, evalInfo.PRNumber).Scan(&parentUUID)
+			if err != nil {
+				return fmt.Errorf(msgTemplateErrInsertPRMissing, evalInfo.RepoName, evalInfo.PRNumber, err)
+			}
+		} else {
+			return fmt.Errorf(msgTemplateErrInsertPRMissing, evalInfo.RepoName, evalInfo.PRNumber, err)
 		}
-		// We ignore lack of insert (rowsAffected) for cases where a PR is closed and reopened - ON CONFLICT DO NOTHING
+	}
+	if parentUUID == "" {
+		// we can not ignore an empty parentId, to fail loudly
+		return fmt.Errorf(msgTemplateErrInsertPRMissing, evalInfo.RepoName, evalInfo.PRNumber, fmt.Errorf("empty parentUUID"))
+	}
+
+	for _, missingAuthor := range evalInfo.UserSignatures {
+		var authorUUID string
+		err = p.db.QueryRow(sqlInsertUserMissing, parentUUID, missingAuthor.User.Login, missingAuthor.User.Email,
+			missingAuthor.User.GivenName, missingAuthor.CLAVersion, checkedAt).Scan(&authorUUID)
+		if err != nil {
+			if errMsgInsertedRowExists == err.Error() {
+				// We ignore lack of insert for cases where a PR is closed and reopened - ON CONFLICT DO NOTHING
+				p.logger.Info("special case author not inserted",
+					zap.Any("parentUUID", parentUUID),
+					zap.Any("user", missingAuthor.User.Login),
+					zap.Any("CLAVersion", missingAuthor.CLAVersion),
+				)
+				// clear the error we are ignoring, so return can be nil
+				err = nil
+			} else {
+				return fmt.Errorf(msgTemplateErrInsertAuthorMissing, missingAuthor.User.Login, err)
+			}
+		}
 	}
 	return
 }
