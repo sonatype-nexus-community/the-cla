@@ -531,3 +531,104 @@ func TestStorePRAuthorsMissingSignatureUserInsert(t *testing.T) {
 
 	assert.NoError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()))
 }
+
+func TestGetPRsForUserSelectPRsError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	user := types.UserSignature{
+		User: types.User{
+			Login: "myLogin",
+		},
+		CLAVersion: "myCLAVersion",
+	}
+
+	forcedError := fmt.Errorf("forced select PRs error")
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPRsForUser)).
+		WithArgs(user.User.Login, user.CLAVersion).
+		WillReturnError(forcedError)
+
+	evalInfos, err := db.GetPRsForUser(&user)
+	assert.EqualError(t, err, forcedError.Error())
+	assert.Equal(t, []types.EvaluationInfo(nil), evalInfos)
+}
+
+func TestGetPRsForUserZeroRows(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	user := types.UserSignature{
+		User: types.User{
+			Login: "myLogin",
+		},
+		CLAVersion: "myCLAVersion",
+	}
+
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPRsForUser)).
+		WithArgs(user.User.Login, user.CLAVersion).
+		WillReturnRows(sqlmock.NewRows(nil))
+
+	evalInfos, err := db.GetPRsForUser(&user)
+	assert.NoError(t, err)
+	assert.Equal(t, []types.EvaluationInfo(nil), evalInfos)
+}
+
+func TestGetPRsForUserScanError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	user := types.UserSignature{
+		User: types.User{
+			Login: "myLogin",
+		},
+		CLAVersion: "myCLAVersion",
+	}
+
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPRsForUser)).
+		WithArgs(user.User.Login, user.CLAVersion).
+		WillReturnRows(sqlmock.NewRows([]string{"tooFewCollumns"}).AddRow("oneValue"))
+
+	evalInfos, err := db.GetPRsForUser(&user)
+	assert.EqualError(t, err, "sql: expected 1 destination arguments in Scan, not 14")
+	assert.Equal(t, []types.EvaluationInfo(nil), evalInfos)
+}
+
+func TestGetPRsForUserTwoRows(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	login := "myLogin"
+	claVersion := "myCLAVersion"
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+	}
+
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPRsForUser)).
+		WithArgs(user.User.Login, user.CLAVersion).
+		WillReturnRows(sqlmock.NewRows([]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"}).
+			AddRow("UnsignedPRID", "RepoOwner", "RepoName", "Sha", -1, -2, -3, "foundUserId", "duplicatePRId", login, "", "", claVersion, time.Now()).
+			AddRow("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", time.Now()),
+		)
+
+	evalInfos, err := db.GetPRsForUser(&user)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(evalInfos))
+	assert.Equal(t,
+		types.EvaluationInfo{
+			UnsignedPRID: "UnsignedPRID",
+			RepoOwner:    "RepoOwner",
+			RepoName:     "RepoName",
+			Sha:          "Sha",
+			PRNumber:     -1,
+			AppId:        -2,
+			InstallId:    -3,
+			UserSignatures: []types.UserSignature{
+				user,
+			},
+		},
+		evalInfos[0],
+	)
+}

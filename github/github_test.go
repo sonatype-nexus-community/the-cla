@@ -206,6 +206,9 @@ type mockCLADb struct {
 	storeUsersNeedingToSignEvalInfo *types.EvaluationInfo
 	storeUsersNeedingToSignTime     time.Time
 	storeUsersNeedingToSignCLAErr   error
+	getPRsForUserUser               *types.UserSignature
+	getPRsForUserEvalInfo           []types.EvaluationInfo
+	getPRsForUserError              error
 }
 
 var _ db.IClaDB = (*mockCLADb)(nil)
@@ -245,6 +248,13 @@ func (m mockCLADb) StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo
 		assert.NotNil(m.t, checkedAt) // not going nuts over time check here
 	}
 	return m.storeUsersNeedingToSignCLAErr
+}
+
+func (m mockCLADb) GetPRsForUser(user *types.UserSignature) ([]types.EvaluationInfo, error) {
+	if m.assertParameters {
+		assert.Equal(m.t, m.getPRsForUserUser, user)
+	}
+	return m.getPRsForUserEvalInfo, m.getPRsForUserError
 }
 
 func TestHandlePullRequestCreateLabelError(t *testing.T) {
@@ -629,4 +639,128 @@ func Test_removeLabelFromIssueIfExists_Error(t *testing.T) {
 	}
 	assert.EqualError(t, _removeLabelFromIssueIfApplied(zaptest.NewLogger(t), issuesMock, "", "", 0, ""),
 		forcedError.Error())
+}
+
+func TestReviewPriorPRsGetPRsDBError(t *testing.T) {
+	mockDB, logger := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+	forcedError := fmt.Errorf("forced db error")
+	mockDB.getPRsForUserError = forcedError
+
+	assert.EqualError(t, ReviewPriorPRs(logger, mockDB, &user), forcedError.Error())
+}
+
+func TestReviewPriorPRsHasSignedError(t *testing.T) {
+	mockDB, logger := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+	mockDB.getPRsForUserEvalInfo = []types.EvaluationInfo{
+		{
+			UserSignatures: []types.UserSignature{user},
+		},
+	}
+	mockDB.hasAuthorSignedLogin = login
+	mockDB.hasAuthorSignedCLAVersion = claVersion
+	forcedError := fmt.Errorf("forced db error")
+	mockDB.hasAuthorSignedError = forcedError
+
+	assert.EqualError(t, ReviewPriorPRs(logger, mockDB, &user), forcedError.Error())
+}
+
+func TestReviewPriorPRsHasSignedIgnoreFalseOddity(t *testing.T) {
+	mockDB, logger := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+	mockDB.getPRsForUserEvalInfo = []types.EvaluationInfo{
+		{
+			UserSignatures: []types.UserSignature{user},
+		},
+	}
+	mockDB.hasAuthorSignedLogin = login
+	mockDB.hasAuthorSignedCLAVersion = claVersion
+
+	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
+}
+
+func TestReviewPriorPRsHasSignedEvaluateError(t *testing.T) {
+	//mockDB, logger := setupMockDB(t, true)
+	mockDB, _ := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+	mockDB.getPRsForUserEvalInfo = []types.EvaluationInfo{
+		{
+			UserSignatures: []types.UserSignature{user},
+		},
+	}
+	mockDB.hasAuthorSignedLogin = login
+	mockDB.hasAuthorSignedCLAVersion = claVersion
+	mockDB.hasAuthorSignedResult = true
+	mockDB.hasAuthorSignedSignature = &user
+
+	// TODO Add interface and mocks before we can test call to EvaluatePullRequest()
+	//assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
+}
+
+func TestReviewPriorPRs(t *testing.T) {
+	mockDB, logger := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+
+	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
 }

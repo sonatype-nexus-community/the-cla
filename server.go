@@ -361,6 +361,13 @@ func handleProcessSignCla(c echo.Context) (err error) {
 	}
 
 	logger.Debug("CLA signed successfully")
+
+	err = ourGithub.ReviewPriorPRs(logger, postgresDB, user)
+	if err != nil {
+		// log this, but don't fail the call
+		logger.Error("error reviewing prior PRs", zap.Error(err))
+	}
+
 	return c.JSON(http.StatusCreated, user)
 }
 

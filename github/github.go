@@ -118,27 +118,37 @@ func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 var GHImpl GHInterface = &GHCreator{}
 
 func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.PullRequestPayload, appId int64, claVersion string) error {
-	owner := payload.Repository.Owner.Login
-	repo := payload.Repository.Name
-	sha := payload.PullRequest.Head.Sha
-	pullRequestID := payload.Number
 
+	evalInfo := types.EvaluationInfo{
+		RepoOwner: payload.Repository.Owner.Login,
+		RepoName:  payload.Repository.Name,
+		Sha:       payload.PullRequest.Head.Sha,
+		PRNumber:  payload.Number,
+		AppId:     appId,
+		InstallId: payload.Installation.ID,
+		// UserSignatures/Authors will be populated later
+	}
+
+	return EvaluatePullRequest(logger, postgres, &evalInfo, claVersion)
+}
+
+func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types.EvaluationInfo, claVersion string) error {
 	logger.Debug("start authenticating with GitHub",
-		zap.String("owner", owner),
-		zap.String("repo", repo),
-		zap.String("sha", sha),
-		zap.Int64("pullRequestID", pullRequestID),
-		zap.Int64("appId", appId),
-		zap.Int64("installation ID", payload.Installation.ID),
+		zap.String("owner", evalInfo.RepoOwner),
+		zap.String("repo", evalInfo.RepoName),
+		zap.String("sha", evalInfo.Sha),
+		zap.Int64("pullRequestID", evalInfo.PRNumber),
+		zap.Int64("appId", evalInfo.AppId),
+		zap.Int64("installation ID", evalInfo.InstallId),
 	)
-	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, appId, payload.Installation.ID, FilenameTheClaPem)
+	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, evalInfo.AppId, evalInfo.InstallId, FilenameTheClaPem)
 	if err != nil {
 		return err
 	}
 
 	client := GHImpl.NewClient(&http.Client{Transport: itr})
 
-	err = createRepoStatus(client.Repositories, owner, repo, sha, "pending", "Paul Botsco, the CLA verifier is running")
+	err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "pending", "Paul Botsco, the CLA verifier is running")
 	if err != nil {
 		return err
 	}
@@ -147,9 +157,9 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 
 	commits, _, err := client.PullRequests.ListCommits(
 		context.Background(),
-		owner,
-		repo,
-		int(pullRequestID), opts)
+		evalInfo.RepoOwner,
+		evalInfo.RepoName,
+		int(evalInfo.PRNumber), opts)
 	if err != nil {
 		return err
 	}
@@ -185,12 +195,12 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 	}
 
 	if len(usersNeedingToSignCLA) > 0 {
-		err := createRepoLabel(logger, client.Issues, owner, repo, labelNameCLANotSigned, "ff3333", "The CLA needs to be signed", pullRequestID)
+		err := createRepoLabel(logger, client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, labelNameCLANotSigned, "ff3333", "The CLA needs to be signed", evalInfo.PRNumber)
 		if err != nil {
 			return err
 		}
 		// handle case where PR was previously open and all authors had signed cla - meaning the old "all signed" label is applied
-		err = _removeLabelFromIssueIfApplied(logger, client.Issues, owner, repo, pullRequestID, labelNameCLASigned)
+		err = _removeLabelFromIssueIfApplied(logger, client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.PRNumber, labelNameCLASigned)
 		if err != nil {
 			return err
 		}
@@ -200,23 +210,15 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 			users = append(users, " @"+v.User.Login)
 		}
 
-		// store failed users, so we can reevaluate their PR's after they sign the CLA
-		evalInfo := types.EvaluationInfo{
-			RepoOwner:      owner,
-			RepoName:       repo,
-			Sha:            sha,
-			PRNumber:       pullRequestID,
-			AppId:          appId,
-			InstallId:      payload.Installation.ID,
-			UserSignatures: usersNeedingToSignCLA,
-		}
-		err = postgres.StorePRAuthorsMissingSignature(&evalInfo, time.Now())
+		// store failed users in the db, so we can reevaluate their PR's after they sign the CLA
+		evalInfo.UserSignatures = usersNeedingToSignCLA
+		err = postgres.StorePRAuthorsMissingSignature(evalInfo, time.Now())
 		if err != nil {
 			return err
 		}
 
 		// get info needed to show link to sign the cla
-		app, err := getApp(logger, appId)
+		app, err := getApp(logger, evalInfo.AppId)
 		if err != nil {
 			return err
 		}
@@ -227,31 +229,34 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 		message := "Thanks for the contribution. Before we can merge this, we need %s to [sign the Contributor License Agreement](%s)"
 		userMsg := strings.Join(users, ",")
 
-		_, err = addCommentToIssueIfNotExists(client.Issues, owner, repo, int(pullRequestID), fmt.Sprintf(message, userMsg, appExternalUrl))
+		_, err = addCommentToIssueIfNotExists(client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, int(evalInfo.PRNumber), fmt.Sprintf(message, userMsg, appExternalUrl))
 		if err != nil {
 			return err
 		}
 
-		err = createRepoStatus(client.Repositories, owner, repo, sha, "failure", "One or more contributors need to sign the CLA")
+		err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "failure", "One or more contributors need to sign the CLA")
 		if err != nil {
 			return err
 		}
 	} else {
 		logger.Debug("create label for signed CLA")
-		err = createRepoLabel(logger, client.Issues, owner, repo, labelNameCLASigned, "66CC00", "The CLA is signed", pullRequestID)
+		err = createRepoLabel(logger, client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, labelNameCLASigned, "66CC00", "The CLA is signed", evalInfo.PRNumber)
 		if err != nil {
 			return err
 		}
 		// handle case where PR was previously open and some authors had NOT signed cla - meaning the old "not signed" label is applied
-		err = _removeLabelFromIssueIfApplied(logger, client.Issues, owner, repo, pullRequestID, labelNameCLANotSigned)
+		err = _removeLabelFromIssueIfApplied(logger, client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.PRNumber, labelNameCLANotSigned)
 		if err != nil {
 			return err
 		}
 
-		err = createRepoStatus(client.Repositories, owner, repo, sha, "success", "All contributors have signed the CLA")
+		err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "success", "All contributors have signed the CLA")
 		if err != nil {
 			return err
 		}
+
+		// TODO - delete db stuff for this PR/author
+		// delete prior failed user info from the db for this PR
 	}
 
 	return nil
@@ -413,6 +418,37 @@ func _removeLabelFromIssueIfApplied(logger *zap.Logger, issuesService IssuesServ
 			zap.Int64("pullRequestID", pullRequestID),
 			zap.String("labelToRemove", labelToRemove),
 		)
+	}
+	return
+}
+
+func ReviewPriorPRs(logger *zap.Logger, postgres db.IClaDB, user *types.UserSignature) (err error) {
+	var evals []types.EvaluationInfo
+	if evals, err = postgres.GetPRsForUser(user); err != nil {
+		return
+	}
+
+	logger.Debug("evals", zap.Any("evals", evals))
+
+	var eval types.EvaluationInfo
+	for _, eval = range evals {
+		// sanity check user shows as signed the cla
+		var hasAuthorSigned bool
+		var signedUser *types.UserSignature
+		hasAuthorSigned, signedUser, err = postgres.HasAuthorSignedTheCla(eval.UserSignatures[0].User.Login, eval.UserSignatures[0].CLAVersion)
+		if err != nil {
+			return
+		}
+		if !hasAuthorSigned {
+			// odd, this case is not expected, log it and continue
+			logger.Info("oddness abounds, re-eval user not signed", zap.Any("eval", eval))
+			continue
+		}
+
+		// get PR webhook parameter equivalents
+		if err = EvaluatePullRequest(logger, postgres, &eval, signedUser.CLAVersion); err != nil {
+			return
+		}
 	}
 	return
 }

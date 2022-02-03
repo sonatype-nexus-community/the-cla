@@ -35,6 +35,7 @@ type UserSignature struct {
 // EvaluationInfo holds all the stuff we need to (re)validate a PR/user has the CLA signed,
 // basically just gather all the parameters together
 type EvaluationInfo struct {
+	UnsignedPRID   string
 	RepoOwner      string
 	RepoName       string
 	Sha            string

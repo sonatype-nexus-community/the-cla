@@ -40,6 +40,7 @@ type IClaDB interface {
 	InsertSignature(u *types.UserSignature) error
 	HasAuthorSignedTheCla(login, claVersion string) (bool, *types.UserSignature, error)
 	StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) error
+	GetPRsForUser(*types.UserSignature) ([]types.EvaluationInfo, error)
 	MigrateDB(migrateSourceURL string) error
 }
 
@@ -184,6 +185,58 @@ func (p *ClaDB) StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, c
 				return fmt.Errorf(msgTemplateErrInsertAuthorMissing, missingAuthor.User.Login, err)
 			}
 		}
+	}
+	return
+}
+
+const sqlSelectPRsForUser = `SELECT DISTINCT * from unsigned_pr, unsigned_user 
+WHERE LoginName = $1 AND ClaVersion = $2`
+
+func (p *ClaDB) GetPRsForUser(user *types.UserSignature) (evalInfos []types.EvaluationInfo, err error) {
+	var rows *sql.Rows
+	if rows, err = p.db.Query(sqlSelectPRsForUser, user.User.Login, user.CLAVersion); err != nil {
+		return
+	}
+
+	var evalInfo *types.EvaluationInfo
+	var foundUser *types.UserSignature
+	var foundUserId string
+	var duplicatePRId string
+	var ignoreTimeChecked time.Time
+	for rows.Next() {
+		evalInfo = &types.EvaluationInfo{}
+		foundUser = &types.UserSignature{}
+		err = rows.Scan(
+			&evalInfo.UnsignedPRID,
+			&evalInfo.RepoOwner,
+			&evalInfo.RepoName,
+			&evalInfo.Sha,
+			&evalInfo.PRNumber,
+			&evalInfo.AppId,
+			&evalInfo.InstallId,
+			&foundUserId,
+			&duplicatePRId,
+			&foundUser.User.Login,
+			&foundUser.User.Email,
+			&foundUser.User.GivenName,
+			&foundUser.CLAVersion,
+			&ignoreTimeChecked, // don't populate TimeSigned, as it is really the timeChecked in the db
+		)
+		if err != nil {
+			return
+		}
+		evalInfo.UserSignatures = []types.UserSignature{*foundUser}
+
+		p.logger.Debug("found missing author signature",
+			zap.String("owner", evalInfo.RepoOwner),
+			zap.String("repo", evalInfo.RepoName),
+			zap.Int64("pr", evalInfo.PRNumber),
+			zap.String("login", evalInfo.UserSignatures[0].User.Login),
+			//zap.Time("timeSigned", evalInfo.UserSignatures[0].TimeSigned),
+			zap.String("claVersion", evalInfo.UserSignatures[0].CLAVersion),
+		)
+
+		evalInfos = append(evalInfos, *evalInfo)
 	}
 	return
 }
