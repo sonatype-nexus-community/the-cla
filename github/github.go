@@ -254,10 +254,11 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 			return err
 		}
 
-		// delete prior failed user info from the db for this PR
-		if err = postgres.RemovePRsForUsers(usersSigned, evalInfo); err != nil {
-			return err
-		}
+	}
+	// delete any prior failed user info from the db for this PR
+	// we always do this at this point because a PR can be re-evaluated and have both signed and unsigned authors
+	if err = postgres.RemovePRsForUsers(usersSigned, evalInfo); err != nil {
+		return err
 	}
 
 	return nil

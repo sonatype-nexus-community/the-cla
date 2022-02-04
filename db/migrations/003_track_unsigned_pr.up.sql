@@ -14,7 +14,7 @@ CREATE TABLE unsigned_user
 (
     Id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     UnsignedPRID UUID         NOT NULL,
-    LoginName    varchar(250) NOT NULL UNIQUE,
+    LoginName    varchar(250) NOT NULL,
     Email        varchar(250),
     GivenName    varchar(250),
     ClaVersion   varchar(10)  NOT NULL,
