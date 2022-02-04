@@ -41,7 +41,7 @@ type IClaDB interface {
 	HasAuthorSignedTheCla(login, claVersion string) (bool, *types.UserSignature, error)
 	StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) error
 	GetPRsForUser(*types.UserSignature) ([]types.EvaluationInfo, error)
-	RemovePRsForUser(*types.EvaluationInfo) error
+	RemovePRsForUsers([]types.UserSignature, *types.EvaluationInfo) error
 	MigrateDB(migrateSourceURL string) error
 }
 
@@ -190,8 +190,8 @@ func (p *ClaDB) StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, c
 	return
 }
 
-const sqlSelectPRsForUser = `SELECT DISTINCT * from unsigned_pr, unsigned_user 
-WHERE LoginName = $1 AND ClaVersion = $2`
+const sqlSelectPRsForUser = `SELECT DISTINCT unsigned_pr.* from unsigned_pr, unsigned_user 
+WHERE unsigned_pr.Id = unsigned_user.UnsignedPRID AND LoginName = $1 AND ClaVersion = $2`
 
 func (p *ClaDB) GetPRsForUser(user *types.UserSignature) (evalInfos []types.EvaluationInfo, err error) {
 	var rows *sql.Rows
@@ -200,13 +200,8 @@ func (p *ClaDB) GetPRsForUser(user *types.UserSignature) (evalInfos []types.Eval
 	}
 
 	var evalInfo *types.EvaluationInfo
-	var foundUser *types.UserSignature
-	var foundUserId string
-	var duplicatePRId string
-	var ignoreTimeChecked time.Time
 	for rows.Next() {
 		evalInfo = &types.EvaluationInfo{}
-		foundUser = &types.UserSignature{}
 		err = rows.Scan(
 			&evalInfo.UnsignedPRID,
 			&evalInfo.RepoOwner,
@@ -215,26 +210,14 @@ func (p *ClaDB) GetPRsForUser(user *types.UserSignature) (evalInfos []types.Eval
 			&evalInfo.PRNumber,
 			&evalInfo.AppId,
 			&evalInfo.InstallId,
-			&foundUserId,
-			&duplicatePRId,
-			&foundUser.User.Login,
-			&foundUser.User.Email,
-			&foundUser.User.GivenName,
-			&foundUser.CLAVersion,
-			&ignoreTimeChecked, // don't populate TimeSigned, as it is really the timeChecked in the db
 		)
 		if err != nil {
 			return
 		}
-		evalInfo.UserSignatures = []types.UserSignature{*foundUser}
 
-		p.logger.Debug("found missing author signature",
-			zap.String("owner", evalInfo.RepoOwner),
-			zap.String("repo", evalInfo.RepoName),
-			zap.Int64("pr", evalInfo.PRNumber),
-			zap.String("login", evalInfo.UserSignatures[0].User.Login),
-			//zap.Time("timeSigned", evalInfo.UserSignatures[0].TimeSigned),
-			zap.String("claVersion", evalInfo.UserSignatures[0].CLAVersion),
+		p.logger.Debug("found PR for missing author signature",
+			zap.Any("eval", evalInfo),
+			zap.Any("user", user),
 		)
 
 		evalInfos = append(evalInfos, *evalInfo)
@@ -246,13 +229,18 @@ const sqlDeleteUnsignedUser = `DELETE FROM unsigned_user
 WHERE UnsignedPRID = $1 AND LoginName = $2 AND ClaVersion = $3`
 
 const SqlSelectUnsignedUsersForPR = `SELECT count(*) from unsigned_pr, unsigned_user
-WHERE unsigned_pr.Id = unsigned_user.Id AND unsigned_pr.Id = $1`
+WHERE unsigned_pr.Id = unsigned_user.UnsignedPRID AND unsigned_pr.Id = $1`
 
 const sqlDeleteUnsignedPR = `DELETE FROM unsigned_pr 
 WHERE Id = $1`
 
-func (p *ClaDB) RemovePRsForUser(evalInfo *types.EvaluationInfo) (err error) {
-	for _, user := range evalInfo.UserSignatures {
+func (p *ClaDB) RemovePRsForUsers(usersSigned []types.UserSignature, evalInfo *types.EvaluationInfo) (err error) {
+	// PR UUID db value could be empty when this function is called outside of a re-evaluation, e.g. during new PR
+	if evalInfo.UnsignedPRID == "" {
+		return
+	}
+
+	for _, user := range usersSigned {
 		_, err = p.db.Exec(sqlDeleteUnsignedUser, evalInfo.UnsignedPRID, user.User.Login, user.CLAVersion)
 		if err != nil {
 			return

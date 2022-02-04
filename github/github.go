@@ -134,12 +134,7 @@ func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.P
 
 func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types.EvaluationInfo, claVersion string) error {
 	logger.Debug("start authenticating with GitHub",
-		zap.String("owner", evalInfo.RepoOwner),
-		zap.String("repo", evalInfo.RepoName),
-		zap.String("sha", evalInfo.Sha),
-		zap.Int64("pullRequestID", evalInfo.PRNumber),
-		zap.Int64("appId", evalInfo.AppId),
-		zap.Int64("installation ID", evalInfo.InstallId),
+		zap.Any("eval", evalInfo),
 	)
 	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, evalInfo.AppId, evalInfo.InstallId, FilenameTheClaPem)
 	if err != nil {
@@ -168,13 +163,15 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 	// find the authors, and check if they have signed the CLA (and the version that is most current)
 	// The following loop will change a loop as a result
 	var usersNeedingToSignCLA []types.UserSignature
+	var usersSigned []types.UserSignature
 
 	for _, v := range commits {
 		// It is important to use GetAuthor() instead of v.Commit.GetCommitter() because the committer can be the GH webflow user, whereas the author is
 		// the canonical author of the commit
 		author := *v.GetAuthor()
 
-		hasAuthorSigned, _, err := postgres.HasAuthorSignedTheCla(*author.Login, claVersion)
+		var foundUserSigned *types.UserSignature
+		hasAuthorSigned, foundUserSigned, err := postgres.HasAuthorSignedTheCla(*author.Login, claVersion)
 		if err != nil {
 			return err
 		}
@@ -191,6 +188,8 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 			logger.Debug("missing author signature",
 				zap.Any("UserSignature", userMissingSignature))
 			usersNeedingToSignCLA = append(usersNeedingToSignCLA, userMissingSignature)
+		} else {
+			usersSigned = append(usersSigned, *foundUserSigned)
 		}
 	}
 
@@ -256,7 +255,7 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 		}
 
 		// delete prior failed user info from the db for this PR
-		if err = postgres.RemovePRsForUser(evalInfo); err != nil {
+		if err = postgres.RemovePRsForUsers(usersSigned, evalInfo); err != nil {
 			return err
 		}
 	}
@@ -430,25 +429,12 @@ func ReviewPriorPRs(logger *zap.Logger, postgres db.IClaDB, user *types.UserSign
 		return
 	}
 
-	logger.Debug("evals", zap.Any("evals", evals))
+	logger.Debug("review evaluations", zap.Any("evals", evals))
 
 	var eval types.EvaluationInfo
 	for _, eval = range evals {
-		// sanity check user shows as signed the cla
-		var hasAuthorSigned bool
-		var signedUser *types.UserSignature
-		hasAuthorSigned, signedUser, err = postgres.HasAuthorSignedTheCla(eval.UserSignatures[0].User.Login, eval.UserSignatures[0].CLAVersion)
-		if err != nil {
-			return
-		}
-		if !hasAuthorSigned {
-			// odd, this case is not expected, log it and continue
-			logger.Info("oddness abounds, re-eval user not signed", zap.Any("eval", eval))
-			continue
-		}
-
 		// get PR webhook parameter equivalents
-		if err = EvaluatePullRequest(logger, postgres, &eval, signedUser.CLAVersion); err != nil {
+		if err = EvaluatePullRequest(logger, postgres, &eval, user.CLAVersion); err != nil {
 			return
 		}
 	}

@@ -589,7 +589,7 @@ func TestGetPRsForUserScanError(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"tooFewCollumns"}).AddRow("oneValue"))
 
 	evalInfos, err := db.GetPRsForUser(&user)
-	assert.EqualError(t, err, "sql: expected 1 destination arguments in Scan, not 14")
+	assert.EqualError(t, err, "sql: expected 1 destination arguments in Scan, not 7")
 	assert.Equal(t, []types.EvaluationInfo(nil), evalInfos)
 }
 
@@ -608,9 +608,9 @@ func TestGetPRsForUserTwoRows(t *testing.T) {
 
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPRsForUser)).
 		WithArgs(user.User.Login, user.CLAVersion).
-		WillReturnRows(sqlmock.NewRows([]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"}).
-			AddRow("UnsignedPRID", "RepoOwner", "RepoName", "Sha", -1, -2, -3, "foundUserId", "duplicatePRId", login, "", "", claVersion, time.Now()).
-			AddRow("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", time.Now()),
+		WillReturnRows(sqlmock.NewRows([]string{"1", "2", "3", "4", "5", "6", "7"}).
+			AddRow("UnsignedPRID", "RepoOwner", "RepoName", "Sha", -1, -2, -3).
+			AddRow("1", "2", "3", "4", "5", "6", "7"),
 		)
 
 	evalInfos, err := db.GetPRsForUser(&user)
@@ -625,10 +625,123 @@ func TestGetPRsForUserTwoRows(t *testing.T) {
 			PRNumber:     -1,
 			AppId:        -2,
 			InstallId:    -3,
-			UserSignatures: []types.UserSignature{
-				user,
-			},
 		},
 		evalInfos[0],
 	)
+}
+
+func TestRemovePRsForUsersRemoveUserError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	prUUID := "myPRUUID"
+	login := "myLogin"
+	claVersion := "myCLAVersion"
+	forcedError := fmt.Errorf("forced delete unsigned user db error")
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlDeleteUnsignedUser)).
+		WithArgs(prUUID, login, claVersion).
+		WillReturnError(forcedError)
+
+	usersSigned := []types.UserSignature{
+		{
+			User:       types.User{Login: login},
+			CLAVersion: claVersion,
+		},
+	}
+	assert.EqualError(t, db.RemovePRsForUsers(usersSigned, &types.EvaluationInfo{UnsignedPRID: prUUID}), forcedError.Error())
+}
+
+func TestRemovePRsForUsersCountUsersError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	prUUID := "myPRUUID"
+	login := "myLogin"
+	claVersion := "myCLAVersion"
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlDeleteUnsignedUser)).
+		WithArgs(prUUID, login, claVersion).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	forcedError := fmt.Errorf("forced count unsigned user db error")
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUnsignedUsersForPR)).
+		WithArgs(prUUID).
+		WillReturnError(forcedError)
+
+	usersSigned := []types.UserSignature{
+		{
+			User:       types.User{Login: login},
+			CLAVersion: claVersion,
+		},
+	}
+	assert.EqualError(t, db.RemovePRsForUsers(usersSigned, &types.EvaluationInfo{UnsignedPRID: prUUID}), forcedError.Error())
+}
+
+func TestRemovePRsForUsersRemovePRError(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	prUUID := "myPRUUID"
+	login := "myLogin"
+	claVersion := "myCLAVersion"
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlDeleteUnsignedUser)).
+		WithArgs(prUUID, login, claVersion).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUnsignedUsersForPR)).
+		WithArgs(prUUID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	forcedError := fmt.Errorf("forced delete unsigned PR db error")
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlDeleteUnsignedPR)).
+		WithArgs(prUUID).
+		WillReturnError(forcedError)
+
+	usersSigned := []types.UserSignature{
+		{
+			User:       types.User{Login: login},
+			CLAVersion: claVersion,
+		},
+	}
+	assert.EqualError(t, db.RemovePRsForUsers(usersSigned, &types.EvaluationInfo{UnsignedPRID: prUUID}), forcedError.Error())
+}
+
+func TestRemovePRsForUsersNilUsers(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	prUUID := "myPRUUID"
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUnsignedUsersForPR)).
+		WithArgs(prUUID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlDeleteUnsignedPR)).
+		WithArgs(prUUID).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	assert.NoError(t, db.RemovePRsForUsers(nil, &types.EvaluationInfo{UnsignedPRID: prUUID}))
+}
+
+func TestRemovePRsForUsersZeroUsers(t *testing.T) {
+	mock, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	prUUID := "myPRUUID"
+	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUnsignedUsersForPR)).
+		WithArgs(prUUID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlDeleteUnsignedPR)).
+		WithArgs(prUUID).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	var usersSigned []types.UserSignature
+
+	assert.NoError(t, db.RemovePRsForUsers(usersSigned, &types.EvaluationInfo{UnsignedPRID: prUUID}))
+}
+
+func TestRemovePRsForUsersEmptyPRUUID(t *testing.T) {
+	_, db, closeDbFunc := SetupMockDB(t)
+	defer closeDbFunc()
+
+	assert.NoError(t, db.RemovePRsForUsers(nil, &types.EvaluationInfo{}))
 }

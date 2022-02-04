@@ -209,6 +209,7 @@ type mockCLADb struct {
 	getPRsForUserUser               *types.UserSignature
 	getPRsForUserEvalInfo           []types.EvaluationInfo
 	getPRsForUserError              error
+	removePRsUsersSigned            []types.UserSignature
 	removePRsEvalInfo               *types.EvaluationInfo
 	removePRsError                  error
 }
@@ -259,8 +260,9 @@ func (m mockCLADb) GetPRsForUser(user *types.UserSignature) ([]types.EvaluationI
 	return m.getPRsForUserEvalInfo, m.getPRsForUserError
 }
 
-func (m mockCLADb) RemovePRsForUser(evalInfo *types.EvaluationInfo) error {
+func (m mockCLADb) RemovePRsForUsers(usersSigned []types.UserSignature, evalInfo *types.EvaluationInfo) error {
 	if m.assertParameters {
+		assert.Equal(m.t, m.removePRsUsersSigned, usersSigned)
 		assert.Equal(m.t, m.removePRsEvalInfo, evalInfo)
 	}
 	return m.removePRsError
@@ -671,7 +673,7 @@ func TestReviewPriorPRsGetPRsDBError(t *testing.T) {
 	assert.EqualError(t, ReviewPriorPRs(logger, mockDB, &user), forcedError.Error())
 }
 
-func TestReviewPriorPRsHasSignedError(t *testing.T) {
+func TestReviewPriorPRsEvaluatePRError(t *testing.T) {
 	mockDB, logger := setupMockDB(t, true)
 
 	login := "myUserLogin"
@@ -693,41 +695,24 @@ func TestReviewPriorPRsHasSignedError(t *testing.T) {
 	}
 	mockDB.hasAuthorSignedLogin = login
 	mockDB.hasAuthorSignedCLAVersion = claVersion
-	forcedError := fmt.Errorf("forced db error")
-	mockDB.hasAuthorSignedError = forcedError
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced create status error")
+	GHImpl = &GHInterfaceMock{
+		RepositoriesMock: RepositoriesMock{
+			t:                 t,
+			createStatusError: forcedError,
+		},
+	}
 
 	assert.EqualError(t, ReviewPriorPRs(logger, mockDB, &user), forcedError.Error())
 }
 
-func TestReviewPriorPRsHasSignedIgnoreFalseOddity(t *testing.T) {
+func TestReviewPriorPRsEvalSuccess(t *testing.T) {
 	mockDB, logger := setupMockDB(t, true)
-
-	login := "myUserLogin"
-	claVersion := "myCLAVersion"
-	now := time.Now()
-	user := types.UserSignature{
-		User: types.User{
-			Login: login,
-		},
-		CLAVersion: claVersion,
-		TimeSigned: now,
-	}
-
-	mockDB.getPRsForUserUser = &user
-	mockDB.getPRsForUserEvalInfo = []types.EvaluationInfo{
-		{
-			UserSignatures: []types.UserSignature{user},
-		},
-	}
-	mockDB.hasAuthorSignedLogin = login
-	mockDB.hasAuthorSignedCLAVersion = claVersion
-
-	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
-}
-
-func TestReviewPriorPRsHasSignedEvaluateError(t *testing.T) {
-	//mockDB, logger := setupMockDB(t, true)
-	mockDB, _ := setupMockDB(t, true)
 
 	login := "myUserLogin"
 	claVersion := "myCLAVersion"
@@ -751,8 +736,26 @@ func TestReviewPriorPRsHasSignedEvaluateError(t *testing.T) {
 	mockDB.hasAuthorSignedResult = true
 	mockDB.hasAuthorSignedSignature = &user
 
+	mockDB.removePRsEvalInfo = &mockDB.getPRsForUserEvalInfo[0]
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	//forcedError := fmt.Errorf("forced create status error")
+	GHImpl = &GHInterfaceMock{
+		IssuesMock: IssuesMock{
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		},
+	}
+
 	// TODO Add interface and mocks before we can test call to EvaluatePullRequest()
-	//assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
+	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
 }
 
 func TestReviewPriorPRs(t *testing.T) {
