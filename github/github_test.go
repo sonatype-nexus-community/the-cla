@@ -696,6 +696,17 @@ func TestReviewPriorPRsEvaluatePRError(t *testing.T) {
 	mockDB.hasAuthorSignedLogin = login
 	mockDB.hasAuthorSignedCLAVersion = claVersion
 
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
@@ -738,6 +749,17 @@ func TestReviewPriorPRsEvalSuccess(t *testing.T) {
 
 	mockDB.removePRsEvalInfo = &mockDB.getPRsForUserEvalInfo[0]
 
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
@@ -773,6 +795,17 @@ func TestReviewPriorPRs(t *testing.T) {
 	}
 
 	mockDB.getPRsForUserUser = &user
+
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
 
 	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
 }
