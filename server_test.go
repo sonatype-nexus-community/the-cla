@@ -336,6 +336,13 @@ func verifyActionHandled(t *testing.T, actionText string) {
 			"X-GitHub-Event": string(webhook.PullRequestEvent),
 		}, github.PullRequestEvent{Action: &actionText})
 
+	mock, dbIF, closeDbFunc := db.SetupMockDB(t)
+	defer closeDbFunc()
+	postgresDB = dbIF
+
+	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUnsignedUsersForPR)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
 	origGHAppIDEnvVar := os.Getenv(ourGithub.EnvGhAppId)
 	defer func() {
 		resetEnvVariable(t, ourGithub.EnvGhAppId, origGHAppIDEnvVar)

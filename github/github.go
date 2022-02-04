@@ -255,8 +255,10 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 			return err
 		}
 
-		// TODO - delete db stuff for this PR/author
 		// delete prior failed user info from the db for this PR
+		if err = postgres.RemovePRsForUser(evalInfo); err != nil {
+			return err
+		}
 	}
 
 	return nil

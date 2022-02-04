@@ -209,6 +209,8 @@ type mockCLADb struct {
 	getPRsForUserUser               *types.UserSignature
 	getPRsForUserEvalInfo           []types.EvaluationInfo
 	getPRsForUserError              error
+	removePRsEvalInfo               *types.EvaluationInfo
+	removePRsError                  error
 }
 
 var _ db.IClaDB = (*mockCLADb)(nil)
@@ -255,6 +257,13 @@ func (m mockCLADb) GetPRsForUser(user *types.UserSignature) ([]types.EvaluationI
 		assert.Equal(m.t, m.getPRsForUserUser, user)
 	}
 	return m.getPRsForUserEvalInfo, m.getPRsForUserError
+}
+
+func (m mockCLADb) RemovePRsForUser(evalInfo *types.EvaluationInfo) error {
+	if m.assertParameters {
+		assert.Equal(m.t, m.removePRsEvalInfo, evalInfo)
+	}
+	return m.removePRsError
 }
 
 func TestHandlePullRequestCreateLabelError(t *testing.T) {

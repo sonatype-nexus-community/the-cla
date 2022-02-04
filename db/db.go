@@ -41,6 +41,7 @@ type IClaDB interface {
 	HasAuthorSignedTheCla(login, claVersion string) (bool, *types.UserSignature, error)
 	StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) error
 	GetPRsForUser(*types.UserSignature) ([]types.EvaluationInfo, error)
+	RemovePRsForUser(*types.EvaluationInfo) error
 	MigrateDB(migrateSourceURL string) error
 }
 
@@ -237,6 +238,39 @@ func (p *ClaDB) GetPRsForUser(user *types.UserSignature) (evalInfos []types.Eval
 		)
 
 		evalInfos = append(evalInfos, *evalInfo)
+	}
+	return
+}
+
+const sqlDeleteUnsignedUser = `DELETE FROM unsigned_user 
+WHERE UnsignedPRID = $1 AND LoginName = $2 AND ClaVersion = $3`
+
+const SqlSelectUnsignedUsersForPR = `SELECT count(*) from unsigned_pr, unsigned_user
+WHERE unsigned_pr.Id = unsigned_user.Id AND unsigned_pr.Id = $1`
+
+const sqlDeleteUnsignedPR = `DELETE FROM unsigned_pr 
+WHERE Id = $1`
+
+func (p *ClaDB) RemovePRsForUser(evalInfo *types.EvaluationInfo) (err error) {
+	for _, user := range evalInfo.UserSignatures {
+		_, err = p.db.Exec(sqlDeleteUnsignedUser, evalInfo.UnsignedPRID, user.User.Login, user.CLAVersion)
+		if err != nil {
+			return
+		}
+	}
+
+	//  Verify all unsigned_user rows are deleted, and if so, delete the parent unsigned_pr row
+	var countUnsigned int64
+	err = p.db.QueryRow(SqlSelectUnsignedUsersForPR, evalInfo.UnsignedPRID).Scan(&countUnsigned)
+	if err != nil {
+		return
+	}
+
+	if countUnsigned == 0 {
+		_, err = p.db.Exec(sqlDeleteUnsignedPR, evalInfo.UnsignedPRID)
+		if err != nil {
+			return
+		}
 	}
 	return
 }
