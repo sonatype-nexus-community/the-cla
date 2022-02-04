@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-github/v42/github"
 	"github.com/stretchr/testify/assert"
@@ -191,17 +192,26 @@ func Test_AddLabelToIssueIfNotExists(t *testing.T) {
 }
 
 type mockCLADb struct {
-	t                            *testing.T
-	assertParameters             bool
-	insertSignatureUserSignature *types.UserSignature
-	insertSignatureError         error
-	hasAuthorSignedLogin         string
-	hasAuthorSignedCLAVersion    string
-	hasAuthorSignedResult        bool
-	hasAuthorSignedSignature     *types.UserSignature
-	hasAuthorSignedError         error
-	migrateDBSourceURL           string
-	migrateDBSourceError         error
+	t                               *testing.T
+	assertParameters                bool
+	insertSignatureUserSignature    *types.UserSignature
+	insertSignatureError            error
+	hasAuthorSignedLogin            string
+	hasAuthorSignedCLAVersion       string
+	hasAuthorSignedResult           bool
+	hasAuthorSignedSignature        *types.UserSignature
+	hasAuthorSignedError            error
+	migrateDBSourceURL              string
+	migrateDBSourceError            error
+	storeUsersNeedingToSignEvalInfo *types.EvaluationInfo
+	storeUsersNeedingToSignTime     time.Time
+	storeUsersNeedingToSignCLAErr   error
+	getPRsForUserUser               *types.UserSignature
+	getPRsForUserEvalInfo           []types.EvaluationInfo
+	getPRsForUserError              error
+	removePRsUsersSigned            []types.UserSignature
+	removePRsEvalInfo               *types.EvaluationInfo
+	removePRsError                  error
 }
 
 var _ db.IClaDB = (*mockCLADb)(nil)
@@ -233,6 +243,29 @@ func (m mockCLADb) MigrateDB(migrateSourceURL string) error {
 		assert.Equal(m.t, m.migrateDBSourceURL, migrateSourceURL)
 	}
 	return m.migrateDBSourceError
+}
+
+func (m mockCLADb) StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) error {
+	if m.assertParameters {
+		assert.Equal(m.t, m.storeUsersNeedingToSignEvalInfo, evalInfo)
+		assert.NotNil(m.t, checkedAt) // not going nuts over time check here
+	}
+	return m.storeUsersNeedingToSignCLAErr
+}
+
+func (m mockCLADb) GetPRsForUser(user *types.UserSignature) ([]types.EvaluationInfo, error) {
+	if m.assertParameters {
+		assert.Equal(m.t, m.getPRsForUserUser, user)
+	}
+	return m.getPRsForUserEvalInfo, m.getPRsForUserError
+}
+
+func (m mockCLADb) RemovePRsForUsers(usersSigned []types.UserSignature, evalInfo *types.EvaluationInfo) error {
+	if m.assertParameters {
+		assert.Equal(m.t, m.removePRsUsersSigned, usersSigned)
+		assert.Equal(m.t, m.removePRsEvalInfo, evalInfo)
+	}
+	return m.removePRsError
 }
 
 func TestHandlePullRequestCreateLabelError(t *testing.T) {
@@ -451,6 +484,15 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 
 	mockDB, logger := setupMockDB(t, true)
 	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+	mockDB.storeUsersNeedingToSignEvalInfo = &types.EvaluationInfo{
+		UserSignatures: []types.UserSignature{
+			{
+				User: types.User{
+					Login: mockAuthorLogin,
+				},
+			},
+		},
+	}
 
 	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 	assert.EqualError(t, err, forcedError.Error())
@@ -608,4 +650,162 @@ func Test_removeLabelFromIssueIfExists_Error(t *testing.T) {
 	}
 	assert.EqualError(t, _removeLabelFromIssueIfApplied(zaptest.NewLogger(t), issuesMock, "", "", 0, ""),
 		forcedError.Error())
+}
+
+func TestReviewPriorPRsGetPRsDBError(t *testing.T) {
+	mockDB, logger := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+	forcedError := fmt.Errorf("forced db error")
+	mockDB.getPRsForUserError = forcedError
+
+	assert.EqualError(t, ReviewPriorPRs(logger, mockDB, &user), forcedError.Error())
+}
+
+func TestReviewPriorPRsEvaluatePRError(t *testing.T) {
+	mockDB, logger := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+	mockDB.getPRsForUserEvalInfo = []types.EvaluationInfo{
+		{
+			UserSignatures: []types.UserSignature{user},
+		},
+	}
+	mockDB.hasAuthorSignedLogin = login
+	mockDB.hasAuthorSignedCLAVersion = claVersion
+
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	forcedError := fmt.Errorf("forced create status error")
+	GHImpl = &GHInterfaceMock{
+		RepositoriesMock: RepositoriesMock{
+			t:                 t,
+			createStatusError: forcedError,
+		},
+	}
+
+	assert.EqualError(t, ReviewPriorPRs(logger, mockDB, &user), forcedError.Error())
+}
+
+func TestReviewPriorPRsEvalSuccess(t *testing.T) {
+	mockDB, logger := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+	mockDB.getPRsForUserEvalInfo = []types.EvaluationInfo{
+		{
+			UserSignatures: []types.UserSignature{user},
+		},
+	}
+	mockDB.hasAuthorSignedLogin = login
+	mockDB.hasAuthorSignedCLAVersion = claVersion
+	mockDB.hasAuthorSignedResult = true
+	mockDB.hasAuthorSignedSignature = &user
+
+	mockDB.removePRsEvalInfo = &mockDB.getPRsForUserEvalInfo[0]
+
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	//forcedError := fmt.Errorf("forced create status error")
+	GHImpl = &GHInterfaceMock{
+		IssuesMock: IssuesMock{
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		},
+	}
+
+	// TODO Add interface and mocks before we can test call to EvaluatePullRequest()
+	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
+}
+
+func TestReviewPriorPRs(t *testing.T) {
+	mockDB, logger := setupMockDB(t, true)
+
+	login := "myUserLogin"
+	claVersion := "myCLAVersion"
+	now := time.Now()
+	user := types.UserSignature{
+		User: types.User{
+			Login: login,
+		},
+		CLAVersion: claVersion,
+		TimeSigned: now,
+	}
+
+	mockDB.getPRsForUserUser = &user
+
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	defer func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}()
+	SetupTestPemFile(t)
+
+	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
 }

@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build go1.16
 // +build go1.16
 
 package types
@@ -29,4 +30,17 @@ type UserSignature struct {
 	User       User   `json:"user"`
 	CLAVersion string `json:"claVersion"`
 	TimeSigned time.Time
+}
+
+// EvaluationInfo holds all the stuff we need to (re)validate a PR/user has the CLA signed,
+// basically just gather all the parameters together
+type EvaluationInfo struct {
+	UnsignedPRID   string
+	RepoOwner      string
+	RepoName       string
+	Sha            string
+	PRNumber       int64
+	AppId          int64
+	InstallId      int64
+	UserSignatures []UserSignature
 }

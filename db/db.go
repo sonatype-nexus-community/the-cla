@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"fmt"
 	"go.uber.org/zap"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -38,6 +39,9 @@ const msgTemplateErrInsertSignatureDuplicate = "insert error. did user previousl
 type IClaDB interface {
 	InsertSignature(u *types.UserSignature) error
 	HasAuthorSignedTheCla(login, claVersion string) (bool, *types.UserSignature, error)
+	StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) error
+	GetPRsForUser(*types.UserSignature) ([]types.EvaluationInfo, error)
+	RemovePRsForUsers([]types.UserSignature, *types.EvaluationInfo) error
 	MigrateDB(migrateSourceURL string) error
 }
 
@@ -110,8 +114,6 @@ func (p *ClaDB) MigrateDB(migrateSourceURL string) (err error) {
 	if err != nil {
 		return
 	}
-	// @todo Verify we can defer closing the DB here
-	//defer driver.Close()
 
 	m, err := migrate.NewWithDatabaseInstance(
 		migrateSourceURL,
@@ -124,6 +126,138 @@ func (p *ClaDB) MigrateDB(migrateSourceURL string) (err error) {
 		if err == migrate.ErrNoChange {
 			// we can ignore (and clear) the "no change" error
 			err = nil
+		}
+	}
+	return
+}
+
+const sqlInsertPRMissing = `INSERT INTO unsigned_pr
+		(RepoOwner, RepoName, sha, PRNumber, AppID, InstallID)
+		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`
+const msgTemplateErrInsertPRMissing = "insert error tracking missing PR CLA. repo: %s, PR: %d, error: %+v"
+
+const errMsgInsertedRowExists = "sql: no rows in result set"
+const sqlSelectPR = `SELECT Id from unsigned_pr WHERE RepoName = $1 AND PRNumber = $2`
+
+const sqlInsertUserMissing = `INSERT INTO unsigned_user
+		(UnsignedPRID, LoginName, Email, GivenName, ClaVersion, CheckedAt)
+		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`
+
+const msgTemplateErrInsertAuthorMissing = "insert error tracking missing author CLA. user: %+v, error: %+v"
+
+func (p *ClaDB) StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, checkedAt time.Time) (err error) {
+	var parentUUID string
+	err = p.db.QueryRow(sqlInsertPRMissing, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
+		Scan(&parentUUID)
+	if err != nil {
+		if errMsgInsertedRowExists == err.Error() {
+			p.logger.Info("special case, try to read the UUID of the existing parent",
+				zap.String("repoName", evalInfo.RepoName),
+				zap.Int64("PRNumber", evalInfo.PRNumber),
+			)
+			err = p.db.QueryRow(sqlSelectPR, evalInfo.RepoName, evalInfo.PRNumber).Scan(&parentUUID)
+			if err != nil {
+				return fmt.Errorf(msgTemplateErrInsertPRMissing, evalInfo.RepoName, evalInfo.PRNumber, err)
+			}
+		} else {
+			return fmt.Errorf(msgTemplateErrInsertPRMissing, evalInfo.RepoName, evalInfo.PRNumber, err)
+		}
+	}
+	if parentUUID == "" {
+		// we can not ignore an empty parentId, to fail loudly
+		return fmt.Errorf(msgTemplateErrInsertPRMissing, evalInfo.RepoName, evalInfo.PRNumber, fmt.Errorf("empty parentUUID"))
+	}
+
+	for _, missingAuthor := range evalInfo.UserSignatures {
+		var authorUUID string
+		err = p.db.QueryRow(sqlInsertUserMissing, parentUUID, missingAuthor.User.Login, missingAuthor.User.Email,
+			missingAuthor.User.GivenName, missingAuthor.CLAVersion, checkedAt).Scan(&authorUUID)
+		if err != nil {
+			if errMsgInsertedRowExists == err.Error() {
+				// We ignore lack of insert for cases where a PR is closed and reopened - ON CONFLICT DO NOTHING
+				p.logger.Info("special case author not inserted",
+					zap.Any("parentUUID", parentUUID),
+					zap.Any("user", missingAuthor.User.Login),
+					zap.Any("CLAVersion", missingAuthor.CLAVersion),
+				)
+				// clear the error we are ignoring, so return can be nil
+				err = nil
+			} else {
+				return fmt.Errorf(msgTemplateErrInsertAuthorMissing, missingAuthor.User.Login, err)
+			}
+		}
+	}
+	return
+}
+
+const sqlSelectPRsForUser = `SELECT DISTINCT unsigned_pr.* from unsigned_pr, unsigned_user 
+WHERE unsigned_pr.Id = unsigned_user.UnsignedPRID AND LoginName = $1 AND ClaVersion = $2`
+
+func (p *ClaDB) GetPRsForUser(user *types.UserSignature) (evalInfos []types.EvaluationInfo, err error) {
+	var rows *sql.Rows
+	if rows, err = p.db.Query(sqlSelectPRsForUser, user.User.Login, user.CLAVersion); err != nil {
+		return
+	}
+
+	var evalInfo *types.EvaluationInfo
+	for rows.Next() {
+		evalInfo = &types.EvaluationInfo{}
+		err = rows.Scan(
+			&evalInfo.UnsignedPRID,
+			&evalInfo.RepoOwner,
+			&evalInfo.RepoName,
+			&evalInfo.Sha,
+			&evalInfo.PRNumber,
+			&evalInfo.AppId,
+			&evalInfo.InstallId,
+		)
+		if err != nil {
+			return
+		}
+
+		p.logger.Debug("found PR for missing author signature",
+			zap.Any("eval", evalInfo),
+			zap.Any("user", user),
+		)
+
+		evalInfos = append(evalInfos, *evalInfo)
+	}
+	return
+}
+
+const sqlDeleteUnsignedUser = `DELETE FROM unsigned_user 
+WHERE UnsignedPRID = $1 AND LoginName = $2 AND ClaVersion = $3`
+
+const SqlSelectUnsignedUsersForPR = `SELECT count(*) from unsigned_pr, unsigned_user
+WHERE unsigned_pr.Id = unsigned_user.UnsignedPRID AND unsigned_pr.Id = $1`
+
+const sqlDeleteUnsignedPR = `DELETE FROM unsigned_pr 
+WHERE Id = $1`
+
+func (p *ClaDB) RemovePRsForUsers(usersSigned []types.UserSignature, evalInfo *types.EvaluationInfo) (err error) {
+	// PR UUID db value could be empty when this function is called outside of a re-evaluation, e.g. during new PR
+	if evalInfo.UnsignedPRID == "" {
+		return
+	}
+
+	for _, user := range usersSigned {
+		_, err = p.db.Exec(sqlDeleteUnsignedUser, evalInfo.UnsignedPRID, user.User.Login, user.CLAVersion)
+		if err != nil {
+			return
+		}
+	}
+
+	//  Verify all unsigned_user rows are deleted, and if so, delete the parent unsigned_pr row
+	var countUnsigned int64
+	err = p.db.QueryRow(SqlSelectUnsignedUsersForPR, evalInfo.UnsignedPRID).Scan(&countUnsigned)
+	if err != nil {
+		return
+	}
+
+	if countUnsigned == 0 {
+		_, err = p.db.Exec(sqlDeleteUnsignedPR, evalInfo.UnsignedPRID)
+		if err != nil {
+			return
 		}
 	}
 	return

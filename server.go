@@ -306,7 +306,7 @@ func handleProcessWebhook(c echo.Context) (err error) {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 
-	appId, err := strconv.Atoi(os.Getenv(ourGithub.EnvGhAppId))
+	appId, err := strconv.ParseInt(os.Getenv(ourGithub.EnvGhAppId), 10, 64)
 	if err != nil {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
@@ -361,6 +361,13 @@ func handleProcessSignCla(c echo.Context) (err error) {
 	}
 
 	logger.Debug("CLA signed successfully")
+
+	err = ourGithub.ReviewPriorPRs(logger, postgresDB, user)
+	if err != nil {
+		// log this, but don't fail the call
+		logger.Error("error reviewing prior PRs", zap.Error(err))
+	}
+
 	return c.JSON(http.StatusCreated, user)
 }
 

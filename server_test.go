@@ -289,7 +289,7 @@ func TestHandleProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing
 
 	assert.NoError(t, handleProcessWebhook(c))
 	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
-	assert.Equal(t, `strconv.Atoi: parsing "nonNumericGHAppID": invalid syntax`, rec.Body.String())
+	assert.Equal(t, `strconv.ParseInt: parsing "nonNumericGHAppID": invalid syntax`, rec.Body.String())
 }
 
 func TestHandleProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testing.T) {
@@ -335,6 +335,13 @@ func verifyActionHandled(t *testing.T, actionText string) {
 		map[string]string{
 			"X-GitHub-Event": string(webhook.PullRequestEvent),
 		}, github.PullRequestEvent{Action: &actionText})
+
+	mock, dbIF, closeDbFunc := db.SetupMockDB(t)
+	defer closeDbFunc()
+	postgresDB = dbIF
+
+	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUnsignedUsersForPR)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	origGHAppIDEnvVar := os.Getenv(ourGithub.EnvGhAppId)
 	defer func() {
