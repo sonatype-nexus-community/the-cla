@@ -2,5 +2,7 @@
 BEGIN;
 
 DROP TABLE IF EXISTS signatures;
+DROP TABLE IF EXISTS unsigned_user;
+DROP TABLE IF EXISTS unsigned_pr;
 
 COMMIT;
