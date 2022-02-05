@@ -289,7 +289,6 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 		}
 
 		// get info needed to show link to sign the cla
-		//app, err := getApp(logger, evalInfo.AppId)
 		app, err := ghJWTClient.Get()
 		if err != nil {
 			return err
