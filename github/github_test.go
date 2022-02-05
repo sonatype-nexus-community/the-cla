@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap/zaptest"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -286,6 +287,9 @@ func TestHandlePullRequestCreateLabelError(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
@@ -328,6 +332,9 @@ func TestHandlePullRequestAddLabelsToIssueError(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
@@ -355,90 +362,6 @@ func TestHandlePullRequestAddLabelsToIssueError(t *testing.T) {
 	assert.EqualError(t, err, forcedError.Error())
 }
 
-func TestGetAppPemFileError(t *testing.T) {
-	// remove any existing pem file, and do not set up test pem file
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	forcedError := fmt.Errorf("forced apps service get error")
-	GHImpl = &GHInterfaceMock{
-		AppsMock: AppsMock{
-			mockAppErr: forcedError,
-		},
-	}
-
-	app, err := getApp(zaptest.NewLogger(t), 0)
-	assert.Nil(t, app)
-	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
-}
-
-func TestGetAppGetError(t *testing.T) {
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
-
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	forcedError := fmt.Errorf("forced apps service get error")
-	GHImpl = &GHInterfaceMock{
-		AppsMock: AppsMock{
-			mockAppErr: forcedError,
-		},
-	}
-
-	app, err := getApp(zaptest.NewLogger(t), 0)
-	assert.Nil(t, app)
-	assert.EqualError(t, err, forcedError.Error())
-}
-
-func TestGetAppExternalURLStringPointerMadness(t *testing.T) {
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
-
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	expectedExternalURL := "myAppHomepage"
-	GHImpl = &GHInterfaceMock{
-		AppsMock: AppsMock{
-			mockApp: &github.App{
-				ExternalURL: &expectedExternalURL,
-			},
-		},
-	}
-
-	app, err := getApp(zaptest.NewLogger(t), 0)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedExternalURL, *app.ExternalURL)
-}
-
 func TestHandlePullRequestGetAppError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
@@ -457,13 +380,25 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+	//forcedError := fmt.Errorf("forced Get App error")
+	GHJWTImpl = &GHJWTMock{
+		AppsMock: AppsMock{
+			mockInstallation: &github.Installation{
+				AppSlug: &appSlug,
+			},
+			//mockAppErr: forcedError,
+			mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusNotFound}},
+		},
+	}
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
 	}()
 	mockAuthorLogin := "myAuthorLogin"
 	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
-	forcedError := fmt.Errorf("forced Get App error")
 	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
 		IssuesMock: IssuesMock{
@@ -474,9 +409,6 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 			MockRemoveLabelResponse: &github.Response{
 				Response: &http.Response{StatusCode: http.StatusNotFound},
 			},
-		},
-		AppsMock: AppsMock{
-			mockAppErr: forcedError,
 		},
 	}
 
@@ -495,7 +427,8 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	}
 
 	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
-	assert.EqualError(t, err, forcedError.Error())
+	//assert.EqualError(t, err, forcedError.Error())
+	assert.True(t, strings.HasPrefix(err.Error(), "it done broke: "))
 }
 
 func TestHandlePullRequestMissingPemFile(t *testing.T) {
@@ -538,6 +471,9 @@ func TestHandlePullRequestListCommitsError(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
@@ -574,6 +510,20 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+	mockExternalUrl := "fakeExternalURL"
+	GHJWTImpl = &GHJWTMock{
+		AppsMock: AppsMock{
+			mockInstallation: &github.Installation{
+				AppSlug: &appSlug,
+			},
+			//mockAppErr: forcedError,
+			mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
+			mockApp:     &github.App{ExternalURL: &mockExternalUrl},
+		},
+	}
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
@@ -596,7 +546,6 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 			SHA: github.String("doeSHA"),
 		},
 	}
-	mockExternalUrl := "fakeExternalURL"
 	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{
 			mockRepositoryCommits: mockRepositoryCommits,
@@ -609,9 +558,6 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 			MockRemoveLabelResponse: &github.Response{
 				Response: &http.Response{},
 			},
-		},
-		AppsMock: AppsMock{
-			mockApp: &github.App{ExternalURL: &mockExternalUrl},
 		},
 	}
 
@@ -707,6 +653,9 @@ func TestReviewPriorPRsEvaluatePRError(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
@@ -760,6 +709,9 @@ func TestReviewPriorPRsEvalSuccess(t *testing.T) {
 	}()
 	SetupTestPemFile(t)
 
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
@@ -776,7 +728,6 @@ func TestReviewPriorPRsEvalSuccess(t *testing.T) {
 		},
 	}
 
-	// TODO Add interface and mocks before we can test call to EvaluatePullRequest()
 	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
 }
 

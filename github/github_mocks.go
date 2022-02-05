@@ -169,9 +169,12 @@ func (i *IssuesMock) ListComments(ctx context.Context, owner string, repo string
 }
 
 type AppsMock struct {
-	mockApp     *github.App
-	mockAppResp *github.Response
-	mockAppErr  error
+	mockApp               *github.App
+	mockAppResp           *github.Response
+	mockAppErr            error
+	mockInstallation      *github.Installation
+	mockInstallationResp  *github.Response
+	mockInstallationError error
 }
 
 var _ AppsService = (*AppsMock)(nil)
@@ -181,13 +184,48 @@ func (a *AppsMock) Get(ctx context.Context, appSlug string) (*github.App, *githu
 	return a.mockApp, a.mockAppResp, a.mockAppErr
 }
 
+//goland:noinspection GoUnusedParameter
+func (a *AppsMock) GetInstallation(ctx context.Context, id int64) (*github.Installation, *github.Response, error) {
+	return a.mockInstallation, a.mockInstallationResp, a.mockInstallationError
+}
+
+var appSlug = "myAppSlug"
+
+func SetupMockGHJWT() (resetImpl func()) {
+	origGHJWT := GHJWTImpl
+	resetImpl = func() {
+		GHJWTImpl = origGHJWT
+	}
+	GHJWTImpl = &GHJWTMock{
+		AppsMock: AppsMock{
+			mockInstallation: &github.Installation{
+				AppSlug: &appSlug,
+			},
+		},
+	}
+	return
+}
+
+type GHJWTMock struct {
+	AppsMock AppsMock
+}
+
+var _ GHJWTInterface = (*GHJWTMock)(nil)
+
+//goland:noinspection GoUnusedParameter
+func (gj *GHJWTMock) NewJWTClient(httpClient *http.Client, installID int64) IGitHubJWTClient {
+	return &GHJWTClient{
+		installID: installID,
+		apps:      &gj.AppsMock,
+	}
+}
+
 // GHInterfaceMock implements GHInterface.
 type GHInterfaceMock struct {
 	RepositoriesMock RepositoriesMock
 	UsersMock        UsersMock
 	PullRequestsMock PullRequestsMock
 	IssuesMock       IssuesMock
-	AppsMock         AppsMock
 }
 
 var _ GHInterface = (*GHInterfaceMock)(nil)
@@ -222,11 +260,6 @@ func (g *GHInterfaceMock) NewClient(httpClient *http.Client) GHClient {
 			mockAddLabelsError:            g.IssuesMock.mockAddLabelsError,
 			MockRemoveLabelResponse:       g.IssuesMock.MockRemoveLabelResponse,
 			mockRemoveLabelError:          g.IssuesMock.mockRemoveLabelError,
-		},
-		Apps: &AppsMock{
-			mockApp:     g.AppsMock.mockApp,
-			mockAppResp: g.AppsMock.mockAppResp,
-			mockAppErr:  g.AppsMock.mockAppErr,
 		},
 	}
 }

@@ -360,6 +360,9 @@ func verifyActionHandled(t *testing.T, actionText string) {
 	}()
 	ourGithub.SetupTestPemFile(t)
 
+	resetGHJWTImpl := ourGithub.SetupMockGHJWT()
+	defer resetGHJWTImpl()
+
 	origGithubImpl := ourGithub.GHImpl
 	defer func() {
 		ourGithub.GHImpl = origGithubImpl

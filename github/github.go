@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,7 +84,55 @@ type AppsService interface {
 	// Get a single GitHub App. Passing the empty string will get
 	// the authenticated GitHub App.
 	Get(ctx context.Context, appSlug string) (*github.App, *github.Response, error)
+	GetInstallation(ctx context.Context, id int64) (*github.Installation, *github.Response, error)
 }
+
+func GetAppId() (appId int64, err error) {
+	appId, err = strconv.ParseInt(os.Getenv(EnvGhAppId), 10, 64)
+	return
+}
+
+type IGitHubJWTClient interface {
+	Get() (*github.App, error)
+	GetInstallInfo() (*github.Installation, error)
+}
+
+type GHJWTClient struct {
+	installID int64
+	apps      AppsService
+}
+
+func (ghj *GHJWTClient) Get() (app *github.App, err error) {
+	var resp *github.Response
+	app, resp, err = ghj.apps.Get(context.Background(), "") // empty appSlug here returns current authenticated app
+	// maybe check err instead or also?
+	if resp.StatusCode != http.StatusOK {
+		err = fmt.Errorf("it done broke: %+v", resp)
+		return
+	}
+	return
+}
+
+func (ghj *GHJWTClient) GetInstallInfo() (install *github.Installation, err error) {
+	install, _, err = ghj.apps.GetInstallation(context.Background(), ghj.installID)
+	if err != nil {
+		return
+	}
+	return
+}
+
+type GHJWTInterface interface {
+	NewJWTClient(httpClient *http.Client, installID int64) IGitHubJWTClient
+}
+
+type GHJWTCreator struct{}
+
+func (gj *GHJWTCreator) NewJWTClient(httpClient *http.Client, installID int64) IGitHubJWTClient {
+	client := github.NewClient(httpClient)
+	return &GHJWTClient{apps: client.Apps, installID: installID}
+}
+
+var GHJWTImpl GHJWTInterface = &GHJWTCreator{}
 
 // GHClient manages communication with the GitHub API.
 // https://github.com/google/go-github/issues/113
@@ -91,7 +141,6 @@ type GHClient struct {
 	Users        UsersService
 	PullRequests PullRequestsService
 	Issues       IssuesService
-	Apps         AppsService
 }
 
 // GHInterface defines all necessary methods.
@@ -111,7 +160,6 @@ func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 		Users:        client.Users,
 		PullRequests: client.PullRequests,
 		Issues:       client.Issues,
-		Apps:         client.Apps,
 	}
 }
 
@@ -136,6 +184,30 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 	logger.Debug("start authenticating with GitHub",
 		zap.Any("eval", evalInfo),
 	)
+
+	// get JWT GH stuff first
+	// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as installInfo
+	var atr *ghinstallation.AppsTransport
+	atr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, evalInfo.AppId, FilenameTheClaPem)
+	if err != nil {
+		logger.Error("failed to get JWT key",
+			zap.Int64("appId", evalInfo.AppId),
+			zap.Error(err),
+		)
+		return err
+	}
+	ghJWTClient := GHJWTImpl.NewJWTClient(&http.Client{Transport: atr}, evalInfo.InstallId)
+	installInfo, err := ghJWTClient.GetInstallInfo()
+	if err != nil {
+		logger.Error("failed to get install info",
+			zap.Int64("appId", evalInfo.AppId),
+			zap.Error(err),
+		)
+		return err
+	}
+	botName := *installInfo.AppSlug
+
+	// get regular GH stuff next
 	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, evalInfo.AppId, evalInfo.InstallId, FilenameTheClaPem)
 	if err != nil {
 		return err
@@ -143,7 +215,7 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 
 	client := GHImpl.NewClient(&http.Client{Transport: itr})
 
-	err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "pending", "Paul Botsco, the CLA verifier is running")
+	err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "pending", "Paul Botsco, the CLA verifier is running", botName)
 	if err != nil {
 		return err
 	}
@@ -217,12 +289,13 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 		}
 
 		// get info needed to show link to sign the cla
-		app, err := getApp(logger, evalInfo.AppId)
+		//app, err := getApp(logger, evalInfo.AppId)
+		app, err := ghJWTClient.Get()
 		if err != nil {
 			return err
 		}
 		// Maybe use app.Name in the remaining hard coded Paul Botsco repo status message above...or not.
-		//appName := app.Name
+		//appName := *app.Name
 		appExternalUrl := *app.ExternalURL
 
 		message := "Thanks for the contribution. Before we can merge this, we need %s to [sign the Contributor License Agreement](%s)"
@@ -233,7 +306,7 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 			return err
 		}
 
-		err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "failure", "One or more contributors need to sign the CLA")
+		err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "failure", "One or more contributors need to sign the CLA", botName)
 		if err != nil {
 			return err
 		}
@@ -249,7 +322,7 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 			return err
 		}
 
-		err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "success", "All contributors have signed the CLA")
+		err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "success", "All contributors have signed the CLA", botName)
 		if err != nil {
 			return err
 		}
@@ -264,33 +337,8 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 	return nil
 }
 
-func getApp(logger *zap.Logger, appId int64) (app *github.App, err error) {
-	// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as App
-	var atr *ghinstallation.AppsTransport
-	atr, err = ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, appId, FilenameTheClaPem)
-	if err != nil {
-		logger.Error("failed to get JWT key",
-			zap.Int64("appId", appId),
-			zap.Error(err),
-		)
-		return
-	}
-	jwtClient := GHImpl.NewClient(&http.Client{Transport: atr})
-	app, _, err = jwtClient.Apps.Get(context.Background(),
-		// Passing the empty string will get the authenticated GitHub App.
-		"")
-	if err != nil {
-		logger.Error("failed to get app",
-			zap.Int64("appId", appId),
-			zap.Error(err),
-		)
-		return
-	}
-	return
-}
-
-func createRepoStatus(repositoryService RepositoriesService, owner, repo, sha, state, description string) error {
-	_, _, err := repositoryService.CreateStatus(context.Background(), owner, repo, sha, &github.RepoStatus{State: &state, Description: &description})
+func createRepoStatus(repositoryService RepositoriesService, owner, repo, sha, state, description, botName string) error {
+	_, _, err := repositoryService.CreateStatus(context.Background(), owner, repo, sha, &github.RepoStatus{State: &state, Description: &description, Context: &botName})
 	if err != nil {
 		return err
 	}
