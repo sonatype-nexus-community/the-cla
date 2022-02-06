@@ -149,6 +149,10 @@ func main() {
 
 	e.Use(middleware.CORS())
 
+	e.GET("/build-info", func(c echo.Context) error {
+		return c.String(http.StatusOK, fmt.Sprintf("I am ALIVE. %s", buildInfoMessage))
+	})
+
 	e.GET(pathClaText, handleRetrieveCLAText)
 
 	e.GET(pathOAuthCallback, handleProcessGitHubOAuth)
