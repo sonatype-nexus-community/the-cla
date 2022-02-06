@@ -19,6 +19,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"fmt"
 	"github.com/google/uuid"
@@ -49,6 +50,7 @@ const pathClaText string = "/cla-text"
 const pathOAuthCallback string = "/oauth-callback"
 const pathSignCla string = "/sign-cla"
 const pathWebhook string = "/webhook-integration"
+const pathInfo = "/info"
 const pathSignature = "/signature"
 const buildLocation string = "build"
 
@@ -69,6 +71,8 @@ const envPGUsername = "PG_USERNAME"
 const envPGPassword = "PG_PASSWORD"
 const envPGDBName = "PG_DB_NAME"
 const envSSLMode = "SSL_MODE"
+const envInfoUsername = "INFO_USERNAME"
+const envInfoPassword = "INFO_PASSWORD"
 
 var errRecovered error
 var logger *zap.Logger
@@ -153,7 +157,8 @@ func main() {
 
 	e.PUT(pathSignCla, handleProcessSignCla)
 
-	e.GET(pathSignature, handleSignature)
+	g := e.Group(pathInfo, middleware.BasicAuth(infoBasicValidator))
+	g.GET(pathSignature, handleSignature)
 
 	e.Static("/", buildLocation)
 
@@ -170,6 +175,21 @@ const queryParameterLogin = "login"
 const queryParameterCLAVersion = "claversion"
 const msgTemplateMissingQueryParam = "missing required query parameter: %s"
 const hiddenFieldValue = "hidden"
+
+//goland:noinspection GoUnusedParameter
+func infoBasicValidator(username, password string, c echo.Context) (isValidLogin bool, err error) {
+	// Be careful to use constant time comparison to prevent timing attacks
+	if subtle.ConstantTimeCompare([]byte(username), []byte(os.Getenv(envInfoUsername))) == 1 &&
+		subtle.ConstantTimeCompare([]byte(password), []byte(os.Getenv(envInfoPassword))) == 1 {
+		isValidLogin = true
+	} else {
+		logger.Info("failed info endpoint login",
+			zap.String("username", username),
+			zap.String("password", password),
+		)
+	}
+	return
+}
 
 func handleSignature(c echo.Context) (err error) {
 	login, err := getRequiredQueryParameter(c, queryParameterLogin)
