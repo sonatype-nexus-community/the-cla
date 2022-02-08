@@ -519,3 +519,50 @@ func TestHandleSignatureHasAuthorSignedAndHidesFields(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, string(expectedJsonSignature)+"\n", rec.Body.String())
 }
+
+func saveEnvInfoCredentials(t *testing.T) (resetInfoCreds func()) {
+	origInfoUsername := os.Getenv(envInfoUsername)
+	origInfoPassword := os.Getenv(envInfoPassword)
+	resetInfoCreds = func() {
+		resetEnvVariable(t, envInfoUsername, origInfoUsername)
+		resetEnvVariable(t, envInfoUsername, origInfoPassword)
+	}
+
+	// setup testing logger while we're here
+	logger = zaptest.NewLogger(t)
+
+	return
+}
+
+func TestInfoBasicValidatorMissingEnv(t *testing.T) {
+	resetInfoCreds := saveEnvInfoCredentials(t)
+	defer resetInfoCreds()
+	assert.NoError(t, os.Unsetenv(envInfoUsername))
+	assert.NoError(t, os.Unsetenv(envInfoPassword))
+
+	isValid, err := infoBasicValidator("yadda", "bing", nil)
+	assert.NoError(t, err)
+	assert.False(t, isValid)
+}
+
+func TestInfoBasicValidatorInValid(t *testing.T) {
+	resetInfoCreds := saveEnvInfoCredentials(t)
+	defer resetInfoCreds()
+	assert.NoError(t, os.Setenv(envInfoUsername, "yadda"))
+	assert.NoError(t, os.Setenv(envInfoPassword, "Doh!"))
+
+	isValid, err := infoBasicValidator("yadda", "bing", nil)
+	assert.NoError(t, err)
+	assert.False(t, isValid)
+}
+
+func TestInfoBasicValidatorValid(t *testing.T) {
+	resetInfoCreds := saveEnvInfoCredentials(t)
+	defer resetInfoCreds()
+	assert.NoError(t, os.Setenv(envInfoUsername, "yadda"))
+	assert.NoError(t, os.Setenv(envInfoPassword, "bing"))
+
+	isValid, err := infoBasicValidator("yadda", "bing", nil)
+	assert.NoError(t, err)
+	assert.True(t, isValid)
+}
