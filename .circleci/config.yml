@@ -20,7 +20,7 @@ orbs:
 executors:
   go:
     docker:
-      - image: circleci/golang:1.16.2-buster-node-browsers-legacy
+      - image: circleci/golang:1.17-buster-node-browsers-legacy
 
 commands:
   cmd-nancy:
