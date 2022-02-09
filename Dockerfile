@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM node:15.12.0-alpine3.13 as yarn-build
+FROM node:16.13.2-alpine3.15 as yarn-build
 LABEL stage=builder
 
 RUN apk add --update build-base
@@ -24,7 +24,7 @@ COPY . .
 
 RUN make yarn
 
-FROM golang:1.16.0-alpine AS build
+FROM golang:1.16.2-alpine AS build
 LABEL stage=builder
 
 RUN apk add --update build-base ca-certificates git
