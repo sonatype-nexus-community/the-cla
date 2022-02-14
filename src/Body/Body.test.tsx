@@ -15,7 +15,9 @@
  */
 import React from 'react';
 
-import { handleScroll, hasCode } from './Body';
+import Body, { handleScroll, hasCode } from './Body';
+import {render} from "@testing-library/react";
+import {createClient} from "react-fetching-library";
 
 describe("<ClaAppContainer />", () => {
   test("Should be able to determine if a scroll has reached the bottom", async () => {
@@ -43,5 +45,14 @@ describe("<ClaAppContainer />", () => {
     expect(hasCode("")).toBe(false);
 
     expect(hasCode("?code=thing")).toBe(true);
+  });
+
+  test("Should set username input", async () => {
+    const client = createClient({});
+    const {findByText} = render(
+        // <Body client={client}/>
+        <Body />
+    );
+    // expect(await findByText("Username")).toBeTruthy()
   });
 });
