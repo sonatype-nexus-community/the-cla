@@ -5,7 +5,6 @@ go 1.16
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.0.4
-	github.com/brpaz/echozap v1.1.2
 	github.com/golang-migrate/migrate/v4 v4.15.1
 	github.com/google/go-github/v42 v42.0.0
 	github.com/google/uuid v1.3.0
@@ -42,7 +41,10 @@ replace github.com/dhui/dktest => github.com/dhui/dktest v0.3.4
 //replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt/v4 v4.1.0
 
 // fix: CVE-2020-8911 in github.com/aws/aws-sdk-go v1.17.7
-replace github.com/aws/aws-sdk-go => github.com/aws/aws-sdk-go v1.33.21
+//replace github.com/aws/aws-sdk-go => github.com/aws/aws-sdk-go v1.33.21
+
+// fix: sonatype-2020-1759 in github.com/aws/aws-sdk-go v1.33.21
+replace github.com/aws/aws-sdk-go => github.com/aws/aws-sdk-go v1.34.0
 
 // fix: CVE-2021-41190 in github.com/opencontainers/image-spec v1.0.1
 replace github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2
