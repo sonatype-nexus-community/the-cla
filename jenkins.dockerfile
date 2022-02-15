@@ -38,3 +38,9 @@ COPY . .
 COPY --from=yarn-build /src/build /src/build
 
 RUN make go-build
+
+FROM build as do-scan
+LABEL stage=builder
+RUN apk add npm
+
+COPY . .
