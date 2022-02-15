@@ -18,6 +18,7 @@ FROM node:16.13.2-alpine3.15 as yarn-build
 LABEL stage=builder
 
 RUN apk add --update build-base
+RUN apk add git
 
 WORKDIR /src
 
