@@ -23,6 +23,13 @@ dockerizedBuildPipeline(
   },
   buildAndTest: {
     sh '''
+    # install js stuff
+    curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+    sudo npm install --global typescript
+    sudo npm install --global yarn
+    yarn version
+
     make all
     go get -u github.com/jstemmer/go-junit-report
     make test | go-junit-report > test-results.xml
