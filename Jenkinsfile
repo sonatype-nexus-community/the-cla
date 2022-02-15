@@ -24,7 +24,6 @@ dockerizedBuildPipeline(
   buildAndTest: {
     sh '''
     unset GOPATH
-    env GOPATH=
     go get -u github.com/jstemmer/go-junit-report
     make test | go-junit-report > test-results.xml
     '''
