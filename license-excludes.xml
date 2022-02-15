@@ -4,5 +4,4 @@
   <exclude>src/Makefile</exclude>
   <exclude>src/SECURITY.md</exclude>
   <exclude>src/node_modules/**</exclude>
-  <exclude>src/**/*.ts*</exclude>
 </excludes>
