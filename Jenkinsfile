@@ -24,8 +24,9 @@ dockerizedBuildPipeline(
   buildAndTest: {
     sh '''
     # install js stuff
-    lsb_release -a
     which yum
+    which apt
+    which apk
     curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
     sudo apt-get install -y nodejs
     sudo npm install --global typescript
