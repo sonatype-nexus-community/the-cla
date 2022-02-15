@@ -24,7 +24,7 @@ dockerizedBuildPipeline(
   buildAndTest: {
     sh '''
     # install js stuff
-    which yum
+    cat /etc/os-release
     which apt
     which apk
     curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
