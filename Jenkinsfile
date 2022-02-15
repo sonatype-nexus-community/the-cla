@@ -16,26 +16,13 @@
 @Library(['private-pipeline-library', 'jenkins-shared']) _
 
 dockerizedBuildPipeline(
-  buildImageId: "${sonatypeDockerRegistryId()}/cdi/golang-1.17.1:2",
+  pathToDockerfile: "jenkins.dockerfile",
   deployBranch: 'main',
   prepare: {
     githubStatusUpdate('pending')
   },
   buildAndTest: {
     sh '''
-    # install js stuff
-    cat /etc/os-release
-    
-    curl -fsSL https://deb.nodesource.com/setup_16.x --output node16setup.sh
-    chmod +x node16setup.sh
-    ./node16setup.sh
-    
-    apt install -y nodejs
-    npm install --global typescript
-    npm install --global yarn
-    yarn version
-
-    # build it all
     make all
     go get -u github.com/jstemmer/go-junit-report
     make test | go-junit-report > test-results.xml
