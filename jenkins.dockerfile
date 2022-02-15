@@ -44,3 +44,4 @@ LABEL stage=builder
 RUN apk add npm
 
 COPY . .
+RUN chown -R 1002:100 "/.npm"
