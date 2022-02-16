@@ -27,5 +27,6 @@ ENV GOPATH=
 
 RUN go install github.com/sonatype-nexus-community/nancy@latest
 RUN chmod +x /root/go/bin/nancy
+RUN chown jenkins /root/go/bin/nancy
 
 COPY . .
