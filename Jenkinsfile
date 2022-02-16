@@ -24,8 +24,6 @@ dockerizedBuildPipeline(
   buildAndTest: {
     sh '''
     make
-    go install github.com/sonatype-nexus-community/nancy@latest
-    chmod +x /root/go/bin/nancy
     '''
   },
   vulnerabilityScan: {
