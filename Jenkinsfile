@@ -24,6 +24,8 @@ dockerizedBuildPipeline(
   buildAndTest: {
     sh '''
     make
+    ls -alh /root/go/bin/nancy
+    cp /root/go/bin/nancy .
     '''
   },
   vulnerabilityScan: {
