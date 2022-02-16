@@ -23,6 +23,7 @@ dockerizedBuildPipeline(
   },
   buildAndTest: {
     sh '''
+    make
     '''
   },
   vulnerabilityScan: {

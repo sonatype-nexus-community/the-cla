@@ -14,34 +14,15 @@
 # limitations under the License.
 #
 
-FROM node:16.13.2-alpine3.15 as yarn-build
-LABEL stage=builder
+FROM docker-all.repo.sonatype.com/cdi/golang-1.17.1:2
 
-RUN apk add --update build-base
-RUN apk add git
+RUN apt-get update && apt-get install -y curl
 
-WORKDIR /src
+# See https://github.com/nodesource/distributions/blob/master/README.md#debinstall
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
 
-COPY . .
-
-RUN make yarn
-
-FROM golang:1.17.7-alpine AS build
-LABEL stage=builder
-
-RUN apk add --update build-base ca-certificates git
+RUN apt-get update && apt-get install -y nodejs
+RUN npm install --global yarn
 ENV GOPATH=
 
 COPY . .
-
-# Ensures that the build from yarn is used, not an existing build on the local device
-COPY --from=yarn-build /src/build /src/build
-
-RUN make go-build
-
-FROM build as do-scan
-LABEL stage=builder
-RUN apk add npm
-
-COPY . .
-RUN chown -R 1002:100 "/.npm"
