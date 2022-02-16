@@ -24,6 +24,7 @@ dockerizedBuildPipeline(
   buildAndTest: {
     sh '''
     make
+    whoami
     ls -alh /root/go/bin/nancy
     cp /root/go/bin/nancy .
     '''
