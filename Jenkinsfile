@@ -24,8 +24,7 @@ dockerizedBuildPipeline(
   buildAndTest: {
     sh '''
     make
-    go install github.com/jstemmer/go-junit-report
-    make test | go-junit-report > test-results.xml    '''
+    '''
   },
   vulnerabilityScan: {
     withDockerImage(env.DOCKER_IMAGE_ID, {
@@ -35,7 +34,6 @@ dockerizedBuildPipeline(
       }
     })
   },
-  testResults: [ 'test-results.xml' ],
   onSuccess: {
     githubStatusUpdate('success')
   },
