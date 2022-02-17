@@ -25,8 +25,6 @@ RUN apt-get update && apt-get install -y nodejs
 RUN npm install --global yarn
 ENV GOPATH=
 
+USER jenkins
 RUN go install github.com/sonatype-nexus-community/nancy@latest
-RUN chmod +x /root/go/bin/nancy
-RUN chown jenkins /root/go/bin/nancy
 
-COPY . .
