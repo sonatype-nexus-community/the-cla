@@ -28,3 +28,5 @@ ENV GOPATH=
 USER jenkins
 RUN go install github.com/sonatype-nexus-community/nancy@latest
 
+#  root dir mounted as workspace. instead, for local testing, use: docker run -it -v $(pwd):/ws ...
+#COPY . .
