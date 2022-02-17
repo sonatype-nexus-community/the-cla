@@ -1,4 +1,4 @@
-.PHONY: all test build yarn air docker go-build go-alpine-build run-air
+.PHONY: all test build yarn air docker go-build go-alpine-build run-air run-air-alone
 GOCMD=go
 GOBUILD=$(GOCMD) build
 GOTEST=$(GOCMD) test
