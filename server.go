@@ -92,7 +92,7 @@ func main() {
 		_ = logger.Sync()
 	}()
 	//e.Use(echozap.ZapLogger(logger))
-	e.Use(ZapLoggerFilterAWS_ELB(logger))
+	e.Use(ZapLoggerFilterAwsElb(logger))
 
 	// NOTE: using middleware.Logger() makes lots of AWS ELB Healthcheck noise in server logs
 	//e.Use(
@@ -234,9 +234,9 @@ func getRequiredQueryParameter(c echo.Context, parameterName string) (parameterV
 	return
 }
 
-// ZapLoggerFilterAWS_ELB is a middleware and zap to provide an "access log" like logging for each request.
+// ZapLoggerFilterAwsElb is a middleware and zap to provide an "access log" like logging for each request.
 // Adapted from ZapLogger, until I find a better way to filter out AWS ELB Healthcheck messages.
-func ZapLoggerFilterAWS_ELB(log *zap.Logger) echo.MiddlewareFunc {
+func ZapLoggerFilterAwsElb(log *zap.Logger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
