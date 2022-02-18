@@ -55,7 +55,7 @@ func TestZapLoggerFilterSkipsELB(t *testing.T) {
 	req := httptest.NewRequest("", "/", nil)
 	req.Header.Set("User-Agent", "bing ELB-HealthChecker yadda")
 	logger := zaptest.NewLogger(t)
-	result := ZapLoggerFilterAWS_ELB(logger)
+	result := ZapLoggerFilterAwsElb(logger)
 	//handlerFunc := func(next echo.HandlerFunc) echo.HandlerFunc {
 	//	return func(c echo.Context) error {
 	//		return nil
