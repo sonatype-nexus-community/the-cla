@@ -25,8 +25,19 @@ RUN apt-get update && apt-get install -y nodejs
 RUN npm install --global yarn
 ENV GOPATH=
 
+# install nancy so we can run scans
 USER jenkins
-RUN go install github.com/sonatype-nexus-community/nancy@latest
+#RUN go install github.com/sonatype-nexus-community/nancy@latest
+# Goofy attempt to get around the new 'go install'/w/'replace' issue
+#RUN mkdir tools
+#RUN cd tools && git clone https://github.com/sonatype-nexus-community/nancy.git && cd nancy && go install
+# Slightly less goofy? Install prebuild binary.
+RUN  cd /tmp && mkdir tools && cd - && \
+     latest_version_is=$(curl --fail -s https://api.github.com/repos/sonatype-nexus-community/nancy/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")') && \
+     desiredVersion=${latest_version_is} && \
+     sourceUrl="https://github.com/sonatype-nexus-community/nancy/releases/download/${desiredVersion}/nancy-${desiredVersion}-linux-amd64" && \
+     curl --fail -s -L "$sourceUrl" -o "/tmp/tools/nancy" && \
+     chmod +x /tmp/tools/nancy
 
 #  root dir mounted as workspace. instead, for local testing, use: docker run -it -v $(pwd):/ws ...
 #COPY . .
