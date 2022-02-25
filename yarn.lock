@@ -2202,6 +2202,11 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
+"@juggle/resize-observer@^3.3.1":
+  version "3.3.1"
+  resolved "https://registry.yarnpkg.com/@juggle/resize-observer/-/resize-observer-3.3.1.tgz#b50a781709c81e10701004214340f25475a171a0"
+  integrity sha512-zMM9Ds+SawiUkakS7y94Ymqx+S0ORzpG3frZirN3l+UlXUmSUR7hF4wxCVqW+ei94JzV5kt0uXBcoOEAuiydrw==
+
 "@material-ui/core@^4.11.2":
   version "4.11.3"
   resolved "https://registry.yarnpkg.com/@material-ui/core/-/core-4.11.3.tgz#f22e41775b0bd075e36a7a093d43951bf7f63850"
@@ -2330,16 +2335,16 @@
   resolved "https://registry.yarnpkg.com/@react-hook/passive-layout-effect/-/passive-layout-effect-1.2.1.tgz#c06dac2d011f36d61259aa1c6df4f0d5e28bc55e"
   integrity sha512-IwEphTD75liO8g+6taS+4oqz+nnroocNfWVHWz7j+N+ZO2vYrc6PV1q7GQhuahL0IOR7JccFTsFKQ/mb6iZWAg==
 
-"@react-hook/resize-observer@^1.1.0":
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/@react-hook/resize-observer/-/resize-observer-1.2.0.tgz#a44b385d998f4ab33aa9481a43c4ac33af21f7d7"
-  integrity sha512-7Cpy0aaZ3xXlSabQ43aZcfgzwYSidrshEKGDqpfvdx7pHnGDGskr8m1Ajb6yamJUSdTRgqCemYQcwouCqMmZoQ==
+"@react-hook/resize-observer@^1.2.5":
+  version "1.2.5"
+  resolved "https://registry.yarnpkg.com/@react-hook/resize-observer/-/resize-observer-1.2.5.tgz#b59e2300de98bc6ddc6946942f21243cde10f984"
+  integrity sha512-qa0pPvRxq5VbdI8mMK2apPFsZOckhQ6D3Jc9yLuyHMNhui8yEih4qyFCZBDzzK3ymZS6LAltVSVg3l1Dg9vA0w==
   dependencies:
+    "@juggle/resize-observer" "^3.3.1"
     "@react-hook/latest" "^1.0.2"
     "@react-hook/passive-layout-effect" "^1.2.0"
     "@types/raf-schd" "^4.0.0"
     raf-schd "^4.0.2"
-    resize-observer-polyfill "^1.5.1"
 
 "@rollup/plugin-node-resolve@^7.1.1":
   version "7.1.3"
@@ -2408,10 +2413,10 @@
     in-publish "^2.0.0"
     prop-types "^15.5.10"
 
-"@sonatype/react-shared-components@^9.5.16":
-  version "9.5.16"
-  resolved "https://registry.yarnpkg.com/@sonatype/react-shared-components/-/react-shared-components-9.5.16.tgz#293a29ee6475eb4aa6cdc5c54624120409bd2ec6"
-  integrity sha512-V+uMCf9fMS3I/ZvYNXss1Yk5aBT5Tq7VISQVTDu8Oq7ps4AE4FuZFEm938S5TXkTqVafzxvZjkvBxhlfPXvuhA==
+"@sonatype/react-shared-components@^9.11.2":
+  version "9.11.2"
+  resolved "https://registry.yarnpkg.com/@sonatype/react-shared-components/-/react-shared-components-9.11.2.tgz#f040ac7085f719d8782c02feb82d48c5161a34cb"
+  integrity sha512-wpBrEAlzPi/Ao4carqwXjI84rNSLQj7IMS9VdCtwXeXBZFCJ0hbpDsEg9QhU0pdHKcnLy+bY5ryU6ZJEYG382A==
   dependencies:
     "@fortawesome/fontawesome-svg-core" "^1.2.32"
     "@fortawesome/free-regular-svg-icons" "^5.15.4"
@@ -2419,16 +2424,16 @@
     "@fortawesome/react-fontawesome" "^0.1.14"
     "@material-ui/core" "^4.11.2"
     "@react-hook/merged-ref" "^1.3.0"
-    "@react-hook/resize-observer" "^1.1.0"
+    "@react-hook/resize-observer" "^1.2.5"
     "@rooks/use-mutation-observer" "^4.11.0"
     "@sonatype/react-commonmark" "^3.0.1"
     "@types/classnames" "^2.2.11"
     "@types/prop-types" "^15.7.3"
-    "@types/ramda" "^0.27.34"
+    "@types/ramda" "^0.27.64"
     classnames "^2.2.6"
     fuse.js "^6.4.6"
     prop-types "^15.7.2"
-    ramda "^0.27.1"
+    ramda "^0.28.0"
 
 "@surma/rollup-plugin-off-main-thread@^1.1.1":
   version "1.4.2"
@@ -2777,10 +2782,10 @@
   resolved "https://registry.yarnpkg.com/@types/raf-schd/-/raf-schd-4.0.0.tgz#0f3f7a68aa385cc0eb52d257b56fe526134261ff"
   integrity sha512-EsXE+pu4MjOhU+H2Ut/8zOGUtictm87anwxOcNY1HjxkH8ipLR+SzYnCzT4lQvyKJdcMwIGxhb8w/KZhOy6vaQ==
 
-"@types/ramda@^0.27.34":
-  version "0.27.39"
-  resolved "https://registry.yarnpkg.com/@types/ramda/-/ramda-0.27.39.tgz#7541d9d745a2003c8f635897dff8c65c12be9327"
-  integrity sha512-od24Hng0uS1NcMSPo6ZzKXN2WJxjbF7IBzQhRCtSDyIShdEJTAWXgQlyDg998aylNrXbVvQxkFJmuaLHQcfczg==
+"@types/ramda@^0.27.64":
+  version "0.27.65"
+  resolved "https://registry.yarnpkg.com/@types/ramda/-/ramda-0.27.65.tgz#84c7ee47ffc27d7c9a3c0d431ae00aba54b9685b"
+  integrity sha512-JVX1qgW9xxKUraEbiftgrREtf8A2m+2IAl32oh9pHCrNj0nwPRnOhuvghn1ELTCjTq66slejsePafMXjbHpPAA==
   dependencies:
     ts-toolbelt "^6.15.1"
 
@@ -10415,7 +10420,7 @@ raf@^3.4.1:
   dependencies:
     performance-now "^2.1.0"
 
-ramda@^0.27.1, ramda@^0.27.2:
+ramda@^0.27.2, ramda@^0.28.0:
   version "0.27.2"
   resolved "https://registry.yarnpkg.com/ramda/-/ramda-0.27.2.tgz#84463226f7f36dc33592f6f4ed6374c48306c3f1"
   integrity sha512-SbiLPU40JuJniHexQSAgad32hfwd+DRUdwF2PlVuI5RZD0/vahUco7R8vD86J/tcEKKF9vZrUVwgtmGCqlCKyA==
@@ -10847,11 +10852,6 @@ requires-port@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/requires-port/-/requires-port-1.0.0.tgz#925d2601d39ac485e091cf0da5c6e694dc3dcaff"
   integrity sha1-kl0mAdOaxIXgkc8NpcbmlNw9yv8=
-
-resize-observer-polyfill@^1.5.1:
-  version "1.5.1"
-  resolved "https://registry.yarnpkg.com/resize-observer-polyfill/-/resize-observer-polyfill-1.5.1.tgz#0e9020dd3d21024458d4ebd27e23e40269810464"
-  integrity sha512-LwZrotdHOo12nQuZlHEmtuXdqGoOD0OhaxopaNFxWzInpEgaLWoVuAMbTzixuosCx2nEG58ngzW3vxdWoxIgdg==
 
 resolve-cwd@^2.0.0:
   version "2.0.0"

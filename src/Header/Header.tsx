@@ -13,20 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { NxNexusPageHeader } from "@sonatype/react-shared-components"
+import {NxPageHeader} from "@sonatype/react-shared-components"
 import React from "react"
 import packageJson from '../../package.json';
-import logo from './theeecla.svg';
-import './Header.css';
+import styles from './header.module.scss';
 
 const Header = () => {
     return (
-      <NxNexusPageHeader 
-        productInfo={{ 
+      <NxPageHeader className={styles["nx-page-header"]}
+        productInfo={{
             name: (process.env.REACT_APP_CLA_APP_NAME) ? process.env.REACT_APP_CLA_APP_NAME : packageJson.name,
-            version: packageJson.version
+            version: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : packageJson.version
           }}
-        logoPath={logo}
           />
     )
 }
