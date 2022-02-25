@@ -201,7 +201,7 @@ const Body = () => {
           checkboxId="cla-check" 
           isChecked={scrolled} 
           disabled={true}>
-          Review the CLA
+          Review the CLA version: {process.env.REACT_APP_CLA_VERSION}
         </NxCheckbox>
 
         <CLABody 
@@ -213,7 +213,7 @@ const Body = () => {
           checkboxId="login-check" 
           isChecked={agreeToTerms}
           disabled={true}>
-          Sign the CLA
+          Sign the CLA version: {process.env.REACT_APP_CLA_VERSION}
         </NxCheckbox>
 
         { !loggedIn && (
