@@ -1,6 +1,6 @@
 {
   "name": "the-cla",
-  "version": "0.0.54",
+  "version": "0.0.55",
   "private": true,
   "dependencies": {
     "@sonatype/react-shared-components": "^9.11.4",
