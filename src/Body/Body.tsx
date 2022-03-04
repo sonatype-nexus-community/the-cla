@@ -226,28 +226,37 @@ const Body = () => {
             <NxFormGroup 
               label="Username" 
               isRequired={true}>
-              <NxTextInput 
-                { ...username }
+              <NxTextInput
                 disabled={true}
-                validatable={true}/>
+                validatable={true}
+
+                value={username.value}
+                isPristine={username.isPristine}
+              />
             </NxFormGroup>
 
             <NxFormGroup 
               label="Email Address" 
               isRequired={true}>
-              <NxTextInput 
-                { ...email }
+              <NxTextInput
                 onChange={setTextInput(setEmail, nonEmptyValidator)} 
-                validatable={true}/>
+                validatable={true}
+
+                value={email.value}
+                isPristine={email.isPristine}
+              />
             </NxFormGroup>
 
             <NxFormGroup 
               label="Full Name" 
               isRequired={true}>
-              <NxTextInput 
-                {...fullName}
+              <NxTextInput
                 onChange={setTextInput(setFullName, nonEmptyValidator)}
-                validatable={true}/>
+                validatable={true}
+
+                value={fullName.value}
+                isPristine={fullName.isPristine}
+              />
             </NxFormGroup>
 
             <NxFieldset 
