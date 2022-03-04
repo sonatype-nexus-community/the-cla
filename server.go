@@ -74,6 +74,7 @@ const envPGDBName = "PG_DB_NAME"
 const envSSLMode = "SSL_MODE"
 const envInfoUsername = "INFO_USERNAME"
 const envInfoPassword = "INFO_PASSWORD"
+const envLogFilterIncludeHostname = "LOG_FILTER_INCLUDE_HOSTNAME"
 
 var errRecovered error
 var logger *zap.Logger
@@ -264,6 +265,14 @@ func ZapLoggerFilterAwsElb(log *zap.Logger) echo.MiddlewareFunc {
 				//fmt.Printf("userAgent: %s\n", userAgent)
 				// skip logging of this AWS ELB healthcheck
 				return nil
+			}
+
+			logIncludeHostname := os.Getenv(envLogFilterIncludeHostname)
+			if logIncludeHostname != "" && req.Host != "" {
+				// only log legit stuff from expected host
+				if logIncludeHostname != req.Host {
+					return nil
+				}
 			}
 
 			id := req.Header.Get(echo.HeaderXRequestID)
