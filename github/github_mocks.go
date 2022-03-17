@@ -30,15 +30,18 @@ import (
 
 // RepositoriesMock mocks RepositoriesService
 type RepositoriesMock struct {
-	t                                        *testing.T
-	assertParameters                         bool
-	expectedCtx                              context.Context
-	expectedOwner, expectedRepo, expectedRef string
-	expectedOpts                             *github.ListOptions
-	expectedCreateStatusRepoStatus           *github.RepoStatus
-	createStatusRepoStatus                   *github.RepoStatus
-	createStatusResponse                     *github.Response
-	createStatusError                        error
+	t                                                      *testing.T
+	assertParameters                                       bool
+	expectedCtx                                            context.Context
+	expectedOwner, expectedRepo, expectedRef, expectedUser string
+	expectedOpts                                           *github.ListOptions
+	expectedCreateStatusRepoStatus                         *github.RepoStatus
+	createStatusRepoStatus                                 *github.RepoStatus
+	createStatusResponse                                   *github.Response
+	createStatusError                                      error
+	isCollaboratorResult                                   bool
+	isCollaboratorResp                                     *github.Response
+	isCollaboratorErr                                      error
 }
 
 var _ RepositoriesService = (*RepositoriesMock)(nil)
@@ -79,6 +82,16 @@ func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Reposit
 		HTMLURL:         github.String("https://www.foo.com"),
 		FullName:        github.String("john/wayne"),
 	}, nil, nil
+}
+
+func (r *RepositoriesMock) IsCollaborator(ctx context.Context, owner, repo, user string) (bool, *github.Response, error) {
+	if r.assertParameters {
+		assert.Equal(r.t, r.expectedCtx, ctx)
+		assert.Equal(r.t, r.expectedOwner, owner)
+		assert.Equal(r.t, r.expectedRepo, repo)
+		assert.Equal(r.t, r.expectedUser, user)
+	}
+	return r.isCollaboratorResult, r.isCollaboratorResp, r.isCollaboratorErr
 }
 
 // UsersMock mocks UsersService

@@ -46,6 +46,7 @@ type RepositoriesService interface {
 	Get(context.Context, string, string) (*github.Repository, *github.Response, error)
 	ListStatuses(ctx context.Context, owner, repo, ref string, opts *github.ListOptions) ([]*github.RepoStatus, *github.Response, error)
 	CreateStatus(ctx context.Context, owner, repo, ref string, status *github.RepoStatus) (*github.RepoStatus, *github.Response, error)
+	IsCollaborator(ctx context.Context, owner, repo, user string) (bool, *github.Response, error)
 }
 
 // UsersService handles communication with the user related methods
@@ -242,6 +243,22 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 		// It is important to use GetAuthor() instead of v.Commit.GetCommitter() because the committer can be the GH webflow user, whereas the author is
 		// the canonical author of the commit
 		author := *v.GetAuthor()
+
+		// if author is a collaborator, that author need not sign the cla.
+		var isCollaborator bool
+		isCollaborator, _, err = client.Repositories.IsCollaborator(
+			context.Background(),
+			evalInfo.RepoOwner,
+			evalInfo.RepoName,
+			*author.Login,
+		)
+		if err != nil {
+			return err
+		}
+		if isCollaborator {
+			// nothing to do, we've found a collaborator, move along
+			continue
+		}
 
 		var foundUserSigned *types.UserSignature
 		hasAuthorSigned, foundUserSigned, err := postgres.HasAuthorSignedTheCla(*author.Login, claVersion)
