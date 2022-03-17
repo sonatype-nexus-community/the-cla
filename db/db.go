@@ -165,7 +165,7 @@ func (p *ClaDB) StorePRAuthorsMissingSignature(evalInfo *types.EvaluationInfo, c
 		}
 	}
 	if parentUUID == "" {
-		// we can not ignore an empty parentId, to fail loudly
+		// we can not ignore an empty parentId, so fail loudly
 		return fmt.Errorf(msgTemplateErrInsertPRMissing, evalInfo.RepoName, evalInfo.PRNumber, fmt.Errorf("empty parentUUID"))
 	}
 
