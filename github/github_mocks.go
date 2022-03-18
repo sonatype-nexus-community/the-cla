@@ -308,8 +308,20 @@ pNEMHXmW70G0upWmOnjZL6WxXcJjbpZ94SOFiD7GFFLgWs9bI4BdxMDX/EyXQafy
 Scy7y5rzNperE0E7Xy1N10NX
 -----END PRIVATE KEY-----`
 
-func SetupTestPemFile(t *testing.T) {
+func SetupTestPemFile(t *testing.T) (resetImpl func()) {
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	resetImpl = func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}
+
 	assert.NoError(t, os.WriteFile(FilenameTheClaPem, []byte(testPrivatePem), 0644))
+
+	return resetImpl
 }
 
 func resetEnvVariable(t *testing.T, variableName, originalValue string) {

@@ -277,16 +277,8 @@ func TestHandlePullRequestIsCollaboratorError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -321,16 +313,8 @@ func TestHandlePullRequestIsCollaboratorTrueCollaborator(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -374,16 +358,8 @@ func TestHandlePullRequestCreateLabelError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -419,16 +395,8 @@ func TestHandlePullRequestAddLabelsToIssueError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -467,16 +435,8 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -558,16 +518,8 @@ func TestHandlePullRequestListCommitsError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -597,16 +549,8 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -740,16 +684,8 @@ func TestReviewPriorPRsEvaluatePRError(t *testing.T) {
 	mockDB.hasAuthorSignedLogin = login
 	mockDB.hasAuthorSignedCLAVersion = claVersion
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -796,16 +732,8 @@ func TestReviewPriorPRsEvalSuccess(t *testing.T) {
 
 	mockDB.removePRsEvalInfo = &mockDB.getPRsForUserEvalInfo[0]
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -845,16 +773,8 @@ func TestReviewPriorPRs(t *testing.T) {
 
 	mockDB.getPRsForUserUser = &user
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
 }
