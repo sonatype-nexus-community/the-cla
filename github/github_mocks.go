@@ -30,15 +30,18 @@ import (
 
 // RepositoriesMock mocks RepositoriesService
 type RepositoriesMock struct {
-	t                                        *testing.T
-	assertParameters                         bool
-	expectedCtx                              context.Context
-	expectedOwner, expectedRepo, expectedRef string
-	expectedOpts                             *github.ListOptions
-	expectedCreateStatusRepoStatus           *github.RepoStatus
-	createStatusRepoStatus                   *github.RepoStatus
-	createStatusResponse                     *github.Response
-	createStatusError                        error
+	t                                                      *testing.T
+	assertParameters                                       bool
+	expectedCtx                                            context.Context
+	expectedOwner, expectedRepo, expectedRef, expectedUser string
+	expectedOpts                                           *github.ListOptions
+	expectedCreateStatusRepoStatus                         *github.RepoStatus
+	createStatusRepoStatus                                 *github.RepoStatus
+	createStatusResponse                                   *github.Response
+	createStatusError                                      error
+	isCollaboratorResult                                   bool
+	isCollaboratorResp                                     *github.Response
+	isCollaboratorErr                                      error
 }
 
 var _ RepositoriesService = (*RepositoriesMock)(nil)
@@ -79,6 +82,16 @@ func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Reposit
 		HTMLURL:         github.String("https://www.foo.com"),
 		FullName:        github.String("john/wayne"),
 	}, nil, nil
+}
+
+func (r *RepositoriesMock) IsCollaborator(ctx context.Context, owner, repo, user string) (bool, *github.Response, error) {
+	if r.assertParameters {
+		assert.Equal(r.t, r.expectedCtx, ctx)
+		assert.Equal(r.t, r.expectedOwner, owner)
+		assert.Equal(r.t, r.expectedRepo, repo)
+		assert.Equal(r.t, r.expectedUser, user)
+	}
+	return r.isCollaboratorResult, r.isCollaboratorResp, r.isCollaboratorErr
 }
 
 // UsersMock mocks UsersService
@@ -295,8 +308,20 @@ pNEMHXmW70G0upWmOnjZL6WxXcJjbpZ94SOFiD7GFFLgWs9bI4BdxMDX/EyXQafy
 Scy7y5rzNperE0E7Xy1N10NX
 -----END PRIVATE KEY-----`
 
-func SetupTestPemFile(t *testing.T) {
+func SetupTestPemFile(t *testing.T) (resetImpl func()) {
+	// move pem file if it exists
+	pemBackupFile := FilenameTheClaPem + "_orig"
+	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
+	resetImpl = func() {
+		assert.NoError(t, os.Remove(FilenameTheClaPem))
+		if errRename == nil {
+			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
+		}
+	}
+
 	assert.NoError(t, os.WriteFile(FilenameTheClaPem, []byte(testPrivatePem), 0644))
+
+	return resetImpl
 }
 
 func resetEnvVariable(t *testing.T, variableName, originalValue string) {

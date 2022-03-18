@@ -270,6 +270,87 @@ func (m mockCLADb) RemovePRsForUsers(usersSigned []types.UserSignature, evalInfo
 	return m.removePRsError
 }
 
+func TestHandlePullRequestIsCollaboratorError(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
+
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
+
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	mockAuthorLogin := "myAuthorLogin"
+	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	forcedError := fmt.Errorf("forced IsCollaborator error")
+	GHImpl = &GHInterfaceMock{
+		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
+		RepositoriesMock: RepositoriesMock{
+			isCollaboratorErr: forcedError,
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+
+	mockDB, logger := setupMockDB(t, true)
+	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+	assert.EqualError(t, err, forcedError.Error())
+}
+
+func TestHandlePullRequestIsCollaboratorTrueCollaborator(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
+
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
+
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	mockAuthorLogin := "myAuthorLogin"
+	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	GHImpl = &GHInterfaceMock{
+		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
+		RepositoriesMock: RepositoriesMock{
+			isCollaboratorResult: true,
+		},
+		IssuesMock: IssuesMock{
+			//mockGetLabel: &github.Label{},
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+
+	mockDB, logger := setupMockDB(t, true)
+	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+	mockDB.removePRsEvalInfo = &types.EvaluationInfo{}
+
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+	assert.NoError(t, err)
+}
+
 func TestHandlePullRequestCreateLabelError(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
@@ -277,16 +358,8 @@ func TestHandlePullRequestCreateLabelError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -322,16 +395,8 @@ func TestHandlePullRequestAddLabelsToIssueError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -370,16 +435,8 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -461,16 +518,8 @@ func TestHandlePullRequestListCommitsError(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -500,16 +549,8 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 	}()
 	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -643,16 +684,8 @@ func TestReviewPriorPRsEvaluatePRError(t *testing.T) {
 	mockDB.hasAuthorSignedLogin = login
 	mockDB.hasAuthorSignedCLAVersion = claVersion
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -699,16 +732,8 @@ func TestReviewPriorPRsEvalSuccess(t *testing.T) {
 
 	mockDB.removePRsEvalInfo = &mockDB.getPRsForUserEvalInfo[0]
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := SetupMockGHJWT()
 	defer resetGHJWTImpl()
@@ -748,16 +773,8 @@ func TestReviewPriorPRs(t *testing.T) {
 
 	mockDB.getPRsForUserUser = &user
 
-	// move pem file if it exists
-	pemBackupFile := FilenameTheClaPem + "_orig"
-	errRename := os.Rename(FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	SetupTestPemFile(t)
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
 }

@@ -352,16 +352,8 @@ func verifyActionHandled(t *testing.T, actionText string) {
 	}()
 	assert.NoError(t, os.Setenv(ourGithub.EnvGhAppId, "-1"))
 
-	// move pem file if it exists
-	pemBackupFile := ourGithub.FilenameTheClaPem + "_orig"
-	errRename := os.Rename(ourGithub.FilenameTheClaPem, pemBackupFile)
-	defer func() {
-		assert.NoError(t, os.Remove(ourGithub.FilenameTheClaPem))
-		if errRename == nil {
-			assert.NoError(t, os.Rename(pemBackupFile, ourGithub.FilenameTheClaPem), "error renaming pem file in test")
-		}
-	}()
-	ourGithub.SetupTestPemFile(t)
+	resetPemFileImpl := ourGithub.SetupTestPemFile(t)
+	defer resetPemFileImpl()
 
 	resetGHJWTImpl := ourGithub.SetupMockGHJWT()
 	defer resetGHJWTImpl()
