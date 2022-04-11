@@ -374,7 +374,6 @@ func handleProcessWebhook(c echo.Context) (err error) {
 }
 
 func getCurrentCLAVersion() (requiredClaVersion string) {
-	// TODO should we read this from env var?
 	return os.Getenv(envReactAppClaVersion)
 }
 
