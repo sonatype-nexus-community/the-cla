@@ -270,6 +270,8 @@ With all the above configured, here's the deployment command in full:
 
 [Echo](https://echo.labstack.com) web framework. [repo](https://github.com/labstack/echo)
 
+Inspired by [DoctoR-CLAw](https://github.com/salesforce/dr-cla)
+
 ## The Fine Print
 
 It is worth noting that this is **NOT SUPPORTED** by Sonatype, and is a contribution of ours
