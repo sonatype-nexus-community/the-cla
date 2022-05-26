@@ -17,7 +17,7 @@
 FROM node:16.13.2-alpine3.15 as yarn-build
 LABEL stage=builder
 
-RUN apk add --update build-base
+RUN apk add --no-cache build-base
 
 WORKDIR /src
 
@@ -28,7 +28,7 @@ RUN make yarn
 FROM golang:1.16.2-alpine AS build
 LABEL stage=builder
 
-RUN apk add --update build-base ca-certificates git
+RUN apk add --no-cache build-base ca-certificates git
 
 ENV USER=clauser
 ENV UID=10001 
@@ -65,7 +65,7 @@ COPY --from=build /src/build /build
 COPY --from=build /src/the-cla /
 COPY *.env /
 COPY *the-cla.pem /
-ADD db/migrations /db/migrations
+COPY db/migrations /db/migrations
 
 USER clauser:clauser
 

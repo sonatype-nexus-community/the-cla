@@ -1,0 +1,8 @@
+{
+  "ignore": [
+    {
+      "id": "sonatype-2017-0717",
+      "reason": "ignore sonatype-2017-0717 in pkg:npm/react@17.0.2 because no non-vulnerable version exists right now."
+    }
+  ]
+}

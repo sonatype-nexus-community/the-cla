@@ -90,5 +90,3 @@ func CreateOAuth(clientID, clientSecret string) OAuthInterface {
 	}
 	return &oAuthImpl
 }
-
-var oauthImpl OAuthInterface
