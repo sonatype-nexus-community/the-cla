@@ -17,7 +17,7 @@
 FROM node:16.13.2-alpine3.15 as yarn-build
 LABEL stage=builder
 
-RUN apk add --update build-base
+RUN apk add --no-cache build-base
 
 WORKDIR /src
 
@@ -65,7 +65,7 @@ COPY --from=build /src/build /build
 COPY --from=build /src/the-cla /
 COPY *.env /
 COPY *the-cla.pem /
-ADD db/migrations /db/migrations
+COPY db/migrations /db/migrations
 
 USER clauser:clauser
 
