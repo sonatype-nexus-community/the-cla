@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-FROM node:16.13.2-alpine3.15 as yarn-build
+FROM node:18-alpine3.18 as yarn-build
 LABEL stage=builder
 
 RUN apk add --no-cache build-base
