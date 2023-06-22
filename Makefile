@@ -33,7 +33,7 @@ docker:
 build: yarn go-build
 
 yarn:
-	yarn && yarn build
+	yarn && NODE_OPTIONS=--openssl-legacy-provider yarn build
 
 go-build:
 	echo "VERSION: $(VERSION)"
