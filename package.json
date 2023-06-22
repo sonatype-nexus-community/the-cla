@@ -1,6 +1,6 @@
 {
   "name": "the-cla",
-  "version": "0.0.70",
+  "version": "0.0.71",
   "private": true,
   "dependencies": {
     "@sonatype/react-shared-components": "^10.0.0",
@@ -26,8 +26,8 @@
     "minimist": "^1.2.6"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "start": "react-scripts --openssl-legacy-provider start",
+    "build": "react-scripts --openssl-legacy-provider build",
     "test": "react-scripts test --transformIgnorePatterns \"node_modules/(?!@codemirror)/\"",
     "eject": "react-scripts eject"
   },
