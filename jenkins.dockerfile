@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y nodejs
 RUN npm install --global yarn
 ENV GOPATH=
 
+RUN npm config fix
+
 # install nancy so we can run scans
 USER jenkins
 #RUN go install github.com/sonatype-nexus-community/nancy@latest
