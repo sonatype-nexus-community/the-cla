@@ -19,7 +19,7 @@ FROM docker-all.repo.sonatype.com/cdi/golang-1.17.1:2
 RUN apt-get update && apt-get install -y curl
 
 # See https://github.com/nodesource/distributions/blob/master/README.md#debinstall
-RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
 
 RUN apt-get update && apt-get install -y nodejs
 RUN npm install --global yarn
