@@ -25,10 +25,10 @@ dockerizedBuildPipeline(
   },
   vulnerabilityScan: {
     withDockerImage(env.DOCKER_IMAGE_ID, 'rsc-ro-npmrc-v9', {
-      withCredentials([usernamePassword(credentialsId: 'jenkins-iq',
+      withCredentials([usernamePassword(credentialsId: 'jenkins-saas-service-acct',
         usernameVariable: 'IQ_USERNAME', passwordVariable: 'IQ_PASSWORD')]) {
-        sh 'npx auditjs@latest iq -x -a the-cla -s release -u $IQ_USERNAME -p $IQ_PASSWORD -h https://iq.sonatype.dev'
-        sh 'go list -json -deps | /tmp/tools/nancy iq --iq-application the-cla --iq-stage release --iq-username $IQ_USERNAME --iq-token $IQ_PASSWORD --iq-server-url https://iq.sonatype.dev'
+        sh 'npx auditjs@latest iq -x -a the-cla -s release -u $IQ_USERNAME -p $IQ_PASSWORD -h https://sonatype.sonatype.app/platform'
+        sh 'go list -json -deps | /tmp/tools/nancy iq --iq-application the-cla --iq-stage release --iq-username $IQ_USERNAME --iq-token $IQ_PASSWORD --iq-server-url https://sonatype.sonatype.app/platform'
       }
     })
 
