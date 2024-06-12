@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React from 'react';
+
 import ReactDOM from 'react-dom';
 import { ClientContextProvider, createClient } from 'react-fetching-library';
 import ClaAppContainer from './ClaAppContainer';
 import reportWebVitals from './reportWebVitals';
+
+global.Buffer = global.Buffer || require('buffer').Buffer
 
 const client = createClient({});
 
