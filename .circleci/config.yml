@@ -21,7 +21,7 @@ orbs:
 executors:
   go:
     docker:
-      - image: cimg/go:1.19-browsers
+      - image: cimg/go:1.21-browsers
 
 commands:
   cmd-nancy:
