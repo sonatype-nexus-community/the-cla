@@ -3,7 +3,7 @@
   "version": "0.0.79",
   "private": true,
   "dependencies": {
-    "@sonatype/react-shared-components": "^10.0.0",
+    "@sonatype/react-shared-components": "^13.1.6",
     "buffer": "^6.0.3",
     "minimist": "^1.2.6",
     "react": "^18.3.1",
