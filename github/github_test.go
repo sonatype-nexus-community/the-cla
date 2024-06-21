@@ -21,15 +21,16 @@ package github
 
 import (
 	"fmt"
-	"github.com/sonatype-nexus-community/the-cla/db"
-	"github.com/sonatype-nexus-community/the-cla/types"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sonatype-nexus-community/the-cla/db"
+	"github.com/sonatype-nexus-community/the-cla/types"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/google/go-github/v42/github"
 	"github.com/stretchr/testify/assert"
@@ -206,14 +207,14 @@ type mockCLADb struct {
 	migrateDBSourceURL              string
 	migrateDBSourceError            error
 	storeUsersNeedingToSignEvalInfo *types.EvaluationInfo
-	storeUsersNeedingToSignTime     time.Time
-	storeUsersNeedingToSignCLAErr   error
-	getPRsForUserUser               *types.UserSignature
-	getPRsForUserEvalInfo           []types.EvaluationInfo
-	getPRsForUserError              error
-	removePRsUsersSigned            []types.UserSignature
-	removePRsEvalInfo               *types.EvaluationInfo
-	removePRsError                  error
+	// storeUsersNeedingToSignTime    time.Time
+	storeUsersNeedingToSignCLAErr error
+	getPRsForUserUser             *types.UserSignature
+	getPRsForUserEvalInfo         []types.EvaluationInfo
+	getPRsForUserError            error
+	removePRsUsersSigned          []types.UserSignature
+	removePRsEvalInfo             *types.EvaluationInfo
+	removePRsError                error
 }
 
 var _ db.IClaDB = (*mockCLADb)(nil)

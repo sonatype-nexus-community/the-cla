@@ -21,11 +21,12 @@ package github
 
 import (
 	"context"
-	"github.com/google/go-github/v42/github"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"os"
 	"testing"
+
+	"github.com/google/go-github/v42/github"
+	"github.com/stretchr/testify/assert"
 )
 
 // RepositoriesMock mocks RepositoriesService
@@ -34,14 +35,14 @@ type RepositoriesMock struct {
 	assertParameters                                       bool
 	expectedCtx                                            context.Context
 	expectedOwner, expectedRepo, expectedRef, expectedUser string
-	expectedOpts                                           *github.ListOptions
-	expectedCreateStatusRepoStatus                         *github.RepoStatus
-	createStatusRepoStatus                                 *github.RepoStatus
-	createStatusResponse                                   *github.Response
-	createStatusError                                      error
-	isCollaboratorResult                                   bool
-	isCollaboratorResp                                     *github.Response
-	isCollaboratorErr                                      error
+	// expectedOpts                                           *github.ListOptions
+	expectedCreateStatusRepoStatus *github.RepoStatus
+	createStatusRepoStatus         *github.RepoStatus
+	createStatusResponse           *github.Response
+	createStatusError              error
+	isCollaboratorResult           bool
+	isCollaboratorResp             *github.Response
+	isCollaboratorErr              error
 }
 
 var _ RepositoriesService = (*RepositoriesMock)(nil)
@@ -245,6 +246,7 @@ type GHInterfaceMock struct {
 var _ GHInterface = (*GHInterfaceMock)(nil)
 
 // NewClient something
+//
 //goland:noinspection GoUnusedParameter
 func (g *GHInterfaceMock) NewClient(httpClient *http.Client) GHClient {
 	return GHClient{

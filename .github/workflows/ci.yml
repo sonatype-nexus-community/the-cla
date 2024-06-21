@@ -1,0 +1,59 @@
+name: Continuous Integration
+
+# This GitHub action runs your tests for each pull request and push.
+# Optionally, you can turn it on using a schedule for regular testing.
+on:
+    pull_request:
+        paths-ignore:
+            - 'README.md'
+    push:
+        paths-ignore:
+            - 'README.md'
+
+# Testing only needs permissions to read the repository contents.
+permissions:
+    contents: read
+
+jobs:
+    # Ensure project builds before running testing matrix
+    build:
+        name: Build & Test
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '18.x'
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: 'go.mod'
+                  cache: true
+
+            - name: Build
+              run: make all
+
+            - name: Run Tests
+              run: make test
+
+    code_quality:
+        name: Code Quality
+
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+              with:
+                  # Disabling shallow clone is recommended for improving relevancy of reporting
+                  fetch-depth: 0
+
+            - name: Run Go Linter
+              uses: golangci/golangci-lint-action@v5
+              with:
+                  version: latest
