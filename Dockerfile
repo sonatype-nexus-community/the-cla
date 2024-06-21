@@ -25,7 +25,7 @@ COPY . .
 
 RUN make yarn
 
-FROM golang:1.17.13-alpine AS build
+FROM golang:1.21-alpine AS build
 LABEL stage=builder
 
 RUN apk add --no-cache build-base ca-certificates git
