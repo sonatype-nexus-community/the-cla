@@ -23,15 +23,16 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"fmt"
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/sonatype-nexus-community/the-cla/buildversion"
 	"github.com/sonatype-nexus-community/the-cla/db"
@@ -461,7 +462,7 @@ func handleRetrieveCLAText(c echo.Context) (err error) {
 		_ = resp.Body.Close()
 	}()
 
-	content, err := ioutil.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Error("failed to read cla text", zap.Error(err))
 		return
