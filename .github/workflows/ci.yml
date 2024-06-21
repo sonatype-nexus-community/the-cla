@@ -17,7 +17,7 @@ permissions:
 jobs:
     # Ensure project builds before running testing matrix
     build:
-        name: Build
+        name: Build & Test
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
@@ -35,10 +35,30 @@ jobs:
                   go-version-file: 'go.mod'
                   cache: true
 
+            - name: Build
+              run: make all
+
+            - name: Run Tests
+              run: make test
+
+    code_quality:
+        name: Code Quality
+
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+              with:
+                  # Disabling shallow clone is recommended for improving relevancy of reporting
+                  fetch-depth: 0
+
             - name: Run Go Linter
               uses: golangci/golangci-lint-action@v5
               with:
                   version: latest
 
-            - name: Build
-              run: make all
+            - name: SonarCloud Scan
+              uses: sonarsource/sonarcloud-github-action@v2.3.0
+              env:
+                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
