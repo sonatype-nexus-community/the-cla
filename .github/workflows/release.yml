@@ -18,9 +18,6 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
-            - name: Determine Releae Version from Tag
-              run: 'RELEASE_VERSION=$(echo "${{ github.ref_name }}" | cut -d ''v'' -f2) >> $GITHUB_ENV'
-
             - name: Checkout Code
               uses: actions/checkout@v4
 
@@ -40,4 +37,4 @@ jobs:
                   file: ./Dockerfile
                   platforms: linux/amd64
                   push: true
-                  tags: sonatypecommunity/the-cla:latest , sonatypecommunity/the-cla:${{ env.RELEASE_VERSION }}
+                  tags: sonatypecommunity/the-cla:latest , "sonatypecommunity/the-cla:${{ github.ref_name }}"
