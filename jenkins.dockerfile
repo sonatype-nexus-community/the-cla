@@ -16,12 +16,12 @@
 
 FROM docker-all.repo.sonatype.com/bnr/golang-1.22.1:1
 
-RUN apk update && apk install curl
+RUN apk update && apk add curl
 
 # See https://github.com/nodesource/distributions/blob/master/README.md#debinstall
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
 
-RUN apk update && apk install nodejs
+RUN apk update && apk add nodejs
 RUN npm install --global yarn
 ENV GOPATH=
 
