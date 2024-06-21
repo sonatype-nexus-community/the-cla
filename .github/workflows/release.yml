@@ -1,0 +1,43 @@
+name: Release
+
+# This GitHub action runs on each tag created
+on:
+    push:
+        tags:
+            - 'v*'
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    RELEASE_VERSION: $(echo "${{ github.ref_name }}" | cut -d 'v' -f2)
+
+permissions:
+    contents: write
+
+jobs:
+    build:
+        name: Build and Publish Docker Image
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                  username: ${{ secrets.DOCKER_HUB_USERNAME }}
+                  password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+            - name: Build and Publish
+              uses: docker/build-push-action@v5
+              with:
+                  context: .
+                  file: ./Dockerfile
+                  platforms: linux/amd64
+                  push: true
+                  tags: sonatypecommunity/the-cla:latest , sonatypecommunity/the-cla:${{ env.RELEASE_VERSION }}
