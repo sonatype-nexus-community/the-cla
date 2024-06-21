@@ -21,7 +21,7 @@ RUN apk update && apk install -y curl
 # See https://github.com/nodesource/distributions/blob/master/README.md#debinstall
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
 
-RUN apk update && apk install -y nodejs
+RUN apk update && apk install nodejs
 RUN npm install --global yarn
 ENV GOPATH=
 
