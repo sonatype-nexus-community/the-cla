@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-FROM docker-all.repo.sonatype.com/cdi/golang-1.17.1:2
+FROM docker-all.repo.sonatype.com/bnr/golang-1.22.1:1
 
 RUN apt-get update && apt-get install -y curl
 
