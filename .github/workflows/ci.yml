@@ -21,6 +21,9 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+
             - name: Setup Node
               uses: actions/setup-node@v4
               with:
@@ -31,9 +34,6 @@ jobs:
               with:
                   go-version-file: 'go.mod'
                   cache: true
-
-            - name: Checkout Code
-              uses: actions/checkout@v4
 
             - name: Run Go Linter
               uses: golangci/golangci-lint-action@v5
