@@ -9,9 +9,6 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
-env:
-    RELEASE_VERSION: $(echo "${{ github.ref_name }}" | cut -d 'v' -f2)
-
 permissions:
     contents: write
 
@@ -21,6 +18,9 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
+            - name: Determine Releae Version from Tag
+              run: 'RELEASE_VERSION=$(echo "${{ github.ref_name }}" | cut -d ''v'' -f2) >> $GITHUB_ENV'
+
             - name: Checkout Code
               uses: actions/checkout@v4
 
