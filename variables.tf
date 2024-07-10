@@ -14,50 +14,26 @@
 # limitations under the License.
 #
 
-
-variable "availability_zone_names" {
-  type = list(string)
-  default = ["us-east-1"]
-}
-
-variable "app_name" {
-  type = string
-  default = "the-cla"
-}
-
 variable "aws_region" {
-  type = string
-  default = "us-east-1"
+  description = "AWS Region that our deployment is targetting"
+  type        = string
+  default     = "eu-west-2"
 }
 
-variable "route53_zone" {
-  type = string
-  default = "example.host.com"
+variable "default_resource_tags" {
+  description = "List of tags to apply to all resources created in AWS"
+  type        = map(string)
+  default = {
+    environment : "production"
+    purpose : "sonatype-community-cla"
+    owner : "phorton@sonatype.com"
+    sonatype-group : "se"
+  }
 }
 
-variable "dns_record_name" {
-  type = string
-  default = "the-cla"
-}
-
-variable "postgres_username" {
-  type = string
-  default = "the_cla"
-  sensitive = true
-}
-
-variable "postgres_password" {
-  type = string
-  sensitive = true
-}
-
-variable "postgres_db_name" {
-  type = string 
-  default = "thecladatabase"
-  sensitive = true
-}
-
-variable "external_db_cidr_group" {
-  type = string
-  sensitive = true
+# See https://docs.sonatype.com/display/OPS/Shared+Infrastructure+Initiative
+variable "environment" {
+  description = "Used as part of Sonatype's Shared AWS Infrastructure"
+  type        = string
+  default     = "production"
 }
