@@ -14,10 +14,7 @@
 # limitations under the License.
 #
 
-################################################################################
-# Connect to our k8s Cluster
-################################################################################
-provider "kubernetes" {
-  config_path    = "~/.kube/config"
-  config_context = module.shared.eks_cluster_arn
+locals {
+  cla_db_username  = "the_cla_bot"
+  cla_db_name = "the_cla"
 }
