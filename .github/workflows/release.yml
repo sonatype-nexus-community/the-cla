@@ -15,8 +15,6 @@ permissions:
 jobs:
     build:
         name: Build and Publish Docker Image
-        env:
-            REACT_APP_GITHUB_CLIENT_ID: ${{ secrets.REACT_APP_GITHUB_CLIENT_ID }}
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -31,6 +29,9 @@ jobs:
               with:
                   username: ${{ secrets.DOCKER_HUB_USERNAME }}
                   password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+            - name: Create .env file for Docker Build
+              run: echo "REACT_APP_GITHUB_CLIENT_ID=${{ secrets.REACT_APP_GITHUB_CLIENT_ID }} > .env"
 
             - name: Build and Publish
               uses: docker/build-push-action@v5
