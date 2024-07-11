@@ -33,8 +33,8 @@ docker:
 build: yarn go-build
 
 yarn:
-	yarn && NODE_OPTIONS=--openssl-legacy-provider yarn build
-# && yarn version --new-version $(VERSION)
+	corepack yarn && NODE_OPTIONS=--openssl-legacy-provider corepack yarn build
+# && corepack yarn version --new-version $(VERSION)
 
 go-build:
 	echo "VERSION: $(VERSION)"
