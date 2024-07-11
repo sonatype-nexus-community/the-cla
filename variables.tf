@@ -31,6 +31,30 @@ variable "default_resource_tags" {
   }
 }
 
+variable "the_cla_pem" {
+  description = "See the-cla.pem"
+  type = string
+  sensitive = true
+}
+
+variable "env_gh_app_id" {
+  description = "See GH_APP_ID"
+  type = string
+  sensitive = true
+}
+
+variable "env_github_client_secret" {
+  description = "See GITHUB_CLIENT_SECRET"
+  type = string
+  sensitive = true
+}
+
+variable "env_github_webhook_secret" {
+  description = "See GH_WEBHOOK_SECRET"
+  type = string
+  sensitive = true
+}
+
 # See https://docs.sonatype.com/display/OPS/Shared+Infrastructure+Initiative
 variable "environment" {
   description = "Used as part of Sonatype's Shared AWS Infrastructure"

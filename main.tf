@@ -32,7 +32,14 @@ resource "kubernetes_secret" "the_cla" {
     namespace   = kubernetes_namespace.the_cla.metadata[0].name
   }
 
+  binary_data = {
+    "the-cla.pem"   = "${var.the_cla_pem}"
+  }
+
   data = {
+    "env_gh_app_id" = var.env_gh_app_id
+    "env_github_client_secret" = var.env_github_client_secret
+    "env_github_webhook_secret" = var.env_github_webhook_secret
     "psql_password" = module.database.user_password
   }
 
@@ -71,6 +78,36 @@ resource "kubernetes_deployment" "the_cla" {
           image             = "sonatypecommunity/the-cla:latest"
           name              = "the-cla"
           image_pull_policy = "IfNotPresent"
+
+          env {
+            name = "GITHUB_CLIENT_SECRET"
+            value_from {
+              secret_key_ref {
+                name = "the-cla"
+                key  = "env_github_client_secret"
+              }
+            }
+          }
+
+          env {
+            name = "GH_APP_ID"
+            value_from {
+              secret_key_ref {
+                name = "the-cla"
+                key  = "env_gh_app_id"
+              }
+            }
+          }
+
+          env {
+            name = "GH_WEBHOOK_SECRET"
+            value_from {
+              secret_key_ref {
+                name = "the-cla"
+                key  = "env_github_webhook_secret"
+              }
+            }
+          }
 
           env {
             name = "PG_HOST"
@@ -116,18 +153,22 @@ resource "kubernetes_deployment" "the_cla" {
           #   run_as_user = 1000
           # }
 
-          # volume_mount {
-          #   mount_path = "/the-cla-secrets"
-          #   name       = "the-cla-secrets"
-          # }
+          volume_mount {
+            mount_path = "/the-cla-secrets"
+            name       = "the-cla-secrets"
+          }
         }
 
-        # volume {
-        #   name = "the-cla-secrets"
-        #   secret {
-        #     secret_name = "the-cla"
-        #   }
-        # }
+        volume {
+          name = "the-cla-secrets"
+          secret {
+            secret_name = "the-cla"
+            items {
+              key = "the-cla.pem"
+              path = "the-cla.pem"
+            }
+          }
+        }
 
         # volume {
         #   name = "nxiq-data"
@@ -193,7 +234,7 @@ resource "kubernetes_ingress_v1" "the_cla" {
       "alb.ingress.kubernetes.io/group.name"      = "the-cla-${terraform.workspace}"
       # "alb.ingress.kubernetes.io/healthcheck-path"= "/assets/index.html"
       # "alb.ingress.kubernetes.io/inbound-cidrs"   = join(", ", var.ip_cidr_whitelist)
-      "alb.ingress.kubernetes.io/scheme"          = "internal"
+      "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
       "alb.ingress.kubernetes.io/certificate-arn" = module.shared_private.bma_cert_arn
       "external-dns.alpha.kubernetes.io/hostname" = "the-cla.${module.shared_private.dns_zone_bma_name}"
     }
