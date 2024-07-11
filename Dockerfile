@@ -15,6 +15,7 @@
 #
 
 FROM node:18-alpine3.18 as yarn-build
+ARG REACT_APP_GITHUB_CLIENT_ID=FAKE_ID
 LABEL stage=builder
 
 RUN apk add --no-cache build-base
@@ -23,7 +24,7 @@ WORKDIR /src
 
 COPY . .
 
-RUN make yarn
+RUN REACT_APP_GITHUB_CLIENT_ID=$REACT_APP_GITHUB_CLIENT_ID make yarn
 
 FROM golang:1.21-alpine AS build
 LABEL stage=builder
