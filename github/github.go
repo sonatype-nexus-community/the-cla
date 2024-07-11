@@ -22,12 +22,13 @@ package github
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v42/github"
@@ -36,7 +37,16 @@ import (
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
 
-const FilenameTheClaPem string = "the-cla.pem"
+func getpemlocation() string {
+	fromenv := os.Getenv("CLA_PEM_FILE")
+	if len(fromenv) == 0 {
+		return "the-cla.pem"
+	}
+	return fromenv
+}
+
+var FilenameTheClaPem string = getpemlocation()
+
 const EnvGhAppId = "GH_APP_ID"
 
 // RepositoriesService handles communication with the repository related methods

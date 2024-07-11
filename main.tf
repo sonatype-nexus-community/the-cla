@@ -75,9 +75,14 @@ resource "kubernetes_deployment" "the_cla" {
 
       spec {
         container {
-          image             = "sonatypecommunity/the-cla:latest"
+          image             = "sonatypecommunity/the-cla:v0.0.3"
           name              = "the-cla"
           image_pull_policy = "IfNotPresent"
+
+          env {
+            name = "CLA_PEM_FILE"
+            value = "/the-cla-secrets/the-cla.pem"
+          }
 
           env {
             name = "GITHUB_CLIENT_SECRET"
