@@ -40,6 +40,7 @@ resource "kubernetes_secret" "the_cla" {
     "env_gh_app_id" = var.env_gh_app_id
     "env_github_client_secret" = var.env_github_client_secret
     "env_github_webhook_secret" = var.env_github_webhook_secret
+    "env_react_app_gh_client_id" = var.env_react_app_gh_client_id
     "psql_password" = module.database.user_password
   }
 
@@ -75,9 +76,14 @@ resource "kubernetes_deployment" "the_cla" {
 
       spec {
         container {
-          image             = "sonatypecommunity/the-cla:v0.0.3"
+          image             = "sonatypecommunity/the-cla:v0.0.7"
           name              = "the-cla"
           image_pull_policy = "IfNotPresent"
+
+          env {
+            name = "CLA_URL"
+            value = "https://s3.amazonaws.com/sonatype-cla/cla.txt"
+          }
 
           env {
             name = "CLA_PEM_FILE"
@@ -110,6 +116,16 @@ resource "kubernetes_deployment" "the_cla" {
               secret_key_ref {
                 name = "the-cla"
                 key  = "env_github_webhook_secret"
+              }
+            }
+          }
+
+          env {
+            name = "REACT_APP_GITHUB_CLIENT_ID"
+            value_from {
+              secret_key_ref {
+                name = "the-cla"
+                key  = "env_react_app_gh_client_id"
               }
             }
           }

@@ -55,6 +55,12 @@ variable "env_github_webhook_secret" {
   sensitive = true
 }
 
+variable "env_react_app_gh_client_id" {
+  description = "See REACT_APP_GITHUB_CLIENT_ID"
+  type = string
+  sensitive = true
+}
+
 # See https://docs.sonatype.com/display/OPS/Shared+Infrastructure+Initiative
 variable "environment" {
   description = "Used as part of Sonatype's Shared AWS Infrastructure"
