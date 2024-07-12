@@ -14,7 +14,19 @@
 # limitations under the License.
 #
 
+resource "random_string" "info_username_suffix" {
+  length  = 10
+  special = false
+}
+
+resource "random_string" "info_user_password" {
+  length  = 20
+  special = false
+}
+
 locals {
   cla_db_username  = "the_cla_bot"
   cla_db_name = "the_cla"
+  info_username = "info-user-${random_string.info_username_suffix.result}"
+  info_password = "${random_string.info_user_password.result}"
 }
