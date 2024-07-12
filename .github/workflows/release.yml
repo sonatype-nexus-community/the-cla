@@ -33,7 +33,12 @@ jobs:
             - name: Build and Publish
               uses: docker/build-push-action@v5
               with:
-                  build-args: REACT_APP_GITHUB_CLIENT_ID=${{ secrets.REACT_APP_GITHUB_CLIENT_ID }}
+                  build-args: |
+                      REACT_APP_COMPANY_NAME=${{ secrets.REACT_APP_COMPANY_NAME }}
+                      REACT_APP_COMPANY_WEBSITE=${{ secrets.REACT_APP_COMPANY_WEBSITE }}
+                      REACT_APP_CLA_APP_NAME=${{ secrets.REACT_APP_CLA_APP_NAME }}
+                      REACT_APP_CLA_VERSION=${{ secrets.REACT_APP_CLA_VERSION }}
+                      REACT_APP_GITHUB_CLIENT_ID=${{ secrets.REACT_APP_GITHUB_CLIENT_ID }}
                   context: .
                   file: ./Dockerfile
                   platforms: linux/amd64
