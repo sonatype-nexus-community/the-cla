@@ -10,6 +10,9 @@ on:
         branches:
             - main
 
+env:
+    LC_APPLICATION_ID: $(echo "${{ github.repository }}" | cut -d '/' -f2)
+
 # Testing only needs permissions to read the repository contents.
 permissions:
     contents: read
@@ -43,7 +46,6 @@ jobs:
 
     code_quality:
         name: Code Quality
-
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
@@ -53,7 +55,23 @@ jobs:
                   # Disabling shallow clone is recommended for improving relevancy of reporting
                   fetch-depth: 0
 
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: 'go.mod'
+                  cache: true
+
             - name: Run Go Linter
               uses: golangci/golangci-lint-action@v5
               with:
                   version: latest
+
+            - name: Sonatype Lifecycle Evaluation
+              uses: sonatype-nexus-community/iq-github-action@master
+              with:
+                  serverUrl: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
+                  username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
+                  password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
+                  applicationId: ${{ env.LC_APPLICATION_ID }}
+                  stage: Build
+                  target: .

@@ -46,3 +46,7 @@ docker.sh
 
 # sonatype
 .sonatype-config
+
+# act files
+.my-secrets
+.my-vars
