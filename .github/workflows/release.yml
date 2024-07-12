@@ -15,6 +15,8 @@ permissions:
 jobs:
     build:
         name: Build and Publish Docker Image
+        env:
+            THIS_VERSION: $(echo "${{ github.ref_name }}" | cut -d 'v' -f2)
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -30,10 +32,18 @@ jobs:
                   username: ${{ secrets.DOCKER_HUB_USERNAME }}
                   password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
+            - name: Set Yarn Version
+              run: yarn version --new-version ${{ env.THIS_VERSION }}
+
             - name: Build and Publish
               uses: docker/build-push-action@v5
               with:
-                  build-args: REACT_APP_GITHUB_CLIENT_ID=${{ secrets.REACT_APP_GITHUB_CLIENT_ID }}
+                  build-args: |
+                      REACT_APP_COMPANY_NAME=${{ secrets.REACT_APP_COMPANY_NAME }}
+                      REACT_APP_COMPANY_WEBSITE=${{ secrets.REACT_APP_COMPANY_WEBSITE }}
+                      REACT_APP_CLA_APP_NAME=${{ secrets.REACT_APP_CLA_APP_NAME }}
+                      REACT_APP_CLA_VERSION=${{ secrets.REACT_APP_CLA_VERSION }}
+                      REACT_APP_GITHUB_CLIENT_ID=${{ secrets.REACT_APP_GITHUB_CLIENT_ID }}
                   context: .
                   file: ./Dockerfile
                   platforms: linux/amd64

@@ -41,6 +41,7 @@ resource "kubernetes_secret" "the_cla" {
     "env_github_client_secret" = var.env_github_client_secret
     "env_github_webhook_secret" = var.env_github_webhook_secret
     "env_react_app_gh_client_id" = var.env_react_app_gh_client_id
+    "info_password" = local.info_password
     "psql_password" = module.database.user_password
   }
 
@@ -82,7 +83,7 @@ resource "kubernetes_deployment" "the_cla" {
 
           env {
             name = "CLA_URL"
-            value = "https://s3.amazonaws.com/sonatype-cla/cla.txt"
+            value = var.env_cla_url
           }
 
           env {
@@ -131,6 +132,41 @@ resource "kubernetes_deployment" "the_cla" {
           }
 
           env {
+            name = "REACT_APP_COMPANY_NAME"
+            value = var.env_react_app_company_name
+          }
+          
+          env {
+            name = "REACT_APP_COMPANY_WEBSITE"
+            value = var.env_react_app_company_website
+          }
+
+          env {
+            name = "REACT_APP_CLA_APP_NAME"
+            value = var.env_react_app_cla_app_name
+          }
+
+          env {
+            name = "REACT_APP_CLA_VERSION"
+            value = var.env_react_app_cla_version
+          }
+
+          env {
+            name = "INFO_USERNAME"
+            value = local.info_username
+          }
+
+          env {
+            name = "INFO_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = "the-cla"
+                key  = "info_password"
+              }
+            }
+          }
+
+          env {
             name = "PG_HOST"
             value = module.shared.pgsql_cluster_endpoint_write
           }
@@ -169,10 +205,6 @@ resource "kubernetes_deployment" "the_cla" {
             name           = "app"
             container_port = 4200
           }
-
-          # security_context {
-          #   run_as_user = 1000
-          # }
 
           volume_mount {
             mount_path = "/the-cla-secrets"
