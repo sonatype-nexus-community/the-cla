@@ -17,73 +17,24 @@
 -->
 <img src="https://github.com/sonatype-nexus-community/the-cla/raw/main/src/Header/theeecla.svg" width="100" alt="TheCla Logo"/>
 
-[![sonatype-nexus-community](https://circleci.com/gh/sonatype-nexus-community/the-cla.svg?style=shield)](https://circleci.com/gh/sonatype-nexus-community/the-cla)
-# THE-CLA
+<!-- Badges Section -->
+[![shield_gh-workflow-test]][link_gh-workflow-test]
+[![shield_license]][license_file]
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=sonatype-nexus-community_the-cla&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=sonatype-nexus-community_the-cla)
 
-The-Cla is an app written in Golang/React for getting CLA signatures. This is just a proof of concept at time being, use at your own risk.
+# The CLA a.k.a. `Paul Botsco`
 
-## Development
+The CLA is an app written in Golang & React for getting CLA signatures. This is just a proof of concept at time being, use at your own risk.
 
-### Setup
-
-To get started with this project you will need:
-
-- Golang (project started using Go 1.16.2, but likely anything above 1.14 is fine)
-- Yarn/NodeJS
-- Air
-
-To install air:
-
-- https://github.com/cosmtrek/air
-
-You can run:
-
-- `go get -u github.com/cosmtrek/air` in a folder outside this project (so it is not added as a dependency).
-
-  The `air` binary will be located in your `~/go/bin` folder, which may need to added to your commands and/or path.
-  The [AIRCMD](Makefile#L6) setting in the Makefile may need to be adjusted if a different location is used.
-
-### Running/Developing
-
-Thanks to Air, there is some amount of "live-reload". To run the project, you can run `air -c .air.toml` in the project root. Once it is built, you should be able to access the site at `http://localhost:4200/`
-
-Any code changes to golang/react files will cause a rebuild and restart, and will be accessible via the browser with a refresh!
-
-For local development, a good first step is to copy the example `.env.example` file to `.env` and launch a local db
-and `air` like so:
-```shell
-cp .example.env .env
-make run-air
-```
-
-For some fun interactive debugging with [server.go](./server.go), you could spin up the local docker db image, and manually run
-the server in debug more. See the [Makefile](./Makefile) for the latest and greatest commands to cherry-pick.
-```shell
-$ docker run --name the_cla_postgres -p 5432:5432 -e POSTGRES_PASSWORD=the_cla -e POSTGRES_DB=db -d postgres
-34b413c68663b28d722fe2503b869a03bd2808e1facdcbbf5dde8a1ac0f6beb9...
-```
-Then run [server.go](./server.go) in debug mode in your favorite IDE, and enjoy break points activating when you connect to
-endpoints. Wee!
-
-For frontend work (with a previously manually launched database), this command is helpful for development:
-```shell
-make run-air-alone
-```
-
-#### Docker
-
-Alternatively, if you just want to play around lightly, you can run the docker commands below. First set up
-your environment as described in [App environment configuration](#app-environment-configuration), otherwise much may not
-work, and you will miss out on much goodness.
-
-- `make docker`
-- `docker run -p 4200:4200 the-cla`
-
-This will be a lot slower, but you can build and run the entire application with only `docker` (and `make`) installed, essentially.
+Inspired by [DoctoR-CLAw](https://github.com/salesforce/dr-cla).
 
 ## Deployment
 
-### GitHub
+The CLA is built as a Container Image and published to Docker Hub - see it [here](https://hub.docker.com/r/sonatypecommunity/the-cla).
+
+Prior to deploying The CLA, you need to get configuration organised in GitHub itself, and have your CLA text published somewhere public (ours is published to a public AWS S3 Bucket at `https://s3.amazonaws.com/sonatype-cla/cla.txt`).
+
+### GitHub Configuration
 
 #### GitHub oAuth Application
 
@@ -150,9 +101,9 @@ Set `GH_APP_ID` in `.env` to the ID for your app that was just generated!
 
 Move on to the next section!
 
-#### App environment configuration
+#### App Environment Configuration
 
-Configuration of `the-cla` is handled via a `.env` file in the repo (this is ignored by git by default, so you don't check in secrets):
+Configuration of `the-cla` is handled via a `.env` file in the repo (this is ignored by git by default, so you don't check in secrets) OR you can set the same environment variables using your preferred method in a Kubernetes world - see [main.tf](./main.tf) for an example as to how we use Environment Variables when deploying to Kubernetes.
 
 A `.example.env` has been provided that looks similar to the following:
 
@@ -203,89 +154,25 @@ To verify `the-cla` is working, you can create a new Pull Request in a repositor
 You can view the deliveries made by the app in the `Advanced` tab (after clicking `Edit`) of [Developer Settings - GitHub Apps](https://github.com/settings/apps)
 for your `Paul Botsco` GitHub App.
 
-### Deploy Application to AWS
+## Development
 
-Thankfully, we've made this as simple as possible, we think? It'll get simpler with time, I'm sure :)
-
-You will need:
-
-- `terraform`
-- `aws cli`
-- `aws-vault`
-- `docker`
-
-#### Terraform
-
-- `aws-vault exec <your_profile> terraform init`
-- `aws-vault exec <your_profile> terraform apply`
-
-This should create all the nice lil AWS resources to manage this application, using ECS and ECR!
-
-#### Docker
-
-To create the docker image:
-
-- `make docker`
-
-#### Deployment
-
-Some pre-requisite/one-time setup steps:
-
-* setup aws cli configuration to verify working credentials. see: [AWS CLI on mac](https://docs.aws.amazon.com/cli/latest/userguide/install-macos.html)
-
-* install `aws-vault`
-
-      $ brew install --cask aws-vault
-
-* add aws-vault profile ("<your_profile>" in steps below) for use in pushing images
-
-      $ aws-vault add my-bbash-profile
-
-* (One-time) initialize terraform
-
-      $ aws-vault exec <your_profile> terraform init
-
-* View terraform actions to be taken:
-
-      $ aws-vault exec <your_profile> terraform plan
-
-
-An executable bash script (`docker.sh`?) similar to the following will make pushing images easier:
-
-```bash
-#!/bin/bash
-aws-vault exec <your_profile> aws ecr get-login-password --region <aws_region> | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.<aws_region>.amazonaws.com
-docker tag the-cla:latest <aws_account_id>.dkr.ecr.<aws_region>.amazonaws.com/the-cla-app:latest
-docker push <aws_account_id>.dkr.ecr.<aws_region>.amazonaws.com/the-cla-app:latest
-aws-vault exec <your_profile> -- aws ecs update-service --cluster the-cla-cluster --service the-cla-service --force-new-deployment
-```
-
-Replace the stuff in the `<>` with your values (and remove the `<>` characters if that isn't immediately apparent), `chmod +x docker.sh`, and `./docker.sh`
-
-After you have done this, you SHOULD have a running service, somewhere in AWS :)
-
-With all the above configured, here's the deployment command in full:
-
-    make && make docker && ./docker.sh
-
-### Helpful Links:
-
-[Echo](https://echo.labstack.com) web framework. [repo](https://github.com/labstack/echo)
-
-Inspired by [DoctoR-CLAw](https://github.com/salesforce/dr-cla)
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
 
 ## The Fine Print
 
-It is worth noting that this is **NOT SUPPORTED** by Sonatype, and is a contribution of ours
-to the open source community (read: you!)
-
 Remember:
 
-* Use this contribution at the risk tolerance that you have
-* Do NOT file Sonatype support tickets related to `the-claw` support in regard to this project
-* DO file issues here on GitHub, so that the community can pitch in
+This project is part of the [Sonatype Nexus Community](https://github.com/sonatype-nexus-community) organization, which is not officially supported by Sonatype. Please review the latest pull requests, issues, and commits to understand this project's readiness for contribution and use.
 
-Phew, that was easier than I thought. Last but not least of all:
+* File suggestions and requests on this repo through GitHub Issues, so that the community can pitch in
+* Use or contribute to this project according to your organization's policies and your own risk tolerance
+* Don't file Sonatype support tickets related to this project— it won't reach the right people that way
 
-Have fun creating and using `the-claw`, we are glad to have you here!
+Last but not least of all - have fun!
 
+<!-- Links Section -->
+[shield_gh-workflow-test]: https://img.shields.io/github/actions/workflow/status/sonatype-nexus-community/the-cla/ci.yml?branch=main&logo=GitHub&logoColor=white "build"
+[shield_license]: https://img.shields.io/github/license/sonatype-nexus-community/the-cla?logo=open%20source%20initiative&logoColor=white "license"
+
+[link_gh-workflow-test]: https://github.com/sonatype-nexus-community/the-cla/actions/workflows/ci.yml?query=branch%3Amain
+[license_file]: https://github.com/sonatype-nexus-community/the-cla/blob/main/LICENSE
