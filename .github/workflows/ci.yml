@@ -67,11 +67,11 @@ jobs:
                   version: latest
 
             - name: Sonatype Lifecycle Evaluation
-              uses: sonatype-nexus-community/iq-github-action@master
+              uses: sonatype-nexus-community/iq-github-action@v2
               with:
                   serverUrl: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
                   username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   applicationId: ${{ env.LC_APPLICATION_ID }}
                   stage: Build
-                  target: .
+                  target: /
