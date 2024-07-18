@@ -77,7 +77,7 @@ jobs:
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   applicationId: ${{ env.LC_APPLICATION_ID }}
                   stage: Release
-                  targets: 'container:node:18-alpine3.18 ${{ github.workspace }}'
+                  targets: 'container:node:18-alpine3.18 /github/workspace'
                   #   targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.ref_name }} ${{ github.workspace }}'
 
     code_quality:
