@@ -48,7 +48,7 @@ jobs:
                   context: .
                   file: ./Dockerfile
                   load: true
-                  platforms: linux/arm64
+                  platforms: linux/amd64
                   tags: sonatypecommunity/the-cla:latest , sonatypecommunity/the-cla:${{ github.ref_name }}
 
             # @todo: replace with composite `evaluate` action once fixed
