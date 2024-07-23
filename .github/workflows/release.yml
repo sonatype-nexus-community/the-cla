@@ -51,28 +51,39 @@ jobs:
                   platforms: linux/arm64
                   tags: sonatypecommunity/the-cla:latest , sonatypecommunity/the-cla:${{ github.ref_name }}
 
-            - name: Sonatype Lifecycle Evaluation
-              uses: sonatype-nexus-community/iq-github-action@db383e18b47e0afb291fde94345d8b70a85fcb5f
+            # @todo: replace with composite `evaluate` action once fixed
+            - name: Setup Sonatype CLI
+              uses: sonatype/actions/setup-iq-cli@v1
               with:
-                  serverUrl: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
+                  iq-cli-version: latest
+
+            - uses: actions/setup-java@v4
+              with:
+                  distribution: 'temurin'
+                  java-version: '17'
+
+            - name: Sonatype Lifecycle Evaluation
+              id: evaluate
+              uses: sonatype/actions/run-iq-cli@v1
+              with:
+                  iq-server-url: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
                   username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
-                  applicationId: ${{ env.LC_APPLICATION_ID }}
-                  stage: Release
-                  targets: 'container:node:18-alpine3.18 ${{ github.workspace }}'
-                  #   targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.ref_name }} ${{ github.workspace }}'
+                  application-id: ${{ env.LC_APPLICATION_ID }}
+                  scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.ref_name }} ${{ github.workspace }}'
+                  stage: release
 
-            # - name: Build and Publish
-            #   uses: docker/build-push-action@v5
-            #   with:
-            #       build-args: |
-            #           REACT_APP_COMPANY_NAME=${{ secrets.REACT_APP_COMPANY_NAME }}
-            #           REACT_APP_COMPANY_WEBSITE=${{ secrets.REACT_APP_COMPANY_WEBSITE }}
-            #           REACT_APP_CLA_APP_NAME=${{ secrets.REACT_APP_CLA_APP_NAME }}
-            #           REACT_APP_CLA_VERSION=${{ secrets.REACT_APP_CLA_VERSION }}
-            #           REACT_APP_GITHUB_CLIENT_ID=${{ secrets.REACT_APP_GITHUB_CLIENT_ID }}
-            #       context: .
-            #       file: ./Dockerfile
-            #       platforms: linux/amd64
-            #       push: true
-            #       tags: sonatypecommunity/the-cla:latest , sonatypecommunity/the-cla:${{ github.ref_name }}
+            - name: Build and Publish
+              uses: docker/build-push-action@v5
+              with:
+                  build-args: |
+                      REACT_APP_COMPANY_NAME=${{ secrets.REACT_APP_COMPANY_NAME }}
+                      REACT_APP_COMPANY_WEBSITE=${{ secrets.REACT_APP_COMPANY_WEBSITE }}
+                      REACT_APP_CLA_APP_NAME=${{ secrets.REACT_APP_CLA_APP_NAME }}
+                      REACT_APP_CLA_VERSION=${{ secrets.REACT_APP_CLA_VERSION }}
+                      REACT_APP_GITHUB_CLIENT_ID=${{ secrets.REACT_APP_GITHUB_CLIENT_ID }}
+                  context: .
+                  file: ./Dockerfile
+                  platforms: linux/amd64
+                  push: true
+                  tags: sonatypecommunity/the-cla:latest , sonatypecommunity/the-cla:${{ github.ref_name }}

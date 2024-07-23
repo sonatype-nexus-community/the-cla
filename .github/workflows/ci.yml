@@ -60,25 +60,14 @@ jobs:
                   username: ${{ secrets.DOCKER_HUB_USERNAME }}
                   password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-            # - name: Build Container and export to Docker
-            #   uses: docker/build-push-action@v6
-            #   with:
-            #       context: .
-            #       file: ./Dockerfile
-            #       load: true
-            #       platforms: linux/arm64
-            #       tags: sonatypecommunity/the-cla:${{ github.ref_name }}
-
-            # - name: Sonatype Lifecycle Evaluation
-            #   uses: sonatype-nexus-community/iq-github-action@db383e18b47e0afb291fde94345d8b70a85fcb5f
-            #   with:
-            #       serverUrl: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
-            #       username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
-            #       password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
-            #       applicationId: ${{ env.LC_APPLICATION_ID }}
-            #       stage: Release
-            #       targets: 'container:node:18-alpine3.18 /github/workspace'
-            #       #   targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.ref_name }} ${{ github.workspace }}'
+            - name: Build Container and export to Docker
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./Dockerfile
+                  load: true
+                  platforms: linux/arm64
+                  tags: sonatypecommunity/the-cla:${{ github.ref_name }}
 
             # @todo: replace with composite `evaluate` action once fixed
             - name: Setup Sonatype CLI
@@ -99,11 +88,7 @@ jobs:
                   username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
-                  stage: stage-release
-                  scan-targets: 'container:node:18-alpine3.18'
-
-            - name: Log evaluate action output
-              run: echo "${{ steps.evaluate.outputs.scan-id }} ${{ steps.evaluate.outputs.report-url }}"
+                  scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.ref_name }} ${{ github.workspace }}'
 
     code_quality:
         name: Code Quality
@@ -147,6 +132,3 @@ jobs:
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
                   scan-targets: '${{ github.workspace }}'
-
-            - name: Log evaluate action output
-              run: echo "${{ steps.evaluate.outputs.scan-id }} ${{ steps.evaluate.outputs.report-url }}"
