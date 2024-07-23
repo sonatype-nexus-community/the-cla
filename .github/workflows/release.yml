@@ -11,7 +11,7 @@ concurrency:
     cancel-in-progress: true
 
 env:
-    LC_APPLICATION_ID: $(echo "${{ github.repository }}" | cut -d '/' -f2)
+    LC_APPLICATION_ID: the-cla
 
 permissions:
     contents: write

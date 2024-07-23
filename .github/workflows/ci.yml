@@ -67,7 +67,7 @@ jobs:
                   file: ./Dockerfile
                   load: true
                   platforms: linux/arm64
-                  tags: sonatypecommunity/the-cla:${{ github.ref_name }}
+                  tags: sonatypecommunity/the-cla:${{ github.sha }}
 
             # @todo: replace with composite `evaluate` action once fixed
             - name: Setup Sonatype CLI
@@ -88,7 +88,7 @@ jobs:
                   username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
-                  scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.ref_name }} ${{ github.workspace }}'
+                  scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.sha }} ${{ github.workspace }}'
 
     code_quality:
         name: Code Quality
