@@ -132,3 +132,4 @@ jobs:
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
                   scan-targets: '${{ github.workspace }}'
+                  module-exclude: '*iq-cli.jar'

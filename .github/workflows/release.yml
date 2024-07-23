@@ -72,6 +72,7 @@ jobs:
                   application-id: ${{ env.LC_APPLICATION_ID }}
                   scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.ref_name }} ${{ github.workspace }}'
                   stage: release
+                  module-exclude: '*iq-cli.jar'
 
             - name: Build and Publish
               uses: docker/build-push-action@v5
