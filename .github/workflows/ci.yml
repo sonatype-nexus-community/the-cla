@@ -120,7 +120,7 @@ jobs:
                   username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
-                  scan-targets: /
+                  scan-targets: '.'
 
             - name: Log evaluate action output
               run: echo "${{ steps.evaluate.outputs.scan-id }} ${{ steps.evaluate.outputs.report-url }}"
