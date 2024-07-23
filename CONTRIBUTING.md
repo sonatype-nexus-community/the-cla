@@ -94,4 +94,4 @@ Please send Pull Requests that:
 1. Have a singluar purpose, and that is backed by one or more GitHub Issues in this project
 2. Are clear
 3. Have appropriate test coverage for the Pull Requests purpose
-4. Meet our Code Style Convention (see [above](#develpoment-guidelines))
+4. Meet our Code Style Convention (see [above](#development-guidelines))
