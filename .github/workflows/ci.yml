@@ -79,14 +79,6 @@ jobs:
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
                   scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.sha }} ${{ github.workspace }}'
-                  module-exclude: '*iq-cli.jar'
-
-    container:
-        name: Container Build & Test
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout Code
-              uses: actions/checkout@v4
 
     code_quality:
         name: Code Quality
