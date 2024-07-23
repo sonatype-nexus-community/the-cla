@@ -102,7 +102,7 @@ jobs:
                   username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
-                  scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.sha }} yarn.lock **/*.js **/*.ts **/*.tgz **/*go.sum'
+                  scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.sha }} .'
 
     code_quality:
         name: Code Quality
