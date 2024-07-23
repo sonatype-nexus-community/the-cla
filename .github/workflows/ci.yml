@@ -102,12 +102,20 @@ jobs:
               with:
                   version: latest
 
-            - name: Sonatype Lifecycle Evaluation
-              uses: sonatype-nexus-community/iq-github-action@v2
+            - name: Setup Sonatype CLI
+              uses: sonatype/actions/setup-iq-cli@v1
               with:
-                  serverUrl: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
-                  username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
-                  password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
-                  applicationId: ${{ env.LC_APPLICATION_ID }}
-                  stage: Build
-                  target: /
+                iq-cli-version: latest
+
+            - name: Sonatype Lifecycle Evaluation
+              id: evaluate
+              uses: sonatype/actions/evaluate@v1
+              with:
+                iq-server-url: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
+                username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
+                password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
+                application-id: ${{ env.LC_APPLICATION_ID }}
+                scan-targets: /
+
+            - name: Log evaluate action output
+              run: echo "${{ steps.evaluate.outputs.scan-id }} ${{ steps.evaluate.outputs.report-url }}"
