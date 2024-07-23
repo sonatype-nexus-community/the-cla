@@ -12,6 +12,7 @@
     "web-vitals": "^2.1.2"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.0.0",
     "@testing-library/jest-dom": "^5.16.1",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^12.1.10",
@@ -24,7 +25,8 @@
     "typescript": "^4.5.2"
   },
   "peerDependencies": {
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "@testing-library/dom": "^10.0.0"
   },
   "resolutions": {
     "ramda": "^0.27.2",
