@@ -64,7 +64,9 @@ jobs:
 
             # See https://help.sonatype.com/en/npm-application-analysis.html
             - name: Install Production Node Dependencies
-              run: yarn install --prod
+              run: |
+                  yarn install --prod
+                  ls -al
 
             - name: Login to Docker Hub
               uses: docker/login-action@v3
@@ -101,6 +103,7 @@ jobs:
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
                   scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.sha }} **/*yarn.lock **/*.js **/*.ts **/*.tgz **/*go.sum'
+                  debug: true
 
     code_quality:
         name: Code Quality
