@@ -67,7 +67,7 @@ make run-air-alone
 #### Docker
 
 Alternatively, if you just want to play around lightly, you can run the docker commands below. First set up
-your environment as described in [App environment configuration](#app-environment-configuration), otherwise much may not
+your environment as described in [App environment configuration](README.md#app-environment-configuration), otherwise much may not
 work, and you will miss out on much goodness.
 
 - `make docker`
@@ -94,4 +94,4 @@ Please send Pull Requests that:
 1. Have a singluar purpose, and that is backed by one or more GitHub Issues in this project
 2. Are clear
 3. Have appropriate test coverage for the Pull Requests purpose
-4. Meet our Code Style Convention (see [above](#develpoment-guidelines))
+4. Meet our Code Style Convention (see [above](#development-guidelines))

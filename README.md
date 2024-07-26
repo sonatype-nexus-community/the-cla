@@ -32,7 +32,9 @@ Inspired by [DoctoR-CLAw](https://github.com/salesforce/dr-cla).
 
 The CLA is built as a Container Image and published to Docker Hub - see it [here](https://hub.docker.com/r/sonatypecommunity/the-cla).
 
-Prior to deploying The CLA, you need to get configuration organised in GitHub itself, and have your CLA text published somewhere public (ours is published to a public AWS S3 Bucket at `https://s3.amazonaws.com/sonatype-cla/cla.txt`).
+Prior to deploying The CLA, you need to get configuration organised in GitHub itself, and have your CLA text published somewhere public
+(ours is published to a public AWS S3 Bucket at `https://s3.amazonaws.com/sonatype-cla/cla.txt`, <- S3 bucket ownership info is stored in
+BitWarden under "Sonatype Community" collection, "the-cla" secure note).
 
 ### GitHub Configuration
 
