@@ -64,9 +64,7 @@ jobs:
 
             # See https://help.sonatype.com/en/npm-application-analysis.html
             - name: Install Production Node Dependencies
-              run: |
-                  yarn install --prod
-                  ls -al
+              run: yarn install --prod
 
             - name: Login to Docker Hub
               uses: docker/login-action@v3
@@ -83,20 +81,9 @@ jobs:
                   platforms: linux/amd64
                   tags: sonatypecommunity/the-cla:${{ github.sha }}
 
-            # @todo: replace with composite `evaluate` action once fixed
-            - name: Setup Sonatype CLI
-              uses: sonatype/actions/setup-iq-cli@v1
-              with:
-                  iq-cli-version: latest
-
-            - uses: actions/setup-java@v4
-              with:
-                  distribution: 'temurin'
-                  java-version: '17'
-
             - name: Sonatype Lifecycle Evaluation
               id: evaluate
-              uses: sonatype/actions/run-iq-cli@v1
+              uses: sonatype/actions/evaluate@v1
               with:
                   iq-server-url: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
                   username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
