@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-FROM node:18-alpine3.18 as yarn-build
+FROM node:18-alpine3.18 AS yarn-build
 ARG REACT_APP_COMPANY_NAME=A Company Name Here
 ARG REACT_APP_COMPANY_WEBSITE=http://localhost
 ARG REACT_APP_CLA_APP_NAME=CLA App

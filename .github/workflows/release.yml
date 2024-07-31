@@ -5,15 +5,19 @@ on:
     push:
         tags:
             - 'v*'
+
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
+
+env:
+    LC_APPLICATION_ID: the-cla
 
 permissions:
     contents: write
 
 jobs:
-    build:
+    release:
         name: Build and Publish Docker Image
         # env:
         #     THIS_VERSION: $(echo "${{ github.ref_name }}" | cut -d 'v' -f2)
@@ -32,8 +36,31 @@ jobs:
                   username: ${{ secrets.DOCKER_HUB_USERNAME }}
                   password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-            # - name: Set Yarn Version
-            #   run: yarn version --new-version ${{ env.THIS_VERSION }}
+            - name: Build Container and export to Docker
+              uses: docker/build-push-action@v6
+              with:
+                  build-args: |
+                      REACT_APP_COMPANY_NAME=${{ secrets.REACT_APP_COMPANY_NAME }}
+                      REACT_APP_COMPANY_WEBSITE=${{ secrets.REACT_APP_COMPANY_WEBSITE }}
+                      REACT_APP_CLA_APP_NAME=${{ secrets.REACT_APP_CLA_APP_NAME }}
+                      REACT_APP_CLA_VERSION=${{ secrets.REACT_APP_CLA_VERSION }}
+                      REACT_APP_GITHUB_CLIENT_ID=${{ secrets.REACT_APP_GITHUB_CLIENT_ID }}
+                  context: .
+                  file: ./Dockerfile
+                  load: true
+                  platforms: linux/amd64
+                  tags: sonatypecommunity/the-cla:latest , sonatypecommunity/the-cla:${{ github.ref_name }}
+
+            - name: Sonatype Lifecycle Evaluation
+              id: evaluate
+              uses: sonatype/actions/evaluate@v1
+              with:
+                  iq-server-url: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
+                  username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
+                  password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
+                  application-id: ${{ env.LC_APPLICATION_ID }}
+                  scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.ref_name }} .'
+                  stage: release
 
             - name: Build and Publish
               uses: docker/build-push-action@v5
