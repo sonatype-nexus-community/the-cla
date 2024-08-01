@@ -437,7 +437,7 @@ func handleRetrieveCLAText(c echo.Context) (err error) {
 
 	if err != nil {
 		logger.Error("Failed to get CLA Text", zap.Error(err))
-		return c.String(http.StatusNotFound, "")
+		return err
 	}
 
 	return c.String(http.StatusOK, claText)
