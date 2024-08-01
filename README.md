@@ -160,6 +160,12 @@ for your `Paul Botsco` GitHub App.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
 
+## Releasing
+
+To enact a release, run `yarn version --new-version=[NEW-VERSION]`.
+
+This will update the version in the React App, create a tag and push the tag. This will then cause the Release GitHub Action Workflow to start which does the rest.
+
 ## The Fine Print
 
 Remember:
