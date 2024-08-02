@@ -24,7 +24,9 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/smtp"
 	"os"
 	"strconv"
 	"strings"
@@ -54,6 +56,7 @@ const pathSignCla string = "/sign-cla"
 const pathWebhook string = "/webhook-integration"
 const pathInfo = "/info"
 const pathSignature = "/signature"
+const pathTestEmail = "/test-email"
 const buildLocation string = "build"
 
 const envReactAppClaVersion string = "REACT_APP_CLA_VERSION"
@@ -166,6 +169,8 @@ func main() {
 
 	g := e.Group(pathInfo, middleware.BasicAuth(infoBasicValidator))
 	g.GET(pathSignature, handleSignature)
+
+	e.GET(pathTestEmail, handleTestEmail)
 
 	e.Static("/", buildLocation)
 
@@ -471,4 +476,60 @@ func handleRetrieveCLAText(c echo.Context) (err error) {
 	claCache[claURL] = string(content)
 
 	return c.String(http.StatusOK, claCache[claURL])
+}
+
+const envSmtpHost = "SMTP_HOST"
+const envSmtpPort = "SMTP_PORT"
+const envSmtpUsername = "SMTP_USERNAME"
+const envSmtpPassword = "SMTP_PASSWORD"
+const envNotificationAddress = "NOTIFY_EMAIL"
+
+func handleTestEmail(c echo.Context) (err error) {
+	testSignature := new(types.UserSignature)
+	testSignature.User.Login = "LOGIN-ID"
+	testSignature.User.Email = "someone@somewhere.tld"
+	testSignature.User.GivenName = "A Person"
+	testSignature.CLAVersion = getCurrentCLAVersion()
+	testSignature.TimeSigned = time.Now()
+
+	return notifySignatureComplete(testSignature)
+}
+
+func notifySignatureComplete(signature *types.UserSignature) (err error) {
+	smtpHost := os.Getenv(envSmtpHost)
+	smtpPort := os.Getenv(envSmtpPort)
+	smtpUsername := os.Getenv(envSmtpUsername)
+	smtpPassword := os.Getenv(envSmtpPassword)
+	notificationAddress := os.Getenv(envNotificationAddress)
+
+	logger.Info("Preparing SMTP...")
+	auth := smtp.PlainAuth("", smtpUsername, smtpPassword, smtpHost)
+	to := []string{notificationAddress}
+	msg := []byte("To: " + notificationAddress + "\r\n" +
+
+		"Subject: [TEST] CLA Signature Received\r\n" +
+
+		"\r\n" +
+
+		"CLA Version " + signature.CLAVersion + " has been signed at " + signature.TimeSigned.Format(time.RFC1123Z) + ".\r\n\r\n" +
+
+		"Details are: \r\n" +
+		"	GitHub User ID: " + signature.User.Login + "\r\n" +
+		"	Given Name    : " + signature.User.GivenName + "\r\n" +
+		"	Email Address : " + signature.User.Email + "\r\n\r\n" +
+
+		"CLA Text below was as signed (obtained from COMING SOON):\r\n" +
+
+		"Lorem ipsum dolor simut...")
+
+	logger.Debug("Calling SMTP Send...")
+	err = smtp.SendMail(fmt.Sprintf("%s:%s", smtpHost, smtpPort), auth, "cla-legal@sonatype.com", to, msg)
+	logger.Debug("SMTP Send Complete", zap.Error(err))
+
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	return nil
 }
