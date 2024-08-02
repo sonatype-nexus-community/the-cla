@@ -85,7 +85,7 @@ jobs:
               id: evaluate
               uses: sonatype/actions/evaluate@v1
               with:
-                  iq-server-url: ${{ secrets.SONATYPE_LIFECYCLE_URL }}
+                  iq-server-url: ${{ vars.SONATYPE_PLATFORM_URL }}
                   username: ${{ secrets.SONATYPE_LIFECYCLE_USERNAME }}
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
