@@ -52,3 +52,4 @@ docker.sh
 # act files
 .my-secrets
 .my-vars
+.secrets

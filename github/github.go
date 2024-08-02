@@ -45,7 +45,7 @@ func getpemlocation() string {
 	return fromenv
 }
 
-var FilenameTheClaPem string = getpemlocation()
+var FilenameTheClaPem = getpemlocation()
 
 const EnvGhAppId = "GH_APP_ID"
 
