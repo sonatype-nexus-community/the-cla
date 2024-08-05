@@ -507,6 +507,8 @@ func handleTestEmail(c echo.Context) (err error) {
 	testSignature.User.GivenName = "A Person"
 	testSignature.CLAVersion = getCurrentCLAVersion()
 	testSignature.TimeSigned = time.Now()
+	testSignature.CLATextUrl = os.Getenv(envClsUrl)
+	testSignature.CLAText, _ = getClaText(testSignature.CLATextUrl)
 
 	return notifySignatureComplete(testSignature)
 }
