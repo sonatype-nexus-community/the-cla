@@ -31,6 +31,8 @@ type UserSignature struct {
 	User       User   `json:"user"`
 	CLAVersion string `json:"claVersion"`
 	TimeSigned time.Time
+	CLATextUrl string `json:"claTextUrl"`
+	CLAText    string
 }
 
 // EvaluationInfo holds all the stuff we need to (re)validate a PR/user has the CLA signed,
