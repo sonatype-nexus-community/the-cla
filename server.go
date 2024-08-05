@@ -534,9 +534,7 @@ func notifySignatureComplete(signature *types.UserSignature) (err error) {
 		"	Given Name    : " + signature.User.GivenName + "\r\n" +
 		"	Email Address : " + signature.User.Email + "\r\n\r\n" +
 
-		"CLA Text below was as signed (obtained from COMING SOON):\r\n" +
-
-		"Lorem ipsum dolor simut...")
+		"CLA Text below was as signed (obtained from " + signature.CLATextUrl + "):\r\n\r\n" + signature.CLAText)
 
 	logger.Debug("Calling SMTP Send...")
 	err = smtp.SendMail(fmt.Sprintf("%s:%s", smtpHost, smtpPort), auth, "cla-legal@sonatype.com", to, msg)
