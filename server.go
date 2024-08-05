@@ -387,6 +387,11 @@ func handleProcessSignCla(c echo.Context) (err error) {
 	}
 
 	user.TimeSigned = time.Now()
+	user.CLAText, err = getClaText(os.Getenv(user.CLATextUrl))
+
+	if err != nil {
+		logger.Error("Failed to get CLA Text - not blocking signature registration", zap.Error(err))
+	}
 
 	err = postgresDB.InsertSignature(user)
 	if err != nil {
@@ -432,30 +437,41 @@ const msgMissingClaUrl = "missing " + envClsUrl + " environment variable"
 func handleRetrieveCLAText(c echo.Context) (err error) {
 	logger.Debug("Attempting to fetch CLA text")
 	claURL := os.Getenv(envClsUrl)
+	claText, err := getClaText(claURL)
 
-	if claCache[claURL] != "" {
-		logger.Debug("CLA text was cached, returning", zap.String("claURL", claURL))
-
-		return c.String(http.StatusOK, claCache[claURL])
+	if err != nil {
+		logger.Error("Failed to get CLA Text", zap.Error(err))
+		return err
 	}
 
-	logger.Debug("CLA text not in cache, moving forward to fetch", zap.String("claURL", claURL))
-	if claURL == "" {
-		return fmt.Errorf(msgMissingClaUrl)
+	return c.String(http.StatusOK, claText)
+}
+
+func getClaText(claTextUrl string) (claText string, err error) {
+	logger.Debug("Attempting to fetch CLA text")
+
+	if claCache[claTextUrl] != "" {
+		logger.Debug("CLA text was already cached, returning from cache", zap.String("claTextUrl", claTextUrl))
+		return claCache[claTextUrl], nil
+	}
+
+	logger.Debug("CLA text not in cache, moving forward to fetch", zap.String("claTextUrl", claTextUrl))
+	if claTextUrl == "" {
+		return "", fmt.Errorf(msgMissingClaUrl)
 	}
 
 	client := http.Client{}
 
-	resp, err := client.Get(claURL)
+	resp, err := client.Get(claTextUrl)
 	if err != nil {
 		logger.Error("failed to get cla url", zap.Error(err))
-		return
+		return "", err
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("unexpected cla text response code: %d", resp.StatusCode)
 		logger.Error("failed to get cla text", zap.Error(err))
-		return
+		return "", err
 	}
 
 	defer func() {
@@ -465,10 +481,10 @@ func handleRetrieveCLAText(c echo.Context) (err error) {
 	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Error("failed to read cla text", zap.Error(err))
-		return
+		return "", err
 	}
 
-	claCache[claURL] = string(content)
+	claCache[claTextUrl] = string(content)
 
-	return c.String(http.StatusOK, claCache[claURL])
+	return claCache[claTextUrl], nil
 }

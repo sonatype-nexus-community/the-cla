@@ -127,6 +127,8 @@ func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
 }
 
 const mockCLAVersion = "myClaVersion"
+const mockCLATextUrl = "https://my.url/cla.text"
+const mockCLAText = "This is a CLA"
 
 func TestHasAuthorSignedTheClaReadRowError(t *testing.T) {
 	mock, db, closeDbFunc := SetupMockDB(t)
@@ -135,8 +137,8 @@ func TestHasAuthorSignedTheClaReadRowError(t *testing.T) {
 	loginName := "myLoginName"
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUserSignature)).
 		WithArgs(loginName, mockCLAVersion).
-		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}).
-			FromCSVString(`myLoginName,myEmail,myGivenName,INVALID_TIME_VALUE_TO_CAUSE_ROW_READ_ERROR,` + mockCLAVersion))
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion", "ClaTextUrl", "ClaText"}).
+			FromCSVString(`myLoginName,myEmail,myGivenName,INVALID_TIME_VALUE_TO_CAUSE_ROW_READ_ERROR,` + mockCLAVersion + `,` + mockCLATextUrl + `,` + mockCLAText))
 
 	hasSigned, foundSignature, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
 	assert.EqualError(t, err, "sql: Scan error on column index 3, name \"SignedAt\": unsupported Scan, storing driver.Value type []uint8 into type *time.Time")
@@ -148,13 +150,13 @@ func TestHasAuthorSignedTheClaTrue(t *testing.T) {
 	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
-	rs := sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"})
+	rs := sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion", "ClaTextUrl", "ClaText"})
 	loginName := "myLoginName"
 	email := "myEmail"
 	givenName := "myGivenName"
 	now := time.Now()
 	claVersion := "myCLAVersion"
-	rs.AddRow(loginName, email, givenName, now, claVersion)
+	rs.AddRow(loginName, email, givenName, now, claVersion, mockCLATextUrl, mockCLAText)
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUserSignature)).
 		WithArgs(loginName, mockCLAVersion).
 		WillReturnRows(rs)
@@ -169,6 +171,8 @@ func TestHasAuthorSignedTheClaTrue(t *testing.T) {
 	assert.Equal(t, givenName, foundSignature.User.GivenName)
 	assert.Equal(t, now, foundSignature.TimeSigned)
 	assert.Equal(t, claVersion, foundSignature.CLAVersion)
+	assert.Equal(t, mockCLATextUrl, foundSignature.CLATextUrl)
+	assert.Equal(t, mockCLAText, foundSignature.CLAText)
 }
 
 func TestStorePRAuthorsMissingSignatureInsertError(t *testing.T) {

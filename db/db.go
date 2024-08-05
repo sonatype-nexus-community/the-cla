@@ -22,8 +22,9 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"go.uber.org/zap"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -32,8 +33,8 @@ import (
 )
 
 const sqlInsertSignature = `INSERT INTO signatures
-		(LoginName, Email, GivenName, SignedAt, ClaVersion)
-		VALUES ($1, $2, $3, $4, $5)`
+		(LoginName, Email, GivenName, SignedAt, ClaVersion, ClaTextUrl, ClaText)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 const msgTemplateErrInsertSignatureDuplicate = "insert error. did user previously sign the cla? user: %+v, error: %+v"
 
@@ -59,7 +60,7 @@ func New(db *sql.DB, logger *zap.Logger) *ClaDB {
 }
 
 func (p *ClaDB) InsertSignature(user *types.UserSignature) error {
-	result, err := p.db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion)
+	result, err := p.db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion, user.CLATextUrl, user.CLAText)
 	if err != nil {
 		return fmt.Errorf(msgTemplateErrInsertSignatureDuplicate, user.User, err)
 	}
@@ -71,7 +72,7 @@ func (p *ClaDB) InsertSignature(user *types.UserSignature) error {
 }
 
 const SqlSelectUserSignature = `SELECT 
-		LoginName, Email, GivenName, SignedAt, ClaVersion 
+		LoginName, Email, GivenName, SignedAt, ClaVersion, ClaTextUrl, ClaText
 		FROM signatures		
 		WHERE LoginName = $1
 		AND ClaVersion = $2`
@@ -96,6 +97,8 @@ func (p *ClaDB) HasAuthorSignedTheCla(login, claVersion string) (isSigned bool, 
 			&foundUserSignature.User.GivenName,
 			&foundUserSignature.TimeSigned,
 			&foundUserSignature.CLAVersion,
+			&foundUserSignature.CLATextUrl,
+			&foundUserSignature.CLAText,
 		)
 		if err != nil {
 			return

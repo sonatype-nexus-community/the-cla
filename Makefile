@@ -49,7 +49,7 @@ air: yarn
 	$(GOBUILD) -o ./tmp/the-cla $(GOBUILD_FLAGS) ./server.go
 
 run-air: air
-	docker run --name the_cla_postgres -p 5432:5432 -e POSTGRES_PASSWORD=the_cla -e POSTGRES_DB=db -d postgres
+	docker run --name the_cla_postgres -p 55432:5432 -e POSTGRES_PASSWORD=the_cla -e POSTGRES_DB=db -d postgres
 	$(AIRCMD) -c .air.toml && docker stop the_cla_postgres && docker rm the_cla_postgres
 
 run-air-alone: yarn

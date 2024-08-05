@@ -22,6 +22,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/go-github/v42/github"
 	"github.com/labstack/echo/v4"
@@ -31,12 +38,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zaptest"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"strings"
-	"testing"
-	"time"
 )
 
 func resetEnvVariable(t *testing.T, variableName, originalValue string) {
@@ -105,7 +106,9 @@ func TestHandleRetrieveCLAText_MissingClaURL(t *testing.T) {
 	}()
 	resetEnvVariable(t, envClsUrl, "")
 
-	assert.EqualError(t, handleRetrieveCLAText(setupMockContextCLA(t)), msgMissingClaUrl)
+	err := handleRetrieveCLAText(setupMockContextCLA(t))
+
+	assert.EqualError(t, err, msgMissingClaUrl)
 }
 
 func TestHandleRetrieveCLAText_BadResponseCode(t *testing.T) {
@@ -485,6 +488,8 @@ func TestHandleSignatureHasAuthorSignedFalse(t *testing.T) {
 func TestHandleSignatureHasAuthorSignedAndHidesFields(t *testing.T) {
 	const testLogin = "myLogin"
 	const testCLAVersion = "myCLAVersion"
+	const testCLATextUrl = "https://my.url/text"
+	const testCLAText = "This is the CLA text"
 	c, rec := setupMockContextSignature(t, map[string]string{
 		queryParameterLogin:      testLogin,
 		queryParameterCLAVersion: testCLAVersion,
@@ -496,8 +501,8 @@ func TestHandleSignatureHasAuthorSignedAndHidesFields(t *testing.T) {
 
 	now := time.Now()
 	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUserSignature)).
-		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}).
-			AddRow(testLogin, "myEmail", "myGivenName", now, testCLAVersion))
+		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion", "ClaTextUrl", "ClaText"}).
+			AddRow(testLogin, "myEmail", "myGivenName", now, testCLAVersion, testCLATextUrl, testCLAText))
 
 	assert.NoError(t, handleSignature(c))
 	assert.Equal(t, http.StatusOK, c.Response().Status)
@@ -510,6 +515,8 @@ func TestHandleSignatureHasAuthorSignedAndHidesFields(t *testing.T) {
 		},
 		CLAVersion: testCLAVersion,
 		TimeSigned: now,
+		CLATextUrl: testCLATextUrl,
+		CLAText:    testCLAText,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, string(expectedJsonSignature)+"\n", rec.Body.String())

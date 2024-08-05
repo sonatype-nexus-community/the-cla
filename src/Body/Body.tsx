@@ -32,6 +32,7 @@ type GitHubUser = {
 type SignCla = {
   user: GitHubUser
   claVersion: string
+  claTextUrl: string
 }
 
 type queryError = {
@@ -138,7 +139,8 @@ const Body = () => {
             email: email.value,
             name: fullName.value
           }, 
-          claVersion: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : ""
+          claVersion: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : "",
+          claTextUrl: (process.env.CLA_URL) ? process.env.CLA_URL : ""
         };
   
         const putSignCla: Action = {
