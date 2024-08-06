@@ -412,6 +412,12 @@ func handleProcessSignCla(c echo.Context) (err error) {
 		logger.Error("error reviewing prior PRs", zap.Error(err))
 	}
 
+	err = notifySignatureComplete(user)
+	if err != nil {
+		// log this, but don't fail the call
+		logger.Error("Failed to send CLA signature notification", zap.Error(err))
+	}
+
 	return c.JSON(http.StatusCreated, user)
 }
 
