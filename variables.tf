@@ -96,3 +96,30 @@ variable "env_react_app_gh_client_id" {
   type = string
   sensitive = true
 }
+
+variable "env_smtp_host" {
+  description = "See SMTP_HOST"
+  type = string
+}
+
+variable "env_smtp_port" {
+  description = "See SMTP_PORT"
+  type = string
+}
+
+variable "env_smtp_username" {
+  description = "See SMTP_USERNAME"
+  type = string
+  sensitive = true
+}
+
+variable "env_smtp_password" {
+  description = "See SMTP_PASSWORD"
+  type = string
+  sensitive = true
+}
+
+variable "env_notify_email" {
+  description = "See NOTIFY_EMAIL"
+  type = string
+}

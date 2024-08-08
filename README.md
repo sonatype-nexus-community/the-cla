@@ -121,6 +121,11 @@ GH_APP_ID=1337
 INFO_USERNAME=theInfoUsername
 INFO_PASSWORD=theInfoPassword
 CLA_PEM_FILE=/path/to/the-cla.pem
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=something@somewhere.tld
+SMTP_PASSWORD=notmyrealpassword
+NOTIFY_EMAIL=notifications@somewhere.tld
 ```
 
 The important things to update are:
@@ -136,6 +141,11 @@ The important things to update are:
 - `INFO_USERNAME` - the username to access the "info" endpoint, e.g. to check if a particular login has signed the cla.
 - `INFO_PASSWORD` - the password to access the "info" endpoint, e.g. to check if a particular login has signed the cla.
 - `CLA_PEM_FILE` - Path to `the-cla.pem` (optional - defaults to just `the-cla.pem` if not defined)
+- `SMTP_HOST` - SMTP Server hostname (no port) for CLA signature notifications
+- `SMTP_PORT` - SMTP Server port for CLA signature notifications
+- `SMTP_USERNAME` - SMTP Server username for CLA signature notifications
+- `SMTP_PASSWORD` - SMTP Server password for CLA signature notifications
+- `NOTIFY_EMAIL` - Email address to send CLA signature notifications to
 
 Since these are all environment variables, you can just set them that way if you prefer, but it's important these variables are available at build time, as we inject these into the React code, which is honestly pretty sweet!
 
