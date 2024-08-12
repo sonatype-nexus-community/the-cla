@@ -22,9 +22,9 @@ package main
 import (
 	"crypto/subtle"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/smtp"
 	"os"
@@ -526,6 +526,11 @@ func notifySignatureComplete(signature *types.UserSignature) (err error) {
 	smtpPassword := os.Getenv(envSmtpPassword)
 	notificationAddress := os.Getenv(envNotificationAddress)
 
+	if smtpHost == "" || smtpPort == "" || notificationAddress == "" {
+		logger.Error("SMTP Host, SMTP Port or Notification Address are empty - cannot send notification")
+		return errors.New("SMTP Host, SMTP Port or Notification Address are empty - cannot send notification")
+	}
+
 	logger.Info("Preparing SMTP...")
 	auth := smtp.PlainAuth("", smtpUsername, smtpPassword, smtpHost)
 	to := []string{notificationAddress}
@@ -549,7 +554,7 @@ func notifySignatureComplete(signature *types.UserSignature) (err error) {
 	logger.Debug("SMTP Send Complete", zap.Error(err))
 
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error sending email notification", zap.Error(err))
 		return err
 	}
 

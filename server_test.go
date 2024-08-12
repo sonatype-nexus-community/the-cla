@@ -568,3 +568,20 @@ func TestInfoBasicValidatorValid(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, isValid)
 }
+
+func TestNotifySignatureCompleteFails(t *testing.T) {
+	setupMockContextCLA(t)
+
+	testSignature := new(types.UserSignature)
+	testSignature.User.Login = "LOGIN-ID"
+	testSignature.User.Email = "someone@somewhere.tld"
+	testSignature.User.GivenName = "A Person"
+	testSignature.CLAVersion = "0.0.0"
+	testSignature.TimeSigned = time.Now()
+	testSignature.CLATextUrl = "https://a.url/cla.txt"
+	testSignature.CLAText = "Some text here"
+
+	err := notifySignatureComplete(testSignature)
+
+	assert.EqualError(t, err, "SMTP Host, SMTP Port or Notification Address are empty - cannot send notification")
+}
