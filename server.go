@@ -531,7 +531,7 @@ func notifySignatureComplete(signature *types.UserSignature) (err error) {
 	to := []string{notificationAddress}
 	msg := []byte("To: " + notificationAddress + "\r\n" +
 
-		"Subject: [TEST] CLA Signature Received\r\n" +
+		"Subject: CLA Signature Received\r\n" +
 
 		"\r\n" +
 
