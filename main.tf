@@ -43,6 +43,8 @@ resource "kubernetes_secret" "the_cla" {
     "env_react_app_gh_client_id" = var.env_react_app_gh_client_id
     "info_password" = local.info_password
     "psql_password" = module.database.user_password
+    "smtp_username" = var.env_smtp_username
+    "smtp_password" = var.env_smtp_password
   }
 
   type = "Opaque"
@@ -194,6 +196,41 @@ resource "kubernetes_deployment" "the_cla" {
                 key  = "psql_password"
               }
             }
+          }
+
+          env {
+            name = "SMTP_HOST"
+            value = var.env_smtp_host
+          }
+
+          env {
+            name = "SMTP_PORT"
+            value = var.env_smtp_port
+          }
+
+          env {
+            name = "SMTP_USERNAME"
+            value_from {
+              secret_key_ref {
+                name = "the-cla"
+                key  = "smtp_username"
+              }
+            }
+          }
+
+          env {
+            name = "SMTP_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = "the-cla"
+                key  = "smtp_password"
+              }
+            }
+          }
+
+          env {
+            name = "NOTIFY_EMAIL"
+            value = var.env_notify_email
           }
 
           env {
