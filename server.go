@@ -526,11 +526,6 @@ func notifySignatureComplete(signature *types.UserSignature) (err error) {
 	smtpPassword := os.Getenv(envSmtpPassword)
 	notificationAddress := os.Getenv(envNotificationAddress)
 
-	if smtpHost == "" || smtpPort == "" || notificationAddress == "" {
-		logger.Error("SMTP Host, SMTP Port or Notification Address are empty - cannot send notification")
-		return errors.New("SMTP Host, SMTP Port or Notification Address are empty - cannot send notification")
-	}
-
 	logger.Info("Preparing SMTP...")
 	auth := smtp.PlainAuth("", smtpUsername, smtpPassword, smtpHost)
 	to := []string{notificationAddress}
@@ -548,6 +543,11 @@ func notifySignatureComplete(signature *types.UserSignature) (err error) {
 		"	Email Address : " + signature.User.Email + "\r\n\r\n" +
 
 		"CLA Text below was as signed (obtained from " + signature.CLATextUrl + "):\r\n\r\n" + signature.CLAText)
+
+	if smtpHost == "" || smtpPort == "" || notificationAddress == "" {
+		logger.Error("SMTP Host, SMTP Port or Notification Address are empty - cannot send notification")
+		return errors.New("SMTP Host, SMTP Port or Notification Address are empty - cannot send notification")
+	}
 
 	logger.Debug("Calling SMTP Send...")
 	err = smtp.SendMail(fmt.Sprintf("%s:%s", smtpHost, smtpPort), auth, "cla-legal@sonatype.com", to, msg)
