@@ -109,6 +109,6 @@ jobs:
                   cache: true
 
             - name: Run Go Linter
-              uses: golangci/golangci-lint-action@v5
+              uses: golangci/golangci-lint-action@v6
               with:
                   version: latest
