@@ -21,6 +21,7 @@ package db
 
 import (
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -250,12 +251,12 @@ func TestStorePRAuthorsMissingSignatureInsertErrorRowExists(t *testing.T) {
 		UserSignatures: users,
 	}
 
-	forcedRowExistsError := fmt.Errorf(errMsgInsertedRowExists)
+	forcedRowExistsError := errors.New(errMsgInsertedRowExists)
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
 		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
 		WillReturnError(forcedRowExistsError)
 
-	forcedError := fmt.Errorf("forced insert error")
+	forcedError := errors.New("forced insert error")
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPR)).
 		WithArgs(evalInfo.RepoName, evalInfo.PRNumber).
 		WillReturnError(forcedError)

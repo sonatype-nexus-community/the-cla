@@ -468,7 +468,7 @@ func getClaText(claTextUrl string) (claText string, err error) {
 
 	logger.Debug("CLA text not in cache, moving forward to fetch", zap.String("claTextUrl", claTextUrl))
 	if claTextUrl == "" {
-		return "", fmt.Errorf(msgMissingClaUrl)
+		return "", errors.New(msgMissingClaUrl)
 	}
 
 	client := http.Client{}
