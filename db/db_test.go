@@ -42,7 +42,7 @@ func TestInsertSignatureError(t *testing.T) {
 	defer closeDbFunc()
 
 	user := types.UserSignature{}
-	forcedError := fmt.Errorf("forced SQL insert error")
+	forcedError := errors.New("forced SQL insert error")
 	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnError(forcedError).
@@ -60,7 +60,7 @@ func TestInsertSignatureErrorDuplicateSignature(t *testing.T) {
 		CLAVersion: mockCLAVersion,
 	}
 
-	forcedError := fmt.Errorf("forced SQL insert error")
+	forcedError := errors.New("forced SQL insert error")
 	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
@@ -118,7 +118,7 @@ func TestHasAuthorSignedTheClaQueryError(t *testing.T) {
 	mock, db, closeDbFunc := SetupMockDB(t)
 	defer closeDbFunc()
 
-	forcedError := fmt.Errorf("forced SQL query error")
+	forcedError := errors.New("forced SQL query error")
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUserSignature)).
 		WillReturnError(forcedError)
 
@@ -209,7 +209,7 @@ func TestStorePRAuthorsMissingSignatureInsertError(t *testing.T) {
 		UserSignatures: users,
 	}
 
-	forcedError := fmt.Errorf("forced insert error")
+	forcedError := errors.New("forced insert error")
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
 		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
 		WillReturnError(forcedError)
@@ -298,7 +298,7 @@ func TestStorePRAuthorsMissingSignatureQueryParentPRError(t *testing.T) {
 		UserSignatures: users,
 	}
 
-	forcedRowExistsError := fmt.Errorf(errMsgInsertedRowExists)
+	forcedRowExistsError := errors.New(errMsgInsertedRowExists)
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
 		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
 		WillReturnError(forcedRowExistsError)
@@ -308,7 +308,7 @@ func TestStorePRAuthorsMissingSignatureQueryParentPRError(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 	assert.EqualError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()),
-		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, fmt.Errorf(errMsgInsertedRowExists)))
+		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, errors.New(errMsgInsertedRowExists)))
 }
 
 func TestStorePRAuthorsMissingSignatureInsertEmptyParentUUID(t *testing.T) {
@@ -344,7 +344,7 @@ func TestStorePRAuthorsMissingSignatureInsertEmptyParentUUID(t *testing.T) {
 		UserSignatures: users,
 	}
 
-	forcedRowExistsError := fmt.Errorf(errMsgInsertedRowExists)
+	forcedRowExistsError := errors.New(errMsgInsertedRowExists)
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
 		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
 		WillReturnError(forcedRowExistsError)
@@ -355,7 +355,7 @@ func TestStorePRAuthorsMissingSignatureInsertEmptyParentUUID(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(parentUUID))
 
 	assert.EqualError(t, db.StorePRAuthorsMissingSignature(&evalInfo, time.Now()),
-		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, fmt.Errorf("empty parentUUID")))
+		fmt.Sprintf(msgTemplateErrInsertPRMissing, repoName, pullRequestID, errors.New("empty parentUUID")))
 }
 
 func TestStorePRAuthorsMissingSignatureParentInsertError(t *testing.T) {
@@ -391,7 +391,7 @@ func TestStorePRAuthorsMissingSignatureParentInsertError(t *testing.T) {
 		UserSignatures: users,
 	}
 
-	forcedError := fmt.Errorf("forced insert error")
+	forcedError := errors.New("forced insert error")
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertPRMissing)).
 		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
 		WillReturnError(forcedError)
@@ -438,7 +438,7 @@ func TestStorePRAuthorsMissingSignatureUserInsertError(t *testing.T) {
 		WithArgs(evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, evalInfo.PRNumber, evalInfo.AppId, evalInfo.InstallId).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(parentUUID))
 
-	forcedError := fmt.Errorf("forced insert error")
+	forcedError := errors.New("forced insert error")
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlInsertUserMissing)).
 		WithArgs(parentUUID, users[0].User.Login, users[0].User.Email, users[0].User.GivenName, users[0].CLAVersion, AnyTime{}).
 		WillReturnError(forcedError)
@@ -549,7 +549,7 @@ func TestGetPRsForUserSelectPRsError(t *testing.T) {
 		CLAVersion: "myCLAVersion",
 	}
 
-	forcedError := fmt.Errorf("forced select PRs error")
+	forcedError := errors.New("forced select PRs error")
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(sqlSelectPRsForUser)).
 		WithArgs(user.User.Login, user.CLAVersion).
 		WillReturnError(forcedError)
@@ -643,7 +643,7 @@ func TestRemovePRsForUsersRemoveUserError(t *testing.T) {
 	prUUID := "myPRUUID"
 	login := "myLogin"
 	claVersion := "myCLAVersion"
-	forcedError := fmt.Errorf("forced delete unsigned user db error")
+	forcedError := errors.New("forced delete unsigned user db error")
 	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlDeleteUnsignedUser)).
 		WithArgs(prUUID, login, claVersion).
 		WillReturnError(forcedError)
@@ -668,7 +668,7 @@ func TestRemovePRsForUsersCountUsersError(t *testing.T) {
 		WithArgs(prUUID, login, claVersion).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	forcedError := fmt.Errorf("forced count unsigned user db error")
+	forcedError := errors.New("forced count unsigned user db error")
 	mock.ExpectQuery(ConvertSqlToDbMockExpect(SqlSelectUnsignedUsersForPR)).
 		WithArgs(prUUID).
 		WillReturnError(forcedError)
@@ -697,7 +697,7 @@ func TestRemovePRsForUsersRemovePRError(t *testing.T) {
 		WithArgs(prUUID).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-	forcedError := fmt.Errorf("forced delete unsigned PR db error")
+	forcedError := errors.New("forced delete unsigned PR db error")
 	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlDeleteUnsignedPR)).
 		WithArgs(prUUID).
 		WillReturnError(forcedError)
