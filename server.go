@@ -391,7 +391,7 @@ func handleProcessSignCla(c echo.Context) (err error) {
 	}
 
 	user.TimeSigned = time.Now()
-	user.CLAText, err = getClaText(os.Getenv(user.CLATextUrl))
+	user.CLAText, err = getClaText(user.CLATextUrl)
 
 	if err != nil {
 		logger.Error("Failed to get CLA Text - not blocking signature registration", zap.Error(err))
