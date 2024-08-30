@@ -100,11 +100,11 @@ func setupMockContextCLA(t *testing.T) echo.Context {
 }
 
 func TestHandleRetrieveCLAText_MissingClaURL(t *testing.T) {
-	origClaUrl := os.Getenv(envClsUrl)
+	origClaUrl := os.Getenv(envClaUrl)
 	defer func() {
-		resetEnvVariable(t, envClsUrl, origClaUrl)
+		resetEnvVariable(t, envClaUrl, origClaUrl)
 	}()
-	resetEnvVariable(t, envClsUrl, "")
+	resetEnvVariable(t, envClaUrl, "")
 
 	err := handleRetrieveCLAText(setupMockContextCLA(t))
 
@@ -112,9 +112,9 @@ func TestHandleRetrieveCLAText_MissingClaURL(t *testing.T) {
 }
 
 func TestHandleRetrieveCLAText_BadResponseCode(t *testing.T) {
-	origClaUrl := os.Getenv(envClsUrl)
+	origClaUrl := os.Getenv(envClaUrl)
 	defer func() {
-		resetEnvVariable(t, envClsUrl, origClaUrl)
+		resetEnvVariable(t, envClaUrl, origClaUrl)
 	}()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -125,16 +125,16 @@ func TestHandleRetrieveCLAText_BadResponseCode(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	assert.NoError(t, os.Setenv(envClsUrl, ts.URL+pathClaText))
+	assert.NoError(t, os.Setenv(envClaUrl, ts.URL+pathClaText))
 	assert.EqualError(t, handleRetrieveCLAText(setupMockContextCLA(t)), "unexpected cla text response code: 403")
 }
 
 func TestHandleRetrieveCLAText(t *testing.T) {
 	callCount := 0
 
-	origClaUrl := os.Getenv(envClsUrl)
+	origClaUrl := os.Getenv(envClaUrl)
 	defer func() {
-		resetEnvVariable(t, envClsUrl, origClaUrl)
+		resetEnvVariable(t, envClaUrl, origClaUrl)
 	}()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +147,7 @@ func TestHandleRetrieveCLAText(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	assert.NoError(t, os.Setenv(envClsUrl, ts.URL+pathClaText))
+	assert.NoError(t, os.Setenv(envClaUrl, ts.URL+pathClaText))
 	assert.NoError(t, handleRetrieveCLAText(setupMockContextCLA(t)))
 	assert.Equal(t, callCount, 1)
 
@@ -160,9 +160,9 @@ func TestHandleRetrieveCLAText(t *testing.T) {
 func TestHandleRetrieveCLATextWithBadURL(t *testing.T) {
 	callCount := 0
 
-	origClaUrl := os.Getenv(envClsUrl)
+	origClaUrl := os.Getenv(envClaUrl)
 	defer func() {
-		resetEnvVariable(t, envClsUrl, origClaUrl)
+		resetEnvVariable(t, envClaUrl, origClaUrl)
 	}()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +175,7 @@ func TestHandleRetrieveCLATextWithBadURL(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	assert.NoError(t, os.Setenv(envClsUrl, "badURLProtocol"+ts.URL+pathClaText))
+	assert.NoError(t, os.Setenv(envClaUrl, "badURLProtocol"+ts.URL+pathClaText))
 	assert.Error(t, handleRetrieveCLAText(setupMockContextCLA(t)), `unsupported protocol scheme "badurlprotocolhttp"`)
 	assert.Equal(t, callCount, 0)
 }
