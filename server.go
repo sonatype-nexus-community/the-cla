@@ -441,12 +441,12 @@ func handleProcessGitHubOAuth(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, user)
 }
 
-const envClsUrl = "CLA_URL"
-const msgMissingClaUrl = "missing " + envClsUrl + " environment variable"
+const envClaUrl = "CLA_URL"
+const msgMissingClaUrl = "missing " + envClaUrl + " environment variable"
 
 func handleRetrieveCLAText(c echo.Context) (err error) {
 	logger.Debug("Attempting to fetch CLA text")
-	claURL := os.Getenv(envClsUrl)
+	claURL := os.Getenv(envClaUrl)
 	claText, err := getClaText(claURL)
 
 	if err != nil {
@@ -512,7 +512,7 @@ func handleTestEmail(c echo.Context) (err error) {
 	testSignature.User.GivenName = "A Person"
 	testSignature.CLAVersion = getCurrentCLAVersion()
 	testSignature.TimeSigned = time.Now()
-	testSignature.CLATextUrl = os.Getenv(envClsUrl)
+	testSignature.CLATextUrl = os.Getenv(envClaUrl)
 	testSignature.CLAText, _ = getClaText(testSignature.CLATextUrl)
 
 	return notifySignatureComplete(testSignature)
