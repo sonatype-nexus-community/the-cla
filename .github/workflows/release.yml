@@ -67,6 +67,7 @@ jobs:
               uses: docker/build-push-action@v5
               with:
                   build-args: |
+                      CLA_URL=${{ secrets.CLA_URL }}
                       REACT_APP_COMPANY_NAME=${{ secrets.REACT_APP_COMPANY_NAME }}
                       REACT_APP_COMPANY_WEBSITE=${{ secrets.REACT_APP_COMPANY_WEBSITE }}
                       REACT_APP_CLA_APP_NAME=${{ secrets.REACT_APP_CLA_APP_NAME }}
