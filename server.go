@@ -169,8 +169,7 @@ func main() {
 
 	g := e.Group(pathInfo, middleware.BasicAuth(infoBasicValidator))
 	g.GET(pathSignature, handleSignature)
-
-	e.GET(pathTestEmail, handleTestEmail)
+	g.GET(pathTestEmail, handleTestEmail)
 
 	e.Static("/", buildLocation)
 
