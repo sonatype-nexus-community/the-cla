@@ -44,10 +44,10 @@ variable "the_cla_pem" {
   sensitive = true
 }
 
-variable "env_cla_url" {
-  description = "See CLA_URL"
+variable "env_react_app_cla_url" {
+  description = "See REACT_APP_CLA_URL"
   type = string
-  default = "https://s3.amazonaws.com/sonatype-cla/cla.txt"
+  default = "https://s3.amazonaws.com/sonatype-cla/cla-2.0.txt"
 }
 
 variable "env_gh_app_id" {

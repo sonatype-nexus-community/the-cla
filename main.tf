@@ -79,14 +79,9 @@ resource "kubernetes_deployment" "the_cla" {
 
       spec {
         container {
-          image             = "sonatypecommunity/the-cla:v0.1.0"
+          image             = "sonatypecommunity/the-cla:v0.1.11"
           name              = "the-cla"
           image_pull_policy = "IfNotPresent"
-
-          env {
-            name = "CLA_URL"
-            value = var.env_cla_url
-          }
 
           env {
             name = "CLA_PEM_FILE"
@@ -121,6 +116,11 @@ resource "kubernetes_deployment" "the_cla" {
                 key  = "env_github_webhook_secret"
               }
             }
+          }
+
+          env {
+            name = "REACT_APP_CLA_URL"
+            value = var.env_react_app_cla_url
           }
 
           env {
