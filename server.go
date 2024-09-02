@@ -441,7 +441,7 @@ func handleProcessGitHubOAuth(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, user)
 }
 
-const envClaUrl = "CLA_URL"
+const envClaUrl = "REACT_APP_CLA_URL"
 const msgMissingClaUrl = "missing " + envClaUrl + " environment variable"
 
 func handleRetrieveCLAText(c echo.Context) (err error) {
