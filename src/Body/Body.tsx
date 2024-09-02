@@ -140,7 +140,7 @@ const Body = () => {
             name: fullName.value
           }, 
           claVersion: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : "",
-          claTextUrl: (process.env.CLA_URL) ? process.env.CLA_URL : ""
+          claTextUrl: (process.env.REACT_APP_CLA_URL) ? process.env.REACT_APP_CLA_URL : ""
         };
   
         const putSignCla: Action = {

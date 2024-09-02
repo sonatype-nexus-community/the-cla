@@ -110,7 +110,7 @@ Configuration of `the-cla` is handled via a `.env` file in the repo (this is ign
 A `.example.env` has been provided that looks similar to the following:
 
 ```
-CLA_URL=https://s3.amazonaws.com/sonatype-cla/cla.txt
+REACT_APP_CLA_URL=https://s3.amazonaws.com/sonatype-cla/cla.txt
 REACT_APP_COMPANY_NAME=Your company name
 REACT_APP_CLA_APP_NAME=THE CLA
 REACT_APP_GITHUB_CLIENT_ID=fake_ID
@@ -130,7 +130,7 @@ NOTIFY_EMAIL=notifications@somewhere.tld
 
 The important things to update are:
 
-- `CLA_URL` - this is a txt file hosted somewhere that has your CLA text! We externalized this to make it easy to update, etc.
+- `REACT_APP_CLA_URL` - this is a txt file hosted somewhere that has your CLA text! We externalized this to make it easy to update, etc.
 - `REACT_APP_COMPANY_NAME` - unless you want it to say `Your company name`, I would update this!
 - `REACT_APP_CLA_APP_NAME` - if you don't like Toy Story references for a CLA bot, feel free to change this to whatever you want the app to say publicly
 - `REACT_APP_GITHUB_CLIENT_ID` - this is the oAuth Client ID you will get from setting up your [GitHub oAuth application](#github-oauth-application)
