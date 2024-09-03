@@ -22,7 +22,7 @@
 [![shield_license]][license_file]
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=sonatype-nexus-community_the-cla&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=sonatype-nexus-community_the-cla)
 
-# The CLA a.k.a. `Paul Botsco`
+# The CLA — a.k.a. `Paul Botsco`
 
 The CLA is an app written in Golang & React for getting CLA signatures. This is just a proof of concept at time being, use at your own risk.
 
