@@ -215,7 +215,7 @@ const Body = () => {
           checkboxId="sign-cla-check" 
           isChecked={agreeToTerms}
           disabled={true}>
-          Sign the CLA version: {process.env.REACT_APP_CLA_VERSION}
+          I agree to the terms of CLA version {process.env.REACT_APP_CLA_VERSION}
         </NxCheckbox>
 
         { !loggedIn && (
