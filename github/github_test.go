@@ -27,12 +27,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-github/v64/github"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/google/go-github/v42/github"
 	"github.com/stretchr/testify/assert"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )

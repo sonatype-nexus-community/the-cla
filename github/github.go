@@ -31,7 +31,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
-	"github.com/google/go-github/v42/github"
+	"github.com/google/go-github/v64/github"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"

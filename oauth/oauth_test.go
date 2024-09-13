@@ -21,13 +21,14 @@ package oauth
 
 import (
 	"context"
-	"github.com/google/go-github/v42/github"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
-	"golang.org/x/oauth2"
 	"net/http"
 	"os"
 	"testing"
+
+	"github.com/google/go-github/v64/github"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
+	"golang.org/x/oauth2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -75,12 +76,14 @@ type OAuthMock struct {
 var _ OAuthInterface = (*OAuthMock)(nil)
 
 // Exchange takes the code and returns a real token.
+//
 //goland:noinspection GoUnusedParameter
 func (o *OAuthMock) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	return o.exchangeToken, o.exchangeError
 }
 
 // Client returns a new http.Client.
+//
 //goland:noinspection GoUnusedParameter
 func (o *OAuthMock) Client(ctx context.Context, t *oauth2.Token) *http.Client {
 	return &http.Client{}

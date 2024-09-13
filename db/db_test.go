@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/google/go-github/v42/github"
+	"github.com/google/go-github/v64/github"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"github.com/stretchr/testify/assert"
 )
