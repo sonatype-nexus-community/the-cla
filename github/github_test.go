@@ -289,10 +289,12 @@ func TestHandlePullRequestIsCollaboratorError(t *testing.T) {
 		GHImpl = origGithubImpl
 	}()
 	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
 	forcedError := fmt.Errorf("forced IsCollaborator error")
 	GHImpl = &GHInterfaceMock{
-		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
+		PullRequestsMock: PullRequestsMock{
+			mockRepositoryCommits: mockRepositoryCommits,
+		},
 		RepositoriesMock: RepositoriesMock{
 			isCollaboratorErr: forcedError,
 		},
@@ -325,9 +327,11 @@ func TestHandlePullRequestIsCollaboratorTrueCollaborator(t *testing.T) {
 		GHImpl = origGithubImpl
 	}()
 	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
 	GHImpl = &GHInterfaceMock{
-		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
+		PullRequestsMock: PullRequestsMock{
+			mockRepositoryCommits: mockRepositoryCommits,
+		},
 		RepositoriesMock: RepositoriesMock{
 			isCollaboratorResult: true,
 		},
@@ -370,7 +374,7 @@ func TestHandlePullRequestCreateLabelError(t *testing.T) {
 		GHImpl = origGithubImpl
 	}()
 	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
 	forcedError := fmt.Errorf("forced CreateLabel error")
 	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
@@ -407,7 +411,7 @@ func TestHandlePullRequestAddLabelsToIssueError(t *testing.T) {
 		GHImpl = origGithubImpl
 	}()
 	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
 	forcedError := fmt.Errorf("forced AddLabelsToIssue error")
 	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
@@ -457,7 +461,7 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 		GHImpl = origGithubImpl
 	}()
 	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
 	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
 		IssuesMock: IssuesMock{
@@ -578,12 +582,22 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 				Login: github.String(login),
 				Email: github.String("j@gmail.com"),
 			},
+			Commit: &github.Commit{
+				Verification: &github.SignatureVerification{
+					Verified: github.Bool(true),
+				},
+			},
 			SHA: github.String("johnSHA"),
 		},
 		{
 			Author: &github.User{
 				Login: github.String(login2),
 				Email: github.String("d@gmail.com"),
+			},
+			Commit: &github.Commit{
+				Verification: &github.SignatureVerification{
+					Verified: github.Bool(true),
+				},
 			},
 			SHA: github.String("doeSHA"),
 		},
@@ -646,7 +660,8 @@ func TestHandlePullRequestListCommitsNoAuthor(t *testing.T) {
 					// Date:  github.Timestamp.Local(),
 				},
 			},
-			SHA: github.String("johnSHA"),
+			SHA:     github.String("johnSHA"),
+			HTMLURL: github.String("https://github.com"),
 		},
 	}
 	GHImpl = &GHInterfaceMock{
@@ -712,7 +727,8 @@ func TestHandlePullRequestListCommitsUnsignedCommit(t *testing.T) {
 					Payload:   nil,
 				},
 			},
-			SHA: github.String("johnSHA"),
+			SHA:     github.String("johnSHA"),
+			HTMLURL: github.String("https://github.com"),
 		},
 	}
 	GHImpl = &GHInterfaceMock{
@@ -904,4 +920,20 @@ func TestReviewPriorPRs(t *testing.T) {
 	defer resetPemFileImpl()
 
 	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
+}
+
+func getMockRepositoryCommitsSigned(mockAuthorLogin string) []*github.RepositoryCommit {
+	mockRepositoryCommits := []*github.RepositoryCommit{
+		{
+			Author: &github.User{
+				Login: &mockAuthorLogin,
+			},
+			Commit: &github.Commit{
+				Verification: &github.SignatureVerification{
+					Verified: github.Bool(true),
+				},
+			},
+		},
+	}
+	return mockRepositoryCommits
 }

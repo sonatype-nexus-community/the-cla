@@ -248,11 +248,34 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 	// The following loop will change a loop as a result
 	var usersNeedingToSignCLA []types.UserSignature
 	var usersSigned []types.UserSignature
+	var commitsMissingAuthor []github.RepositoryCommit
+	var commitsMissingVerification []github.RepositoryCommit
 
 	for _, v := range commits {
 		// It is important to use GetAuthor() instead of v.Commit.GetCommitter() because the committer can be the GH webflow user, whereas the author is
 		// the canonical author of the commit
-		author := *v.GetAuthor()
+		author := v.GetAuthor()
+		commitFailedChecks := false
+
+		if author == nil {
+			commitsMissingAuthor = append(commitsMissingAuthor, *v)
+			commitFailedChecks = true
+		}
+
+		commitVerified := false
+		commitVerification := v.Commit.GetVerification()
+		if commitVerification != nil {
+			commitVerified = *v.Commit.Verification.Verified
+		}
+		if commitVerified == false {
+			commitsMissingVerification = append(commitsMissingVerification, *v)
+			commitFailedChecks = true
+			logger.Debug("Commit failed verification check", zap.Any("Commit", v))
+		}
+
+		if commitFailedChecks {
+			continue
+		}
 
 		// if author is a collaborator, that author need not sign the cla.
 		var isCollaborator bool
@@ -291,6 +314,59 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 		} else {
 			usersSigned = append(usersSigned, *foundUserSigned)
 		}
+	}
+
+	logger.Info(
+		fmt.Sprintf("Commits Reviewed for PR #%d", evalInfo.PRNumber),
+		zap.Int("Missing Author", len(commitsMissingAuthor)),
+		zap.Int("Missing Verification", len(commitsMissingVerification)),
+	)
+
+	if len(commitsMissingAuthor) > 0 || len(commitsMissingVerification) > 0 {
+		if len(commitsMissingAuthor) > 0 {
+			err := createRepoLabel(logger, client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, labelNameCommitsNoAuthor, "B60205", "Commits are missing author information - this must be resolved", evalInfo.PRNumber)
+			if err != nil {
+				return err
+			}
+		}
+
+		if len(commitsMissingVerification) > 0 {
+			err := createRepoLabel(
+				logger,
+				client.Issues,
+				evalInfo.RepoOwner,
+				evalInfo.RepoName,
+				labelNameCommitsMissingVerification,
+				"B60205",
+				"Some commits are not signed - this must be resolved",
+				evalInfo.PRNumber,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		message := `Thanks for the contribution. Unfortunately some of your commits don't meet our standards. All commits must be signed and have author information set.
+		
+		The commits to review are:
+		
+		%s`
+		commitsMessage := ""
+		for _, c := range commitsMissingAuthor {
+			commitsMessage += commitsMessage + fmt.Sprintf(`- <a href="%s">%s</a> - missing author :cop:`, *c.HTMLURL, *c.SHA)
+		}
+		for _, c := range commitsMissingVerification {
+			commitsMessage += commitsMessage + fmt.Sprintf(`- <a href="%s">%s</a> - unsigned commit :key:`, *c.HTMLURL, *c.SHA)
+		}
+		logger.Debug("Adding Comment to Issue", zap.Int("Issue #", int(evalInfo.PRNumber)), zap.String("Comment", fmt.Sprintf(message, commitsMessage)))
+		_, err = addCommentToIssueIfNotExists(
+			client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, int(evalInfo.PRNumber),
+			fmt.Sprintf(message, commitsMessage))
+		if err != nil {
+			return err
+		}
+
+		return nil
 	}
 
 	if len(usersNeedingToSignCLA) > 0 {
@@ -374,6 +450,8 @@ func createRepoStatus(repositoryService RepositoriesService, owner, repo, sha, s
 
 const labelNameCLANotSigned string = ":monocle_face: cla not signed"
 const labelNameCLASigned string = ":heart_eyes: cla signed"
+const labelNameCommitsNoAuthor string = ":unamused: commits missing author"
+const labelNameCommitsMissingVerification string = ":anguished: commits missing verification"
 
 func createRepoLabel(logger *zap.Logger,
 	issuesService IssuesService,
@@ -435,6 +513,7 @@ func addCommentToIssueIfNotExists(issuesService IssuesService, owner, repo strin
 	}
 
 	if !alreadyCommented {
+
 		prComment := &github.IssueComment{}
 		prComment.Body = &message
 
