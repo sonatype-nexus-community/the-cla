@@ -765,15 +765,15 @@ func getMockRepositoryCommits(mockAuthorLogins []string, signed bool) []*github.
 	return mockRepositoryCommits
 }
 
-func getGHMock(repo_commits []*github.RepositoryCommit, issues_mock *IssuesMock, repositories_mock *RepositoriesMock) *GHInterfaceMock {
+func getGHMock(repoCommits []*github.RepositoryCommit, issuesMock *IssuesMock, repositoriesMock *RepositoriesMock) *GHInterfaceMock {
 	mock := &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{
-			mockRepositoryCommits: repo_commits,
+			mockRepositoryCommits: repoCommits,
 		},
 	}
 
-	if issues_mock != nil {
-		mock.IssuesMock = *issues_mock
+	if issuesMock != nil {
+		mock.IssuesMock = *issuesMock
 	} else {
 		mock.IssuesMock = IssuesMock{
 			mockGetLabel: &github.Label{},
@@ -786,8 +786,8 @@ func getGHMock(repo_commits []*github.RepositoryCommit, issues_mock *IssuesMock,
 		}
 	}
 
-	if repositories_mock != nil {
-		mock.RepositoriesMock = *repositories_mock
+	if repositoriesMock != nil {
+		mock.RepositoriesMock = *repositoriesMock
 	}
 
 	return mock
