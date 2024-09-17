@@ -263,97 +263,80 @@ func TestWithFullEnvironment(t *testing.T) {
 	}()
 
 	t.Run("TestHandlePullRequestCreateLabelError", func(t *testing.T) {
-		mockAuthorLogin := "myAuthorLogin"
-		mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
+		authors := []string{"myAuthorLogin"}
 		forcedError := fmt.Errorf("forced CreateLabel error")
-		GHImpl = &GHInterfaceMock{
-			PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
-			IssuesMock: IssuesMock{
-				MockGetLabelResponse: &github.Response{Response: &http.Response{StatusCode: http.StatusNotFound}},
-				mockCreateLabelError: forcedError,
-			},
+		issuesMock := IssuesMock{
+			MockGetLabelResponse: &github.Response{Response: &http.Response{StatusCode: http.StatusNotFound}},
+			mockCreateLabelError: forcedError,
 		}
+		GHImpl = getGHMock(
+			getMockRepositoryCommits(authors, true),
+			&issuesMock,
+			nil,
+		)
 
 		prEvent := webhook.PullRequestPayload{}
 
 		mockDB, logger := setupMockDB(t, true)
-		mockDB.hasAuthorSignedLogin = mockAuthorLogin
+		mockDB.hasAuthorSignedLogin = authors[0]
 
 		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 		assert.EqualError(t, err, forcedError.Error())
 	})
 
 	t.Run("TestHandlePullRequestAddLabelsToIssueError", func(t *testing.T) {
-		mockAuthorLogin := "myAuthorLogin"
-		mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
+		authors := []string{"myAuthorLogin2"}
 		forcedError := fmt.Errorf("forced AddLabelsToIssue error")
-		GHImpl = &GHInterfaceMock{
-			PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
-			IssuesMock: IssuesMock{
-				mockGetLabel:       &github.Label{},
-				mockAddLabelsError: forcedError,
-				MockGetLabelResponse: &github.Response{
-					Response: &http.Response{},
-				},
+		issuesMock := IssuesMock{
+			mockGetLabel:       &github.Label{},
+			mockAddLabelsError: forcedError,
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
 			},
 		}
-
+		GHImpl = getGHMock(
+			getMockRepositoryCommits(authors, true),
+			&issuesMock,
+			nil,
+		)
 		prEvent := webhook.PullRequestPayload{}
 
 		mockDB, logger := setupMockDB(t, true)
-		mockDB.hasAuthorSignedLogin = mockAuthorLogin
+		mockDB.hasAuthorSignedLogin = authors[0]
 
 		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 		assert.EqualError(t, err, forcedError.Error())
 	})
 
 	t.Run("TestHandlePullRequestIsCollaboratorError", func(t *testing.T) {
-		mockAuthorLogin := "myAuthorLogin"
-		mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
+		authors := []string{"myAuthorLogin3"}
 		forcedError := fmt.Errorf("forced IsCollaborator error")
-		GHImpl = &GHInterfaceMock{
-			PullRequestsMock: PullRequestsMock{
-				mockRepositoryCommits: mockRepositoryCommits,
-			},
-			RepositoriesMock: RepositoriesMock{
-				isCollaboratorErr: forcedError,
-			},
+		repositoriesMock := RepositoriesMock{
+			isCollaboratorErr: forcedError,
 		}
+		GHImpl = getGHMock(
+			getMockRepositoryCommits(authors, true),
+			nil,
+			&repositoriesMock,
+		)
 
 		prEvent := webhook.PullRequestPayload{}
 
 		mockDB, logger := setupMockDB(t, true)
-		mockDB.hasAuthorSignedLogin = mockAuthorLogin
+		mockDB.hasAuthorSignedLogin = authors[0]
 
 		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 		assert.EqualError(t, err, forcedError.Error())
 	})
 
 	t.Run("TestHandlePullRequestIsCollaboratorTrueCollaborator", func(t *testing.T) {
-		mockAuthorLogin := "myAuthorLogin"
-		mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
-		GHImpl = &GHInterfaceMock{
-			PullRequestsMock: PullRequestsMock{
-				mockRepositoryCommits: mockRepositoryCommits,
-			},
-			RepositoriesMock: RepositoriesMock{
-				isCollaboratorResult: true,
-			},
-			IssuesMock: IssuesMock{
-				//mockGetLabel: &github.Label{},
-				MockGetLabelResponse: &github.Response{
-					Response: &http.Response{},
-				},
-				MockRemoveLabelResponse: &github.Response{
-					Response: &http.Response{},
-				},
-			},
-		}
+		authors := []string{"anAuthor4"}
+		GHImpl = getGHMock(getMockRepositoryCommits(authors, true), nil, nil)
 
 		prEvent := webhook.PullRequestPayload{}
 
 		mockDB, logger := setupMockDB(t, true)
-		mockDB.hasAuthorSignedLogin = mockAuthorLogin
+		mockDB.hasAuthorSignedLogin = authors[0]
 		mockDB.removePRsEvalInfo = &types.EvaluationInfo{}
 
 		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
@@ -368,6 +351,8 @@ func TestWithFullEnvironment(t *testing.T) {
 				mockListCommitsError: forcedError,
 			},
 		}
+
+		// GHImpl = getGHMock(nil, nil, setupMockRepositoriesService(t, false))
 
 		prEvent := webhook.PullRequestPayload{}
 		mockDB, logger := setupMockDB(t, true)
@@ -391,90 +376,17 @@ func TestWithFullEnvironment(t *testing.T) {
 		defer func() {
 			GHImpl = origGithubImpl
 		}()
-		login := "john"
-		login2 := "doe"
-		mockRepositoryCommits := []*github.RepositoryCommit{
-			{
-				Author: &github.User{
-					Login: github.String(login),
-					Email: github.String("j@gmail.com"),
-				},
-				Commit: &github.Commit{
-					Verification: &github.SignatureVerification{
-						Verified: github.Bool(true),
-					},
-				},
-				SHA: github.String("johnSHA"),
-			},
-			{
-				Author: &github.User{
-					Login: github.String(login2),
-					Email: github.String("d@gmail.com"),
-				},
-				Commit: &github.Commit{
-					Verification: &github.SignatureVerification{
-						Verified: github.Bool(true),
-					},
-				},
-				SHA: github.String("doeSHA"),
-			},
-		}
-		GHImpl = &GHInterfaceMock{
-			PullRequestsMock: PullRequestsMock{
-				mockRepositoryCommits: mockRepositoryCommits,
-			},
-			IssuesMock: IssuesMock{
-				mockGetLabel: &github.Label{},
-				MockGetLabelResponse: &github.Response{
-					Response: &http.Response{},
-				},
-				MockRemoveLabelResponse: &github.Response{
-					Response: &http.Response{},
-				},
-			},
-		}
-
+		authors := []string{"john", "doe"}
+		GHImpl = getGHMock(getMockRepositoryCommits(authors, true), nil, nil)
 		prEvent := webhook.PullRequestPayload{}
-
 		mockDB, logger := setupMockDB(t, false)
 		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
 		assert.NoError(t, err)
 	})
 
 	t.Run("TestHandlePullRequestListCommitsUnsignedCommit", func(t *testing.T) {
-		mockRepositoryCommits := []*github.RepositoryCommit{
-			{
-				Commit: &github.Commit{
-					Author: &github.CommitAuthor{
-						Name:  github.String("someuser"),
-						Email: github.String("someuser@some.where.tld"),
-					},
-					Verification: &github.SignatureVerification{
-						Verified:  github.Bool(false),
-						Reason:    github.String("unsigned"),
-						Signature: nil,
-						Payload:   nil,
-					},
-				},
-				SHA:     github.String("johnSHA"),
-				HTMLURL: github.String("https://github.com"),
-			},
-		}
-		GHImpl = &GHInterfaceMock{
-			PullRequestsMock: PullRequestsMock{
-				mockRepositoryCommits: mockRepositoryCommits,
-			},
-			IssuesMock: IssuesMock{
-				mockGetLabel: &github.Label{},
-				MockGetLabelResponse: &github.Response{
-					Response: &http.Response{},
-				},
-				MockRemoveLabelResponse: &github.Response{
-					Response: &http.Response{},
-				},
-			},
-		}
-
+		authors := []string{"john", "doe"}
+		GHImpl = getGHMock(getMockRepositoryCommits(authors, false), nil, nil)
 		prEvent := webhook.PullRequestPayload{}
 
 		mockDB, logger := setupMockDB(t, false)
@@ -510,8 +422,8 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	defer func() {
 		GHImpl = origGithubImpl
 	}()
-	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := getMockRepositoryCommitsSigned(mockAuthorLogin)
+	authors := []string{"myAuthorLogin"}
+	mockRepositoryCommits := getMockRepositoryCommits(authors, true)
 	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
 		IssuesMock: IssuesMock{
@@ -528,12 +440,13 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	prEvent := webhook.PullRequestPayload{}
 
 	mockDB, logger := setupMockDB(t, true)
-	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+	mockDB.hasAuthorSignedLogin = authors[0]
 	mockDB.storeUsersNeedingToSignEvalInfo = &types.EvaluationInfo{
 		UserSignatures: []types.UserSignature{
 			{
 				User: types.User{
-					Login: mockAuthorLogin,
+					Login: authors[0],
+					Email: "myAuthorLogin@somewhere.tld",
 				},
 			},
 		},
@@ -797,18 +710,80 @@ func TestReviewPriorPRs(t *testing.T) {
 	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
 }
 
-func getMockRepositoryCommitsSigned(mockAuthorLogin string) []*github.RepositoryCommit {
-	mockRepositoryCommits := []*github.RepositoryCommit{
-		{
+func getSignedSignatureVerification() *github.SignatureVerification {
+	return &github.SignatureVerification{
+		Verified:  github.Bool(true),
+		Reason:    github.String("valid"),
+		Signature: github.String("some-signature"),
+		Payload:   github.String("some-payload"),
+	}
+}
+
+func getUnsignedSignatureVerification() *github.SignatureVerification {
+	return &github.SignatureVerification{
+		Verified:  github.Bool(false),
+		Reason:    github.String("unsigned"),
+		Signature: nil,
+		Payload:   nil,
+	}
+}
+
+func getMockRepositoryCommits(mockAuthorLogins []string, signed bool) []*github.RepositoryCommit {
+	mockRepositoryCommits := make([]*github.RepositoryCommit, 0)
+
+	for _, author := range mockAuthorLogins {
+		email := fmt.Sprintf("%s@somewhere.tld", author)
+		var signatureVerification *github.SignatureVerification = getSignedSignatureVerification()
+		if signed == false {
+			signatureVerification = getUnsignedSignatureVerification()
+		}
+
+		commit := github.RepositoryCommit{
 			Author: &github.User{
-				Login: &mockAuthorLogin,
+				Login: &author,
+				Email: &email,
 			},
 			Commit: &github.Commit{
-				Verification: &github.SignatureVerification{
-					Verified: github.Bool(true),
-				},
+				Verification: signatureVerification,
 			},
-		},
+			HTMLURL: github.String("https://github.com"),
+			SHA:     github.String(author + "SHA"),
+		}
+		mockRepositoryCommits = append(mockRepositoryCommits, &commit)
 	}
 	return mockRepositoryCommits
+}
+
+func getRepositoriesMock(forcedError error) RepositoriesMock {
+	return RepositoriesMock{
+		isCollaboratorErr: forcedError,
+	}
+}
+
+func getGHMock(repo_commits []*github.RepositoryCommit, issues_mock *IssuesMock, repositories_mock *RepositoriesMock) *GHInterfaceMock {
+	mock := &GHInterfaceMock{
+		PullRequestsMock: PullRequestsMock{
+			mockRepositoryCommits: repo_commits,
+		},
+	}
+
+	if issues_mock != nil {
+		mock.IssuesMock = *issues_mock
+	} else {
+		mock.IssuesMock = IssuesMock{
+			mockGetLabel: &github.Label{},
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		}
+	}
+
+	if repositories_mock != nil {
+		mock.RepositoriesMock = *repositories_mock
+	}
+
+	return mock
 }
