@@ -561,7 +561,6 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 			mockInstallation: &github.Installation{
 				AppSlug: &appSlug,
 			},
-			//mockAppErr: forcedError,
 			mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
 			mockApp:     &github.App{ExternalURL: &mockExternalUrl},
 		},
@@ -587,6 +586,133 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 				Email: github.String("d@gmail.com"),
 			},
 			SHA: github.String("doeSHA"),
+		},
+	}
+	GHImpl = &GHInterfaceMock{
+		PullRequestsMock: PullRequestsMock{
+			mockRepositoryCommits: mockRepositoryCommits,
+		},
+		IssuesMock: IssuesMock{
+			mockGetLabel: &github.Label{},
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+
+	mockDB, logger := setupMockDB(t, false)
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+	assert.NoError(t, err)
+}
+
+func TestHandlePullRequestListCommitsNoAuthor(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
+
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
+
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+	mockExternalUrl := "fakeExternalURL"
+	GHJWTImpl = &GHJWTMock{
+		AppsMock: AppsMock{
+			mockInstallation: &github.Installation{
+				AppSlug: &appSlug,
+			},
+			mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
+			mockApp:     &github.App{ExternalURL: &mockExternalUrl},
+		},
+	}
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	mockRepositoryCommits := []*github.RepositoryCommit{
+		{
+			Commit: &github.Commit{
+				Author: &github.CommitAuthor{
+					Name:  github.String("someuser"),
+					Email: github.String("someuser@some.where.tld"),
+					// Date:  github.Timestamp.Local(),
+				},
+			},
+			SHA: github.String("johnSHA"),
+		},
+	}
+	GHImpl = &GHInterfaceMock{
+		PullRequestsMock: PullRequestsMock{
+			mockRepositoryCommits: mockRepositoryCommits,
+		},
+		IssuesMock: IssuesMock{
+			mockGetLabel: &github.Label{},
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		},
+	}
+
+	prEvent := webhook.PullRequestPayload{}
+
+	mockDB, logger := setupMockDB(t, false)
+	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+	assert.NoError(t, err)
+}
+
+func TestHandlePullRequestListCommitsUnsignedCommit(t *testing.T) {
+	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
+	defer func() {
+		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
+	}()
+	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
+
+	resetPemFileImpl := SetupTestPemFile(t)
+	defer resetPemFileImpl()
+
+	resetGHJWTImpl := SetupMockGHJWT()
+	defer resetGHJWTImpl()
+	mockExternalUrl := "fakeExternalURL"
+	GHJWTImpl = &GHJWTMock{
+		AppsMock: AppsMock{
+			mockInstallation: &github.Installation{
+				AppSlug: &appSlug,
+			},
+			mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
+			mockApp:     &github.App{ExternalURL: &mockExternalUrl},
+		},
+	}
+
+	origGithubImpl := GHImpl
+	defer func() {
+		GHImpl = origGithubImpl
+	}()
+	mockRepositoryCommits := []*github.RepositoryCommit{
+		{
+			Commit: &github.Commit{
+				Author: &github.CommitAuthor{
+					Name:  github.String("someuser"),
+					Email: github.String("someuser@some.where.tld"),
+				},
+				Verification: &github.SignatureVerification{
+					Verified:  github.Bool(false),
+					Reason:    github.String("unsigned"),
+					Signature: nil,
+					Payload:   nil,
+				},
+			},
+			SHA: github.String("johnSHA"),
 		},
 	}
 	GHImpl = &GHInterfaceMock{
