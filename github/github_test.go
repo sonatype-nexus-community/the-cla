@@ -331,7 +331,18 @@ func TestWithFullEnvironment(t *testing.T) {
 
 	t.Run("TestHandlePullRequestIsCollaboratorTrueCollaborator", func(t *testing.T) {
 		authors := []string{"anAuthor4"}
-		GHImpl = getGHMock(getMockRepositoryCommits(authors, true), nil, nil)
+		issuesMock := IssuesMock{
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		}
+		repositoriesMock := RepositoriesMock{
+			isCollaboratorResult: true,
+		}
+		GHImpl = getGHMock(getMockRepositoryCommits(authors, true), &issuesMock, &repositoriesMock)
 
 		prEvent := webhook.PullRequestPayload{}
 
