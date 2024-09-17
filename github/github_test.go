@@ -299,12 +299,10 @@ func TestWithFullEnvironment(t *testing.T) {
 			&issuesMock,
 			nil,
 		)
-		prEvent := webhook.PullRequestPayload{}
-
 		mockDB, logger := setupMockDB(t, true)
 		mockDB.hasAuthorSignedLogin = authors[0]
 
-		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
 		assert.EqualError(t, err, forcedError.Error())
 	})
 
@@ -320,12 +318,10 @@ func TestWithFullEnvironment(t *testing.T) {
 			&repositoriesMock,
 		)
 
-		prEvent := webhook.PullRequestPayload{}
-
 		mockDB, logger := setupMockDB(t, true)
 		mockDB.hasAuthorSignedLogin = authors[0]
 
-		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
 		assert.EqualError(t, err, forcedError.Error())
 	})
 
@@ -344,13 +340,11 @@ func TestWithFullEnvironment(t *testing.T) {
 		}
 		GHImpl = getGHMock(getMockRepositoryCommits(authors, true), &issuesMock, &repositoriesMock)
 
-		prEvent := webhook.PullRequestPayload{}
-
 		mockDB, logger := setupMockDB(t, true)
 		mockDB.hasAuthorSignedLogin = authors[0]
 		mockDB.removePRsEvalInfo = &types.EvaluationInfo{}
 
-		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
 		assert.NoError(t, err)
 	})
 
@@ -365,9 +359,8 @@ func TestWithFullEnvironment(t *testing.T) {
 
 		// GHImpl = getGHMock(nil, nil, setupMockRepositoriesService(t, false))
 
-		prEvent := webhook.PullRequestPayload{}
 		mockDB, logger := setupMockDB(t, true)
-		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
 		assert.EqualError(t, err, forcedError.Error())
 	})
 
@@ -389,19 +382,16 @@ func TestWithFullEnvironment(t *testing.T) {
 		}()
 		authors := []string{"john", "doe"}
 		GHImpl = getGHMock(getMockRepositoryCommits(authors, true), nil, nil)
-		prEvent := webhook.PullRequestPayload{}
 		mockDB, logger := setupMockDB(t, false)
-		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
 		assert.NoError(t, err)
 	})
 
 	t.Run("TestHandlePullRequestListCommitsUnsignedCommit", func(t *testing.T) {
 		authors := []string{"john", "doe"}
 		GHImpl = getGHMock(getMockRepositoryCommits(authors, false), nil, nil)
-		prEvent := webhook.PullRequestPayload{}
-
 		mockDB, logger := setupMockDB(t, false)
-		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
 		assert.NoError(t, err)
 	})
 }
