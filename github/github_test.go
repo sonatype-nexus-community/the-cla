@@ -744,7 +744,7 @@ func getMockRepositoryCommits(mockAuthorLogins []string, signed bool) []*github.
 
 	for _, author := range mockAuthorLogins {
 		email := fmt.Sprintf("%s@somewhere.tld", author)
-		var signatureVerification *github.SignatureVerification = getSignedSignatureVerification()
+		var signatureVerification = getSignedSignatureVerification()
 		if signed == false {
 			signatureVerification = getUnsignedSignatureVerification()
 		}
