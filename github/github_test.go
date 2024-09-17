@@ -765,12 +765,6 @@ func getMockRepositoryCommits(mockAuthorLogins []string, signed bool) []*github.
 	return mockRepositoryCommits
 }
 
-func getRepositoriesMock(forcedError error) RepositoriesMock {
-	return RepositoriesMock{
-		isCollaboratorErr: forcedError,
-	}
-}
-
 func getGHMock(repo_commits []*github.RepositoryCommit, issues_mock *IssuesMock, repositories_mock *RepositoriesMock) *GHInterfaceMock {
 	mock := &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{

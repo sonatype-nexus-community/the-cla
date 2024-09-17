@@ -267,7 +267,7 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 		if commitVerification != nil {
 			commitVerified = *v.Commit.Verification.Verified
 		}
-		if commitVerified == false {
+		if !commitVerified {
 			commitsMissingVerification = append(commitsMissingVerification, *v)
 			commitFailedChecks = true
 			logger.Debug("Commit failed verification check", zap.Any("Commit", v))
