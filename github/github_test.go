@@ -394,18 +394,17 @@ func TestWithFullEnvironment(t *testing.T) {
 		repositoriesMock := *setupMockRepositoriesService(t, []bool{true, true})
 		repositoriesMock.expectedCtx = []context.Context{context.Background(), context.Background()}
 
-		status1 := &github.RepoStatus{
-			State:       github.String("pending"),
-			Description: github.String("Paul Botsco, the CLA verifier is running"),
-			Context:     &MockAppSlug,
-		}
-		status2 := &github.RepoStatus{
-			State:       github.String("failure"),
-			Description: github.String("One or more commits haven't met our Quality requirements."),
-			Context:     &MockAppSlug,
-		}
 		repositoriesMock.expectedCreateStatusRepoStatus = []*github.RepoStatus{
-			status1, status2,
+			{
+				State:       github.String("pending"),
+				Description: github.String("Paul Botsco, the CLA verifier is running"),
+				Context:     &MockAppSlug,
+			},
+			{
+				State:       github.String("failure"),
+				Description: github.String("One or more commits haven't met our Quality requirements."),
+				Context:     &MockAppSlug,
+			},
 		}
 
 		GHImpl = getGHMock(getMockRepositoryCommits(authors, false), nil, &repositoriesMock)
