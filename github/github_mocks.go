@@ -32,7 +32,7 @@ import (
 // RepositoriesMock mocks RepositoriesService
 type RepositoriesMock struct {
 	t *testing.T
-	/* callCount is the number of times the createRepoStatus function has been called by production code. */
+	/* callCount is the number of times the CreateStatus function has been called by production code. */
 	callCount int
 	/* assertParameters is a slice of booleans that determine whether to assert the parameters passed to the function for
 	each call to the CreateStatus function. If the value at the index of the callCount is true, the parameters will be
