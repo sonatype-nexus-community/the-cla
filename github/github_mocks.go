@@ -31,15 +31,21 @@ import (
 
 // RepositoriesMock mocks RepositoriesService
 type RepositoriesMock struct {
-	t                                                      *testing.T
-	assertParameters                                       bool
-	expectedCtx                                            context.Context
-	expectedOwner, expectedRepo, expectedRef, expectedUser string
+	t *testing.T
+	/* callCount is the number of times the createRepoStatus function has been called by production code. */
+	callCount int
+	/* assertParameters is a slice of booleans that determine whether to assert the parameters passed to the function for
+	each call to the CreateStatus function. If the value at the index of the callCount is true, the parameters will be
+	asserted.
+	*/
+	assertParameters                                       []bool
+	expectedCtx                                            []context.Context
+	expectedOwner, expectedRepo, expectedRef, expectedUser []string
 	// expectedOpts                                           *github.ListOptions
-	expectedCreateStatusRepoStatus *github.RepoStatus
-	createStatusRepoStatus         *github.RepoStatus
-	createStatusResponse           *github.Response
-	createStatusError              error
+	expectedCreateStatusRepoStatus []*github.RepoStatus
+	createStatusRepoStatus         []*github.RepoStatus
+	createStatusResponse           []*github.Response
+	createStatusError              []error
 	isCollaboratorResult           bool
 	isCollaboratorResp             *github.Response
 	isCollaboratorErr              error
@@ -47,7 +53,7 @@ type RepositoriesMock struct {
 
 var _ RepositoriesService = (*RepositoriesMock)(nil)
 
-func setupMockRepositoriesService(t *testing.T, assertParameters bool) (mock *RepositoriesMock) {
+func setupMockRepositoriesService(t *testing.T, assertParameters []bool) (mock *RepositoriesMock) {
 	mock = &RepositoriesMock{
 		t:                t,
 		assertParameters: assertParameters,
@@ -61,15 +67,38 @@ func (r *RepositoriesMock) ListStatuses(ctx context.Context, owner, repo, ref st
 	panic("implement me")
 }
 
-func (r *RepositoriesMock) CreateStatus(ctx context.Context, owner, repo, ref string, status *github.RepoStatus) (*github.RepoStatus, *github.Response, error) {
-	if r.assertParameters {
-		assert.Equal(r.t, r.expectedCtx, ctx)
-		assert.Equal(r.t, r.expectedOwner, owner)
-		assert.Equal(r.t, r.expectedRepo, repo)
-		assert.Equal(r.t, r.expectedRef, ref)
-		assert.Equal(r.t, r.expectedCreateStatusRepoStatus, status)
+func (r *RepositoriesMock) CreateStatus(ctx context.Context, owner, repo, ref string, status *github.RepoStatus) (retRepoStatus *github.RepoStatus, createStatusResponse *github.Response, createStatusError error) {
+	defer func() { r.callCount++ }()
+	if r.assertParameters != nil && r.assertParameters[r.callCount] {
+		if r.expectedCtx != nil {
+			assert.Equal(r.t, r.expectedCtx[r.callCount], ctx)
+		}
+		if r.expectedOwner != nil {
+			assert.Equal(r.t, r.expectedOwner[r.callCount], owner)
+		}
+		if r.expectedRepo != nil {
+			assert.Equal(r.t, r.expectedRepo[r.callCount], repo)
+		}
+		if r.expectedRef != nil {
+			assert.Equal(r.t, r.expectedRef[r.callCount], ref)
+		}
+		if r.expectedCreateStatusRepoStatus != nil {
+			assert.Equal(r.t, r.expectedCreateStatusRepoStatus[r.callCount], status)
+		}
 	}
-	return r.createStatusRepoStatus, r.createStatusResponse, r.createStatusError
+
+	if r.createStatusRepoStatus != nil {
+		retRepoStatus = r.createStatusRepoStatus[r.callCount]
+	}
+
+	if r.createStatusRepoStatus != nil {
+		createStatusResponse = r.createStatusResponse[r.callCount]
+	}
+
+	if r.createStatusError != nil {
+		createStatusError = r.createStatusError[r.callCount]
+	}
+	return
 }
 
 // Get returns a repository.
@@ -86,11 +115,11 @@ func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Reposit
 }
 
 func (r *RepositoriesMock) IsCollaborator(ctx context.Context, owner, repo, user string) (bool, *github.Response, error) {
-	if r.assertParameters {
-		assert.Equal(r.t, r.expectedCtx, ctx)
-		assert.Equal(r.t, r.expectedOwner, owner)
-		assert.Equal(r.t, r.expectedRepo, repo)
-		assert.Equal(r.t, r.expectedUser, user)
+	if r.assertParameters != nil && r.assertParameters[r.callCount] {
+		assert.Equal(r.t, r.expectedCtx[r.callCount], ctx)
+		assert.Equal(r.t, r.expectedOwner[r.callCount], owner)
+		assert.Equal(r.t, r.expectedRepo[r.callCount], repo)
+		assert.Equal(r.t, r.expectedUser[r.callCount], user)
 	}
 	return r.isCollaboratorResult, r.isCollaboratorResp, r.isCollaboratorErr
 }
@@ -204,7 +233,7 @@ func (a *AppsMock) GetInstallation(ctx context.Context, id int64) (*github.Insta
 	return a.mockInstallation, a.mockInstallationResp, a.mockInstallationError
 }
 
-var appSlug = "myAppSlug"
+var MockAppSlug = "myAppSlug"
 
 func SetupMockGHJWT() (resetImpl func()) {
 	origGHJWT := GHJWTImpl
@@ -214,7 +243,7 @@ func SetupMockGHJWT() (resetImpl func()) {
 	GHJWTImpl = &GHJWTMock{
 		AppsMock: AppsMock{
 			mockInstallation: &github.Installation{
-				AppSlug: &appSlug,
+				AppSlug: &MockAppSlug,
 			},
 		},
 	}
