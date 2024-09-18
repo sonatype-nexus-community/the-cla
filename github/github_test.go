@@ -27,172 +27,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-github/v64/github"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/google/go-github/v42/github"
 	"github.com/stretchr/testify/assert"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
-
-func TestCreateLabelIfNotExists_GetLabelError(t *testing.T) {
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	forcedError := fmt.Errorf("forced GetLabel error")
-	GHImpl = &GHInterfaceMock{
-		IssuesMock: IssuesMock{
-			mockGetLabelError: forcedError,
-			MockGetLabelResponse: &github.Response{
-				Response: &http.Response{},
-			},
-		},
-	}
-
-	client := GHImpl.NewClient(nil)
-
-	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
-	assert.EqualError(t, err, forcedError.Error())
-	assert.Nil(t, label)
-}
-
-func TestCreateLabelIfNotExists_LabelExists(t *testing.T) {
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	labelName := "we already got one"
-	existingLabel := &github.Label{Name: &labelName}
-	GHImpl = &GHInterfaceMock{
-		IssuesMock: IssuesMock{
-			mockGetLabel: existingLabel,
-			MockGetLabelResponse: &github.Response{
-				Response: &http.Response{},
-			},
-		},
-	}
-
-	client := GHImpl.NewClient(nil)
-
-	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
-	assert.NoError(t, err)
-	assert.Equal(t, label, existingLabel)
-}
-
-func TestCreateLabelIfNotExists_CreateError(t *testing.T) {
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	forcedError := fmt.Errorf("forced CreateLabel error")
-	GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{
-		MockGetLabelResponse: &github.Response{
-			Response: &http.Response{StatusCode: http.StatusNotFound},
-		},
-		mockCreateLabelError: forcedError},
-	}
-	client := GHImpl.NewClient(nil)
-
-	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
-	assert.EqualError(t, err, forcedError.Error())
-	assert.Nil(t, label)
-}
-
-func TestCreateLabelIfNotExists(t *testing.T) {
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	labelName := labelNameCLANotSigned
-	labelColor := "fa3a3a"
-	labelDescription := "The CLA is not signed"
-	labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
-	GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{
-		MockGetLabelResponse: &github.Response{
-			Response: &http.Response{StatusCode: http.StatusNotFound},
-		},
-		mockCreateLabel: labelToCreate},
-	}
-
-	client := GHImpl.NewClient(nil)
-
-	label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
-	assert.NoError(t, err)
-	assert.Equal(t, label, labelToCreate)
-}
-
-func TestAddLabelToIssueIfNotExists_ListLabelsByIssueError(t *testing.T) {
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	forcedError := fmt.Errorf("forced ListLabelsByIssue error")
-	GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{mockListLabelsByIssueError: forcedError}}
-
-	client := GHImpl.NewClient(nil)
-
-	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
-	assert.EqualError(t, err, forcedError.Error())
-	assert.Nil(t, label)
-}
-
-func TestAddLabelToIssueIfNotExists_LabelAlreadyExists(t *testing.T) {
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	labelName := labelNameCLANotSigned
-	existingLabel := &github.Label{Name: &labelName}
-	existingLabelList := []*github.Label{existingLabel}
-	GHImpl = &GHInterfaceMock{
-		IssuesMock: IssuesMock{mockListLabelsByIssue: existingLabelList},
-	}
-
-	client := GHImpl.NewClient(nil)
-
-	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, labelName)
-	assert.NoError(t, err)
-	assert.Equal(t, existingLabel, label)
-}
-
-func Test_AddLabelToIssueIfNotExists_AddLabelError(t *testing.T) {
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	forcedError := fmt.Errorf("forced AddLabels error")
-	GHImpl = &GHInterfaceMock{
-		IssuesMock: IssuesMock{mockAddLabelsError: forcedError},
-	}
-
-	client := GHImpl.NewClient(nil)
-
-	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
-	assert.EqualError(t, err, forcedError.Error())
-	assert.Nil(t, label)
-}
-
-func Test_AddLabelToIssueIfNotExists(t *testing.T) {
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	labelName := labelNameCLANotSigned
-	labelColor := "fa3a3a"
-	labelDescription := "The CLA is not signed"
-	labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
-	GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{mockAddLabels: []*github.Label{labelToCreate}}}
-
-	client := GHImpl.NewClient(nil)
-
-	label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, labelNameCLANotSigned)
-	assert.NoError(t, err)
-	// real gitHub API returns different result, but does not matter to us now
-	assert.Nil(t, label)
-}
 
 type mockCLADb struct {
 	t                               *testing.T
@@ -271,43 +114,137 @@ func (m mockCLADb) RemovePRsForUsers(usersSigned []types.UserSignature, evalInfo
 	return m.removePRsError
 }
 
-func TestHandlePullRequestIsCollaboratorError(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
-	defer func() {
-		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
-
-	resetPemFileImpl := SetupTestPemFile(t)
-	defer resetPemFileImpl()
-
-	resetGHJWTImpl := SetupMockGHJWT()
-	defer resetGHJWTImpl()
-
+func TestWithJustGHImpl(t *testing.T) {
+	// Setup Code before tests
 	origGithubImpl := GHImpl
 	defer func() {
 		GHImpl = origGithubImpl
 	}()
-	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
-	forcedError := fmt.Errorf("forced IsCollaborator error")
-	GHImpl = &GHInterfaceMock{
-		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
-		RepositoriesMock: RepositoriesMock{
-			isCollaboratorErr: forcedError,
-		},
-	}
 
-	prEvent := webhook.PullRequestPayload{}
+	t.Run("TestCreateLabelIfNotExists", func(t *testing.T) {
+		labelName := labelNameCLANotSigned
+		labelColor := "fa3a3a"
+		labelDescription := "The CLA is not signed"
+		labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
+		GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{StatusCode: http.StatusNotFound},
+			},
+			mockCreateLabel: labelToCreate},
+		}
 
-	mockDB, logger := setupMockDB(t, true)
-	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+		client := GHImpl.NewClient(nil)
+		label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
+		assert.NoError(t, err)
+		assert.Equal(t, label, labelToCreate)
+	})
 
-	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
-	assert.EqualError(t, err, forcedError.Error())
+	t.Run("TestCreateLabelIfNotExists_CreateError", func(t *testing.T) {
+		forcedError := fmt.Errorf("forced CreateLabel error")
+		GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{StatusCode: http.StatusNotFound},
+			},
+			mockCreateLabelError: forcedError},
+		}
+		client := GHImpl.NewClient(nil)
+		label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
+		assert.EqualError(t, err, forcedError.Error())
+		assert.Nil(t, label)
+	})
+
+	t.Run("TestCreateLabelIfNotExists_GetLabelError", func(t *testing.T) {
+		forcedError := fmt.Errorf("forced GetLabel error")
+		GHImpl = &GHInterfaceMock{
+			IssuesMock: IssuesMock{
+				mockGetLabelError: forcedError,
+				MockGetLabelResponse: &github.Response{
+					Response: &http.Response{},
+				},
+			},
+		}
+
+		client := GHImpl.NewClient(nil)
+		label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
+		assert.EqualError(t, err, forcedError.Error())
+		assert.Nil(t, label)
+	})
+
+	t.Run("TestCreateLabelIfNotExists_LabelExists", func(t *testing.T) {
+		labelName := "we already got one"
+		existingLabel := &github.Label{Name: &labelName}
+		GHImpl = &GHInterfaceMock{
+			IssuesMock: IssuesMock{
+				mockGetLabel: existingLabel,
+				MockGetLabelResponse: &github.Response{
+					Response: &http.Response{},
+				},
+			},
+		}
+
+		client := GHImpl.NewClient(nil)
+		label, err := _createRepoLabelIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", "", "", "")
+		assert.NoError(t, err)
+		assert.Equal(t, label, existingLabel)
+	})
+
+	t.Run("TestAddLabelToIssueIfNotExists", func(t *testing.T) {
+		labelName := labelNameCLANotSigned
+		labelColor := "fa3a3a"
+		labelDescription := "The CLA is not signed"
+		labelToCreate := &github.Label{Name: &labelName, Color: &labelColor, Description: &labelDescription}
+		GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{mockAddLabels: []*github.Label{labelToCreate}}}
+
+		client := GHImpl.NewClient(nil)
+
+		label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, labelNameCLANotSigned)
+		assert.NoError(t, err)
+		// real gitHub API returns different result, but does not matter to us now
+		assert.Nil(t, label)
+	})
+
+	t.Run("TestAddLabelToIssueIfNotExists_ListLabelsByIssueError", func(t *testing.T) {
+		forcedError := fmt.Errorf("forced ListLabelsByIssue error")
+		GHImpl = &GHInterfaceMock{IssuesMock: IssuesMock{mockListLabelsByIssueError: forcedError}}
+
+		client := GHImpl.NewClient(nil)
+
+		label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
+		assert.EqualError(t, err, forcedError.Error())
+		assert.Nil(t, label)
+	})
+
+	t.Run("TestAddLabelToIssueIfNotExists_AddLabelError", func(t *testing.T) {
+		forcedError := fmt.Errorf("forced AddLabels error")
+		GHImpl = &GHInterfaceMock{
+			IssuesMock: IssuesMock{mockAddLabelsError: forcedError},
+		}
+
+		client := GHImpl.NewClient(nil)
+
+		label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, "")
+		assert.EqualError(t, err, forcedError.Error())
+		assert.Nil(t, label)
+	})
+
+	t.Run("TestAddLabelToIssueIfNotExists_LabelAlreadyExists", func(t *testing.T) {
+		labelName := labelNameCLANotSigned
+		existingLabel := &github.Label{Name: &labelName}
+		existingLabelList := []*github.Label{existingLabel}
+		GHImpl = &GHInterfaceMock{
+			IssuesMock: IssuesMock{mockListLabelsByIssue: existingLabelList},
+		}
+
+		client := GHImpl.NewClient(nil)
+
+		label, err := _addLabelToIssueIfNotExists(zaptest.NewLogger(t), client.Issues, "", "", 0, labelName)
+		assert.NoError(t, err)
+		assert.Equal(t, existingLabel, label)
+	})
 }
 
-func TestHandlePullRequestIsCollaboratorTrueCollaborator(t *testing.T) {
+func TestWithFullEnvironment(t *testing.T) {
+	// Setup Code before tests
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
 		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
@@ -324,109 +261,139 @@ func TestHandlePullRequestIsCollaboratorTrueCollaborator(t *testing.T) {
 	defer func() {
 		GHImpl = origGithubImpl
 	}()
-	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
-	GHImpl = &GHInterfaceMock{
-		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
-		RepositoriesMock: RepositoriesMock{
-			isCollaboratorResult: true,
-		},
-		IssuesMock: IssuesMock{
-			//mockGetLabel: &github.Label{},
+
+	t.Run("TestHandlePullRequestCreateLabelError", func(t *testing.T) {
+		authors := []string{"myAuthorLogin"}
+		forcedError := fmt.Errorf("forced CreateLabel error")
+		issuesMock := IssuesMock{
+			MockGetLabelResponse: &github.Response{Response: &http.Response{StatusCode: http.StatusNotFound}},
+			mockCreateLabelError: forcedError,
+		}
+		GHImpl = getGHMock(
+			getMockRepositoryCommits(authors, true),
+			&issuesMock,
+			nil,
+		)
+
+		prEvent := webhook.PullRequestPayload{}
+
+		mockDB, logger := setupMockDB(t, true)
+		mockDB.hasAuthorSignedLogin = authors[0]
+
+		err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
+		assert.EqualError(t, err, forcedError.Error())
+	})
+
+	t.Run("TestHandlePullRequestAddLabelsToIssueError", func(t *testing.T) {
+		authors := []string{"myAuthorLogin2"}
+		forcedError := fmt.Errorf("forced AddLabelsToIssue error")
+		issuesMock := IssuesMock{
+			mockGetLabel:       &github.Label{},
+			mockAddLabelsError: forcedError,
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		}
+		GHImpl = getGHMock(
+			getMockRepositoryCommits(authors, true),
+			&issuesMock,
+			nil,
+		)
+		mockDB, logger := setupMockDB(t, true)
+		mockDB.hasAuthorSignedLogin = authors[0]
+
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
+		assert.EqualError(t, err, forcedError.Error())
+	})
+
+	t.Run("TestHandlePullRequestIsCollaboratorError", func(t *testing.T) {
+		authors := []string{"myAuthorLogin3"}
+		forcedError := fmt.Errorf("forced IsCollaborator error")
+		repositoriesMock := RepositoriesMock{
+			isCollaboratorErr: forcedError,
+		}
+		GHImpl = getGHMock(
+			getMockRepositoryCommits(authors, true),
+			nil,
+			&repositoriesMock,
+		)
+
+		mockDB, logger := setupMockDB(t, true)
+		mockDB.hasAuthorSignedLogin = authors[0]
+
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
+		assert.EqualError(t, err, forcedError.Error())
+	})
+
+	t.Run("TestHandlePullRequestIsCollaboratorTrueCollaborator", func(t *testing.T) {
+		authors := []string{"anAuthor4"}
+		issuesMock := IssuesMock{
 			MockGetLabelResponse: &github.Response{
 				Response: &http.Response{},
 			},
 			MockRemoveLabelResponse: &github.Response{
 				Response: &http.Response{},
 			},
-		},
-	}
+		}
+		repositoriesMock := RepositoriesMock{
+			isCollaboratorResult: true,
+		}
+		GHImpl = getGHMock(getMockRepositoryCommits(authors, true), &issuesMock, &repositoriesMock)
 
-	prEvent := webhook.PullRequestPayload{}
+		mockDB, logger := setupMockDB(t, true)
+		mockDB.hasAuthorSignedLogin = authors[0]
+		mockDB.removePRsEvalInfo = &types.EvaluationInfo{}
 
-	mockDB, logger := setupMockDB(t, true)
-	mockDB.hasAuthorSignedLogin = mockAuthorLogin
-	mockDB.removePRsEvalInfo = &types.EvaluationInfo{}
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
+		assert.NoError(t, err)
+	})
 
-	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
-	assert.NoError(t, err)
-}
-
-func TestHandlePullRequestCreateLabelError(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
-	defer func() {
-		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
-
-	resetPemFileImpl := SetupTestPemFile(t)
-	defer resetPemFileImpl()
-
-	resetGHJWTImpl := SetupMockGHJWT()
-	defer resetGHJWTImpl()
-
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
-	forcedError := fmt.Errorf("forced CreateLabel error")
-	GHImpl = &GHInterfaceMock{
-		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
-		IssuesMock: IssuesMock{
-			MockGetLabelResponse: &github.Response{Response: &http.Response{StatusCode: http.StatusNotFound}},
-			mockCreateLabelError: forcedError,
-		},
-	}
-
-	prEvent := webhook.PullRequestPayload{}
-
-	mockDB, logger := setupMockDB(t, true)
-	mockDB.hasAuthorSignedLogin = mockAuthorLogin
-
-	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
-	assert.EqualError(t, err, forcedError.Error())
-}
-
-func TestHandlePullRequestAddLabelsToIssueError(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
-	defer func() {
-		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
-
-	resetPemFileImpl := SetupTestPemFile(t)
-	defer resetPemFileImpl()
-
-	resetGHJWTImpl := SetupMockGHJWT()
-	defer resetGHJWTImpl()
-
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
-	forcedError := fmt.Errorf("forced AddLabelsToIssue error")
-	GHImpl = &GHInterfaceMock{
-		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
-		IssuesMock: IssuesMock{
-			mockGetLabel:       &github.Label{},
-			mockAddLabelsError: forcedError,
-			MockGetLabelResponse: &github.Response{
-				Response: &http.Response{},
+	t.Run("TestHandlePullRequestListCommitsError", func(t *testing.T) {
+		forcedError := fmt.Errorf("forced ListCommits error")
+		GHImpl = &GHInterfaceMock{
+			RepositoriesMock: *setupMockRepositoriesService(t, false),
+			PullRequestsMock: PullRequestsMock{
+				mockListCommitsError: forcedError,
 			},
-		},
-	}
+		}
 
-	prEvent := webhook.PullRequestPayload{}
+		// GHImpl = getGHMock(nil, nil, setupMockRepositoriesService(t, false))
 
-	mockDB, logger := setupMockDB(t, true)
-	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+		mockDB, logger := setupMockDB(t, true)
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
+		assert.EqualError(t, err, forcedError.Error())
+	})
 
-	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
-	assert.EqualError(t, err, forcedError.Error())
+	t.Run("TestHandlePullRequestListCommits", func(t *testing.T) {
+		mockExternalUrl := "fakeExternalURL"
+		GHJWTImpl = &GHJWTMock{
+			AppsMock: AppsMock{
+				mockInstallation: &github.Installation{
+					AppSlug: &appSlug,
+				},
+				mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
+				mockApp:     &github.App{ExternalURL: &mockExternalUrl},
+			},
+		}
+
+		origGithubImpl := GHImpl
+		defer func() {
+			GHImpl = origGithubImpl
+		}()
+		authors := []string{"john", "doe"}
+		GHImpl = getGHMock(getMockRepositoryCommits(authors, true), nil, nil)
+		mockDB, logger := setupMockDB(t, false)
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
+		assert.NoError(t, err)
+	})
+
+	t.Run("TestHandlePullRequestListCommitsUnsignedCommit", func(t *testing.T) {
+		authors := []string{"john", "doe"}
+		GHImpl = getGHMock(getMockRepositoryCommits(authors, false), nil, nil)
+		mockDB, logger := setupMockDB(t, false)
+		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
+		assert.NoError(t, err)
+	})
 }
 
 func TestHandlePullRequestGetAppError(t *testing.T) {
@@ -456,8 +423,8 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	defer func() {
 		GHImpl = origGithubImpl
 	}()
-	mockAuthorLogin := "myAuthorLogin"
-	mockRepositoryCommits := []*github.RepositoryCommit{{Author: &github.User{Login: &mockAuthorLogin}}}
+	authors := []string{"myAuthorLogin"}
+	mockRepositoryCommits := getMockRepositoryCommits(authors, true)
 	GHImpl = &GHInterfaceMock{
 		PullRequestsMock: PullRequestsMock{mockRepositoryCommits: mockRepositoryCommits},
 		IssuesMock: IssuesMock{
@@ -474,12 +441,13 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	prEvent := webhook.PullRequestPayload{}
 
 	mockDB, logger := setupMockDB(t, true)
-	mockDB.hasAuthorSignedLogin = mockAuthorLogin
+	mockDB.hasAuthorSignedLogin = authors[0]
 	mockDB.storeUsersNeedingToSignEvalInfo = &types.EvaluationInfo{
 		UserSignatures: []types.UserSignature{
 			{
 				User: types.User{
-					Login: mockAuthorLogin,
+					Login: authors[0],
+					Email: "myAuthorLogin@somewhere.tld",
 				},
 			},
 		},
@@ -512,38 +480,7 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
 }
 
-func TestHandlePullRequestListCommitsError(t *testing.T) {
-	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
-	defer func() {
-		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
-	}()
-	assert.NoError(t, os.Setenv(EnvGhAppId, "-1"))
-
-	resetPemFileImpl := SetupTestPemFile(t)
-	defer resetPemFileImpl()
-
-	resetGHJWTImpl := SetupMockGHJWT()
-	defer resetGHJWTImpl()
-
-	origGithubImpl := GHImpl
-	defer func() {
-		GHImpl = origGithubImpl
-	}()
-	forcedError := fmt.Errorf("forced ListCommits error")
-	GHImpl = &GHInterfaceMock{
-		RepositoriesMock: *setupMockRepositoriesService(t, false),
-		PullRequestsMock: PullRequestsMock{
-			mockListCommitsError: forcedError,
-		},
-	}
-
-	prEvent := webhook.PullRequestPayload{}
-	mockDB, logger := setupMockDB(t, true)
-	err := HandlePullRequest(logger, mockDB, prEvent, 0, "")
-	assert.EqualError(t, err, forcedError.Error())
-}
-
-func TestHandlePullRequestListCommits(t *testing.T) {
+func TestHandlePullRequestListCommitsNoAuthor(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
 		resetEnvVariable(t, EnvGhAppId, origGHAppIDEnvVar)
@@ -561,7 +498,6 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 			mockInstallation: &github.Installation{
 				AppSlug: &appSlug,
 			},
-			//mockAppErr: forcedError,
 			mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
 			mockApp:     &github.App{ExternalURL: &mockExternalUrl},
 		},
@@ -571,22 +507,17 @@ func TestHandlePullRequestListCommits(t *testing.T) {
 	defer func() {
 		GHImpl = origGithubImpl
 	}()
-	login := "john"
-	login2 := "doe"
 	mockRepositoryCommits := []*github.RepositoryCommit{
 		{
-			Author: &github.User{
-				Login: github.String(login),
-				Email: github.String("j@gmail.com"),
+			Commit: &github.Commit{
+				Author: &github.CommitAuthor{
+					Name:  github.String("someuser"),
+					Email: github.String("someuser@some.where.tld"),
+					// Date:  github.Timestamp.Local(),
+				},
 			},
-			SHA: github.String("johnSHA"),
-		},
-		{
-			Author: &github.User{
-				Login: github.String(login2),
-				Email: github.String("d@gmail.com"),
-			},
-			SHA: github.String("doeSHA"),
+			SHA:     github.String("johnSHA"),
+			HTMLURL: github.String("https://github.com"),
 		},
 	}
 	GHImpl = &GHInterfaceMock{
@@ -778,4 +709,76 @@ func TestReviewPriorPRs(t *testing.T) {
 	defer resetPemFileImpl()
 
 	assert.NoError(t, ReviewPriorPRs(logger, mockDB, &user))
+}
+
+func getSignedSignatureVerification() *github.SignatureVerification {
+	return &github.SignatureVerification{
+		Verified:  github.Bool(true),
+		Reason:    github.String("valid"),
+		Signature: github.String("some-signature"),
+		Payload:   github.String("some-payload"),
+	}
+}
+
+func getUnsignedSignatureVerification() *github.SignatureVerification {
+	return &github.SignatureVerification{
+		Verified:  github.Bool(false),
+		Reason:    github.String("unsigned"),
+		Signature: nil,
+		Payload:   nil,
+	}
+}
+
+func getMockRepositoryCommits(mockAuthorLogins []string, signed bool) []*github.RepositoryCommit {
+	mockRepositoryCommits := make([]*github.RepositoryCommit, 0)
+
+	for _, author := range mockAuthorLogins {
+		email := fmt.Sprintf("%s@somewhere.tld", author)
+		var signatureVerification = getSignedSignatureVerification()
+		if signed == false {
+			signatureVerification = getUnsignedSignatureVerification()
+		}
+
+		commit := github.RepositoryCommit{
+			Author: &github.User{
+				Login: &author,
+				Email: &email,
+			},
+			Commit: &github.Commit{
+				Verification: signatureVerification,
+			},
+			HTMLURL: github.String("https://github.com"),
+			SHA:     github.String(author + "SHA"),
+		}
+		mockRepositoryCommits = append(mockRepositoryCommits, &commit)
+	}
+	return mockRepositoryCommits
+}
+
+func getGHMock(repoCommits []*github.RepositoryCommit, issuesMock *IssuesMock, repositoriesMock *RepositoriesMock) *GHInterfaceMock {
+	mock := &GHInterfaceMock{
+		PullRequestsMock: PullRequestsMock{
+			mockRepositoryCommits: repoCommits,
+		},
+	}
+
+	if issuesMock != nil {
+		mock.IssuesMock = *issuesMock
+	} else {
+		mock.IssuesMock = IssuesMock{
+			mockGetLabel: &github.Label{},
+			MockGetLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+			MockRemoveLabelResponse: &github.Response{
+				Response: &http.Response{},
+			},
+		}
+	}
+
+	if repositoriesMock != nil {
+		mock.RepositoriesMock = *repositoriesMock
+	}
+
+	return mock
 }

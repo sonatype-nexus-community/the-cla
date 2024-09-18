@@ -8,7 +8,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/bradleyfalzon/ghinstallation/v2 v2.11.0
 	github.com/golang-migrate/migrate/v4 v4.17.1
-	github.com/google/go-github/v42 v42.0.0
+	github.com/google/go-github/v64 v64.0.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.12.0

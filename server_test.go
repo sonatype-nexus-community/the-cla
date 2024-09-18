@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/google/go-github/v42/github"
+	"github.com/google/go-github/v64/github"
 	"github.com/labstack/echo/v4"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"

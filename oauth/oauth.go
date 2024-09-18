@@ -21,10 +21,11 @@ package oauth
 
 import (
 	"context"
-	"go.uber.org/zap"
 	"net/http"
 
-	"github.com/google/go-github/v42/github"
+	"go.uber.org/zap"
+
+	"github.com/google/go-github/v64/github"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
 	"golang.org/x/oauth2"
 	githuboauth "golang.org/x/oauth2/github"
