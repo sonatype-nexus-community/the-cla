@@ -348,15 +348,17 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 
 		message := `Thanks for the contribution. Unfortunately some of your commits don't meet our standards. All commits must be signed and have author information set.
 		
-		The commits to review are:
+The commits to review are:
 		
-		%s`
+%s`
 		commitsMessage := ""
 		for _, c := range commitsMissingAuthor {
-			commitsMessage += commitsMessage + fmt.Sprintf(`- <a href="%s">%s</a> - missing author :cop:`, *c.HTMLURL, *c.SHA)
+			commitsMessage += commitsMessage + fmt.Sprintf(`- <a href="%s">%s</a> - missing author :cop:
+`, *c.HTMLURL, *c.SHA)
 		}
 		for _, c := range commitsMissingVerification {
-			commitsMessage += commitsMessage + fmt.Sprintf(`- <a href="%s">%s</a> - unsigned commit :key:`, *c.HTMLURL, *c.SHA)
+			commitsMessage += commitsMessage + fmt.Sprintf(`- <a href="%s">%s</a> - unsigned commit :key:
+`, *c.HTMLURL, *c.SHA)
 		}
 		logger.Debug("Adding Comment to Issue", zap.Int("Issue #", int(evalInfo.PRNumber)), zap.String("Comment", fmt.Sprintf(message, commitsMessage)))
 		_, err = addCommentToIssueIfNotExists(
