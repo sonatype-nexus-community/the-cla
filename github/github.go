@@ -366,6 +366,11 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 			return err
 		}
 
+		err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "failure", "One or more commits haven't met our Quality requirements.", botName)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	}
 
