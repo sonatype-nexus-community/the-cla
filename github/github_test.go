@@ -20,6 +20,7 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -351,7 +352,7 @@ func TestWithFullEnvironment(t *testing.T) {
 	t.Run("TestHandlePullRequestListCommitsError", func(t *testing.T) {
 		forcedError := fmt.Errorf("forced ListCommits error")
 		GHImpl = &GHInterfaceMock{
-			RepositoriesMock: *setupMockRepositoriesService(t, false),
+			RepositoriesMock: *setupMockRepositoriesService(t, []bool{false}),
 			PullRequestsMock: PullRequestsMock{
 				mockListCommitsError: forcedError,
 			},
@@ -369,7 +370,7 @@ func TestWithFullEnvironment(t *testing.T) {
 		GHJWTImpl = &GHJWTMock{
 			AppsMock: AppsMock{
 				mockInstallation: &github.Installation{
-					AppSlug: &appSlug,
+					AppSlug: &MockAppSlug,
 				},
 				mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
 				mockApp:     &github.App{ExternalURL: &mockExternalUrl},
@@ -389,7 +390,24 @@ func TestWithFullEnvironment(t *testing.T) {
 
 	t.Run("TestHandlePullRequestListCommitsUnsignedCommit", func(t *testing.T) {
 		authors := []string{"john", "doe"}
-		GHImpl = getGHMock(getMockRepositoryCommits(authors, false), nil, nil)
+
+		repositoriesMock := *setupMockRepositoriesService(t, []bool{true, true})
+		repositoriesMock.expectedCtx = []context.Context{context.Background(), context.Background()}
+
+		repositoriesMock.expectedCreateStatusRepoStatus = []*github.RepoStatus{
+			{
+				State:       github.String("pending"),
+				Description: github.String("Paul Botsco, the CLA verifier is running"),
+				Context:     &MockAppSlug,
+			},
+			{
+				State:       github.String("failure"),
+				Description: github.String("One or more commits haven't met our Quality requirements."),
+				Context:     &MockAppSlug,
+			},
+		}
+
+		GHImpl = getGHMock(getMockRepositoryCommits(authors, false), nil, &repositoriesMock)
 		mockDB, logger := setupMockDB(t, false)
 		err := HandlePullRequest(logger, mockDB, webhook.PullRequestPayload{}, 0, "")
 		assert.NoError(t, err)
@@ -412,7 +430,7 @@ func TestHandlePullRequestGetAppError(t *testing.T) {
 	GHJWTImpl = &GHJWTMock{
 		AppsMock: AppsMock{
 			mockInstallation: &github.Installation{
-				AppSlug: &appSlug,
+				AppSlug: &MockAppSlug,
 			},
 			//mockAppErr: forcedError,
 			mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusNotFound}},
@@ -496,7 +514,7 @@ func TestHandlePullRequestListCommitsNoAuthor(t *testing.T) {
 	GHJWTImpl = &GHJWTMock{
 		AppsMock: AppsMock{
 			mockInstallation: &github.Installation{
-				AppSlug: &appSlug,
+				AppSlug: &MockAppSlug,
 			},
 			mockAppResp: &github.Response{Response: &http.Response{StatusCode: http.StatusOK}},
 			mockApp:     &github.App{ExternalURL: &mockExternalUrl},
@@ -630,7 +648,7 @@ func TestReviewPriorPRsEvaluatePRError(t *testing.T) {
 	GHImpl = &GHInterfaceMock{
 		RepositoriesMock: RepositoriesMock{
 			t:                 t,
-			createStatusError: forcedError,
+			createStatusError: []error{forcedError},
 		},
 	}
 
