@@ -15,7 +15,6 @@
 //
 
 //go:build go1.16
-// +build go1.16
 
 package main
 
@@ -529,18 +528,13 @@ func notifySignatureComplete(signature *types.UserSignature) (err error) {
 	auth := smtp.PlainAuth("", smtpUsername, smtpPassword, smtpHost)
 	to := []string{notificationAddress}
 	msg := []byte("To: " + notificationAddress + "\r\n" +
-
 		"Subject: CLA Signature Received\r\n" +
-
 		"\r\n" +
-
 		"CLA Version " + signature.CLAVersion + " has been signed at " + signature.TimeSigned.Format(time.RFC1123Z) + ".\r\n\r\n" +
-
 		"Details are: \r\n" +
 		"	GitHub User ID: " + signature.User.Login + "\r\n" +
 		"	Given Name    : " + signature.User.GivenName + "\r\n" +
 		"	Email Address : " + signature.User.Email + "\r\n\r\n" +
-
 		"CLA Text below was as signed (obtained from " + signature.CLATextUrl + "):\r\n\r\n" + signature.CLAText)
 
 	if smtpHost == "" || smtpPort == "" || notificationAddress == "" {
