@@ -15,7 +15,6 @@
 //
 
 //go:build go1.16
-// +build go1.16
 
 package db
 
@@ -30,7 +29,8 @@ import (
 )
 
 // SetupMockDB should always be followed by a call to the closeDbFunc, like so:
-// 	mock, db, closeDbFunc := SetupMockDB(t)
+//
+//	mock, db, closeDbFunc := SetupMockDB(t)
 //	defer closeDbFunc()
 func SetupMockDB(t *testing.T) (mock sqlmock.Sqlmock, mockDbIf *ClaDB, closeDbFunc func()) {
 	db, mock, err := sqlmock.New()
