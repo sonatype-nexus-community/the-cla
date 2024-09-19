@@ -353,17 +353,22 @@ The commits to review are:
 %s`
 		commitsMessage := ""
 		for _, c := range commitsMissingAuthor {
-			commitsMessage += commitsMessage + fmt.Sprintf(`- <a href="%s">%s</a> - missing author :cop:
+			commitsMessage += fmt.Sprintf(`- <a href="%s">%s</a> - missing author :cop:
 `, *c.HTMLURL, *c.SHA)
 		}
 		for _, c := range commitsMissingVerification {
-			commitsMessage += commitsMessage + fmt.Sprintf(`- <a href="%s">%s</a> - unsigned commit :key:
+			commitsMessage += fmt.Sprintf(`- <a href="%s">%s</a> - unsigned commit :key:
 `, *c.HTMLURL, *c.SHA)
 		}
 		logger.Debug("Adding Comment to Issue", zap.Int("Issue #", int(evalInfo.PRNumber)), zap.String("Comment", fmt.Sprintf(message, commitsMessage)))
 		_, err = addCommentToIssueIfNotExists(
 			client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, int(evalInfo.PRNumber),
 			fmt.Sprintf(message, commitsMessage))
+		if err != nil {
+			return err
+		}
+
+		err = createRepoStatus(client.Repositories, evalInfo.RepoOwner, evalInfo.RepoName, evalInfo.Sha, "failure", "One or more commits haven't met our Quality requirements.", botName)
 		if err != nil {
 			return err
 		}
