@@ -347,9 +347,9 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 
 		message := `Thanks for the contribution. Unfortunately some of your commits don't meet our standards. All commits must be signed and have author information set.
 		
-		The commits to review are:
+The commits to review are:
 		
-		%s`
+%s`
 		commitsMessage := ""
 		for _, c := range commitsMissingAuthor {
 			commitsMessage += fmt.Sprintf(`- <a href="%s">%s</a> - missing author :cop:
