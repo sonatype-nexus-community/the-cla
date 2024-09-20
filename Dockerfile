@@ -37,7 +37,7 @@ RUN REACT_APP_CLA_URL="$REACT_APP_CLA_URL" \
     REACT_APP_CLA_VERSION="$REACT_APP_CLA_VERSION" \
     make yarn
 
-FROM golang:1.21-alpine AS build
+FROM golang:1.22-alpine AS build
 LABEL stage=builder
 
 RUN apk add --no-cache build-base ca-certificates git
