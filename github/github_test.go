@@ -500,6 +500,40 @@ func TestHandlePullRequestMissingPemFile(t *testing.T) {
 	assert.EqualError(t, err, "could not read private key: open the-cla.pem: no such file or directory")
 }
 
+func TestBuildCommentMessageEmptyArgs(t *testing.T) {
+	commentMessage := buildCommentMessage([]github.RepositoryCommit{}, []github.RepositoryCommit{})
+	assert.Equal(t, fmt.Sprintf(buildCommentPrefix, "", ""), commentMessage)
+}
+
+func TestBuildCommentMessageMissingAuthor(t *testing.T) {
+	myUrl := "https://github.com"
+	mySha := "sha"
+	commentMessage := buildCommentMessage([]github.RepositoryCommit{
+		{HTMLURL: &myUrl, SHA: &mySha},
+	}, []github.RepositoryCommit{})
+	assert.Equal(t, fmt.Sprintf(buildCommentPrefix, "- <a href=\"https://github.com\">sha</a> - missing author :cop:\n", ""), commentMessage)
+}
+
+func TestBuildCommentMessageMissingVerification(t *testing.T) {
+	myUrl := "https://github.com"
+	mySha := "sha"
+	commentMessage := buildCommentMessage([]github.RepositoryCommit{}, []github.RepositoryCommit{
+		{HTMLURL: &myUrl, SHA: &mySha},
+	})
+	assert.Equal(t, fmt.Sprintf(buildCommentPrefix, "- <a href=\"https://github.com\">sha</a> - unsigned commit :key:\n", buildCommentSuffixSignedCommits), commentMessage)
+}
+
+func TestBuildCommentMessageMissingAuthorAndVerification(t *testing.T) {
+	myUrl := "https://github.com"
+	mySha := "sha"
+	commentMessage := buildCommentMessage([]github.RepositoryCommit{
+		{HTMLURL: &myUrl, SHA: &mySha},
+	}, []github.RepositoryCommit{
+		{HTMLURL: &myUrl, SHA: &mySha},
+	})
+	assert.Equal(t, fmt.Sprintf(buildCommentPrefix, "- <a href=\"https://github.com\">sha</a> - missing author :cop:\n- <a href=\"https://github.com\">sha</a> - unsigned commit :key:\n", buildCommentSuffixSignedCommits), commentMessage)
+}
+
 func TestHandlePullRequestListCommitsNoAuthor(t *testing.T) {
 	origGHAppIDEnvVar := os.Getenv(EnvGhAppId)
 	defer func() {
@@ -561,6 +595,8 @@ The commits to review are:
 		
 - <a href="https://github.com">johnSHA</a> - missing author :cop:
 - <a href="https://github.com">johnSHA</a> - unsigned commit :key:
+
+See [Signed Commits](https://contribute.sonatype.com/docs/contributing/submitting/#signed-commits).
 `,
 						)},
 					}, // comment
