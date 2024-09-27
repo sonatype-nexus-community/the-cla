@@ -14,8 +14,6 @@
 // limitations under the License.
 //
 
-//go:build go1.16
-
 package github
 
 import (
@@ -351,7 +349,7 @@ func TestWithFullEnvironment(t *testing.T) {
 	t.Run("TestHandlePullRequestListCommitsError", func(t *testing.T) {
 		forcedError := fmt.Errorf("forced ListCommits error")
 		GHImpl = &GHInterfaceMock{
-			RepositoriesMock: *setupMockRepositoriesService(t, []bool{false}),
+			RepositoriesMock: *setupMockRepositoriesService(t, []bool{false}, nil),
 			PullRequestsMock: PullRequestsMock{
 				mockListCommitsError: forcedError,
 			},
@@ -390,21 +388,26 @@ func TestWithFullEnvironment(t *testing.T) {
 	t.Run("TestHandlePullRequestListCommitsUnsignedCommit", func(t *testing.T) {
 		authors := []string{"john", "doe"}
 
-		repositoriesMock := *setupMockRepositoriesService(t, []bool{true, true})
-		repositoriesMock.expectedCtx = []context.Context{context.Background(), context.Background()}
-
-		repositoriesMock.expectedCreateStatusRepoStatus = []*github.RepoStatus{
-			{
-				State:       github.String("pending"),
-				Description: github.String("Paul Botsco, the CLA verifier is running"),
-				Context:     &MockAppSlug,
-			},
-			{
-				State:       github.String("failure"),
-				Description: github.String("One or more commits haven't met our Quality requirements."),
-				Context:     &MockAppSlug,
-			},
-		}
+		repositoriesMock := *setupMockRepositoriesService(t,
+			[]bool{true, true},
+			[]any{
+				[]context.Context{context.Background(), context.Background()}, // ctx
+				[]string{"", ""}, // owner
+				[]string{"", ""}, // repo
+				[]string{"", ""}, // sha
+				[]*github.RepoStatus{
+					{
+						State:       github.String("pending"),
+						Description: github.String("Paul Botsco, the CLA verifier is running"),
+						Context:     &MockAppSlug,
+					},
+					{
+						State:       github.String("failure"),
+						Description: github.String("One or more commits haven't met our Quality requirements."),
+						Context:     &MockAppSlug,
+					},
+				},
+			})
 
 		GHImpl = getGHMock(getMockRepositoryCommits(authors, false), nil, &repositoriesMock)
 		mockDB, logger := setupMockDB(t, false)
@@ -542,6 +545,27 @@ func TestHandlePullRequestListCommitsNoAuthor(t *testing.T) {
 			mockRepositoryCommits: mockRepositoryCommits,
 		},
 		IssuesMock: IssuesMock{
+			t: t,
+			assertParamsCreateComment: assertParams{
+				assertParameters: []bool{true},
+				expectedParameters: []any{
+					[]context.Context{context.Background()}, // ctx
+					[]string{""},                            // owner
+					[]string{""},                            // repo
+					[]int{0},                                // number
+					[]*github.IssueComment{
+						{Body: github.String(
+							`Thanks for the contribution. Unfortunately some of your commits don't meet our standards. All commits must be signed and have author information set.
+		
+The commits to review are:
+		
+- <a href="https://github.com">johnSHA</a> - missing author :cop:
+- <a href="https://github.com">johnSHA</a> - unsigned commit :key:
+`,
+						)},
+					}, // comment
+				},
+			},
 			mockGetLabel: &github.Label{},
 			MockGetLabelResponse: &github.Response{
 				Response: &http.Response{},

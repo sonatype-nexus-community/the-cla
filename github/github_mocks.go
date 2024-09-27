@@ -14,49 +14,63 @@
 // limitations under the License.
 //
 
-//go:build go1.16
-
 package github
 
 import (
 	"context"
 	"net/http"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/google/go-github/v64/github"
 	"github.com/stretchr/testify/assert"
 )
 
+type assertParams struct {
+	/* number of index/times the production function has been called by production code, zero based. */
+	callIndex int
+	/* assertParameters is a slice of booleans that determine whether to assert the parameters passed to the function for
+	each call to the production function. If the value at the index of the callIndex is true, the actual parameters will be
+	asserted against the expected parameters. */
+	assertParameters []bool
+	/* expectedParameters is a slice of any types of slices that contains the expected parameters that should be passed
+	to the production function during the running of test. */
+	expectedParameters []any
+}
+
+func (a *assertParams) doAssert(t assert.TestingT, actualParameters []any) {
+	for i, expParams := range a.expectedParameters {
+		refExpParams := reflect.ValueOf(expParams)
+		assert.Equal(t, reflect.Slice, refExpParams.Kind(), "expected parameters must be a slice")
+		epForThisCall := refExpParams.Index(a.callIndex).Interface()
+		assert.Equal(t, epForThisCall, actualParameters[i])
+	}
+}
+
 // RepositoriesMock mocks RepositoriesService
 type RepositoriesMock struct {
-	t *testing.T
-	/* callCount is the number of times the CreateStatus function has been called by production code. */
-	callCount int
-	/* assertParameters is a slice of booleans that determine whether to assert the parameters passed to the function for
-	each call to the CreateStatus function. If the value at the index of the callCount is true, the parameters will be
-	asserted.
-	*/
-	assertParameters                                       []bool
-	expectedCtx                                            []context.Context
-	expectedOwner, expectedRepo, expectedRef, expectedUser []string
-	// expectedOpts                                           *github.ListOptions
-	expectedCreateStatusRepoStatus []*github.RepoStatus
-	createStatusRepoStatus         []*github.RepoStatus
-	createStatusResponse           []*github.Response
-	createStatusError              []error
-	isCollaboratorResult           bool
-	isCollaboratorResp             *github.Response
-	isCollaboratorErr              error
+	t                        *testing.T
+	assertParamsCreateStatus assertParams
+	createStatusRepoStatus   []*github.RepoStatus
+	createStatusResponse     []*github.Response
+	createStatusError        []error
+	isCollaboratorResult     bool
+	isCollaboratorResp       *github.Response
+	isCollaboratorErr        error
 }
 
 var _ RepositoriesService = (*RepositoriesMock)(nil)
 
-func setupMockRepositoriesService(t *testing.T, assertParameters []bool) (mock *RepositoriesMock) {
+func setupMockRepositoriesService(t *testing.T, assertParameters []bool, expectedParams []any) (mock *RepositoriesMock) {
 	mock = &RepositoriesMock{
-		t:                t,
-		assertParameters: assertParameters,
+		t: t,
+		assertParamsCreateStatus: assertParams{
+			assertParameters:   assertParameters,
+			expectedParameters: expectedParams,
+		},
 	}
+
 	return mock
 }
 
@@ -67,35 +81,22 @@ func (r *RepositoriesMock) ListStatuses(ctx context.Context, owner, repo, ref st
 }
 
 func (r *RepositoriesMock) CreateStatus(ctx context.Context, owner, repo, ref string, status *github.RepoStatus) (retRepoStatus *github.RepoStatus, createStatusResponse *github.Response, createStatusError error) {
-	defer func() { r.callCount++ }()
-	if r.assertParameters != nil && r.assertParameters[r.callCount] {
-		if r.expectedCtx != nil {
-			assert.Equal(r.t, r.expectedCtx[r.callCount], ctx)
-		}
-		if r.expectedOwner != nil {
-			assert.Equal(r.t, r.expectedOwner[r.callCount], owner)
-		}
-		if r.expectedRepo != nil {
-			assert.Equal(r.t, r.expectedRepo[r.callCount], repo)
-		}
-		if r.expectedRef != nil {
-			assert.Equal(r.t, r.expectedRef[r.callCount], ref)
-		}
-		if r.expectedCreateStatusRepoStatus != nil {
-			assert.Equal(r.t, r.expectedCreateStatusRepoStatus[r.callCount], status)
-		}
+	defer func() { r.assertParamsCreateStatus.callIndex++ }()
+	if r.assertParamsCreateStatus.assertParameters != nil && r.assertParamsCreateStatus.assertParameters[r.assertParamsCreateStatus.callIndex] {
+		actualParameters := []any{ctx, owner, repo, ref, status}
+		r.assertParamsCreateStatus.doAssert(r.t, actualParameters)
 	}
 
 	if r.createStatusRepoStatus != nil {
-		retRepoStatus = r.createStatusRepoStatus[r.callCount]
+		retRepoStatus = r.createStatusRepoStatus[r.assertParamsCreateStatus.callIndex]
 	}
 
 	if r.createStatusRepoStatus != nil {
-		createStatusResponse = r.createStatusResponse[r.callCount]
+		createStatusResponse = r.createStatusResponse[r.assertParamsCreateStatus.callIndex]
 	}
 
 	if r.createStatusError != nil {
-		createStatusError = r.createStatusError[r.callCount]
+		createStatusError = r.createStatusError[r.assertParamsCreateStatus.callIndex]
 	}
 	return
 }
@@ -113,13 +114,8 @@ func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Reposit
 	}, nil, nil
 }
 
+//goland:noinspection GoUnusedParameter
 func (r *RepositoriesMock) IsCollaborator(ctx context.Context, owner, repo, user string) (bool, *github.Response, error) {
-	if r.assertParameters != nil && r.assertParameters[r.callCount] {
-		assert.Equal(r.t, r.expectedCtx[r.callCount], ctx)
-		assert.Equal(r.t, r.expectedOwner[r.callCount], owner)
-		assert.Equal(r.t, r.expectedRepo[r.callCount], repo)
-		assert.Equal(r.t, r.expectedUser[r.callCount], user)
-	}
 	return r.isCollaboratorResult, r.isCollaboratorResp, r.isCollaboratorErr
 }
 
@@ -152,6 +148,8 @@ func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo s
 }
 
 type IssuesMock struct {
+	t                             *testing.T
+	assertParamsCreateComment     assertParams
 	mockGetLabel                  *github.Label
 	MockGetLabelResponse          *github.Response
 	mockGetLabelError             error
@@ -203,6 +201,11 @@ func (i *IssuesMock) RemoveLabelForIssue(ctx context.Context, owner string, repo
 
 //goland:noinspection GoUnusedParameter
 func (i *IssuesMock) CreateComment(ctx context.Context, owner string, repo string, number int, comment *github.IssueComment) (*github.IssueComment, *github.Response, error) {
+	defer func() { i.assertParamsCreateComment.callIndex++ }()
+	if i.assertParamsCreateComment.assertParameters != nil && i.assertParamsCreateComment.assertParameters[i.assertParamsCreateComment.callIndex] {
+		actualParameters := []any{ctx, owner, repo, number, comment}
+		i.assertParamsCreateComment.doAssert(i.t, actualParameters)
+	}
 	return i.mockComment, i.mockCreateCommentResponse, i.mockCreateCommentError
 }
 
@@ -290,6 +293,8 @@ func (g *GHInterfaceMock) NewClient(httpClient *http.Client) GHClient {
 			mockResponse:          g.PullRequestsMock.mockResponse,
 		},
 		Issues: &IssuesMock{
+			t:                             g.IssuesMock.t,
+			assertParamsCreateComment:     g.IssuesMock.assertParamsCreateComment,
 			mockGetLabel:                  g.IssuesMock.mockGetLabel,
 			MockGetLabelResponse:          g.IssuesMock.MockGetLabelResponse,
 			mockGetLabelError:             g.IssuesMock.mockGetLabelError,
