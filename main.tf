@@ -19,7 +19,7 @@
 # --------------------------------------------------------------------------
 resource "kubernetes_namespace" "the_cla" {
   metadata {
-    name        = "the-cla"
+    name = "the-cla"
   }
 }
 
@@ -28,23 +28,23 @@ resource "kubernetes_namespace" "the_cla" {
 # --------------------------------------------------------------------------
 resource "kubernetes_secret" "the_cla" {
   metadata {
-    name        = "the-cla"
-    namespace   = kubernetes_namespace.the_cla.metadata[0].name
+    name      = "the-cla"
+    namespace = kubernetes_namespace.the_cla.metadata[0].name
   }
 
   binary_data = {
-    "the-cla.pem"   = "${var.the_cla_pem}"
+    "the-cla.pem" = "${var.the_cla_pem}"
   }
 
   data = {
-    "env_gh_app_id" = var.env_gh_app_id
-    "env_github_client_secret" = var.env_github_client_secret
-    "env_github_webhook_secret" = var.env_github_webhook_secret
+    "env_gh_app_id"              = var.env_gh_app_id
+    "env_github_client_secret"   = var.env_github_client_secret
+    "env_github_webhook_secret"  = var.env_github_webhook_secret
     "env_react_app_gh_client_id" = var.env_react_app_gh_client_id
-    "info_password" = local.info_password
-    "psql_password" = module.database.user_password
-    "smtp_username" = var.env_smtp_username
-    "smtp_password" = var.env_smtp_password
+    "info_password"              = local.info_password
+    "psql_password"              = module.database.user_password
+    "smtp_username"              = var.env_smtp_username
+    "smtp_password"              = var.env_smtp_password
   }
 
   type = "Opaque"
@@ -55,8 +55,8 @@ resource "kubernetes_secret" "the_cla" {
 # --------------------------------------------------------------------------
 resource "kubernetes_deployment" "the_cla" {
   metadata {
-    name            = "the-cla"
-    namespace       = kubernetes_namespace.the_cla.metadata[0].name
+    name      = "the-cla"
+    namespace = kubernetes_namespace.the_cla.metadata[0].name
     labels = {
       app = "the-cla"
     }
@@ -79,12 +79,12 @@ resource "kubernetes_deployment" "the_cla" {
 
       spec {
         container {
-          image             = "sonatypecommunity/the-cla:v0.2.0"
+          image             = "sonatypecommunity/the-cla:v0.2.1"
           name              = "the-cla"
           image_pull_policy = "IfNotPresent"
 
           env {
-            name = "CLA_PEM_FILE"
+            name  = "CLA_PEM_FILE"
             value = "/the-cla-secrets/the-cla.pem"
           }
 
@@ -119,7 +119,7 @@ resource "kubernetes_deployment" "the_cla" {
           }
 
           env {
-            name = "REACT_APP_CLA_URL"
+            name  = "REACT_APP_CLA_URL"
             value = var.env_react_app_cla_url
           }
 
@@ -134,27 +134,27 @@ resource "kubernetes_deployment" "the_cla" {
           }
 
           env {
-            name = "REACT_APP_COMPANY_NAME"
+            name  = "REACT_APP_COMPANY_NAME"
             value = var.env_react_app_company_name
           }
-          
+
           env {
-            name = "REACT_APP_COMPANY_WEBSITE"
+            name  = "REACT_APP_COMPANY_WEBSITE"
             value = var.env_react_app_company_website
           }
 
           env {
-            name = "REACT_APP_CLA_APP_NAME"
+            name  = "REACT_APP_CLA_APP_NAME"
             value = var.env_react_app_cla_app_name
           }
 
           env {
-            name = "REACT_APP_CLA_VERSION"
+            name  = "REACT_APP_CLA_VERSION"
             value = var.env_react_app_cla_version
           }
 
           env {
-            name = "INFO_USERNAME"
+            name  = "INFO_USERNAME"
             value = local.info_username
           }
 
@@ -169,22 +169,22 @@ resource "kubernetes_deployment" "the_cla" {
           }
 
           env {
-            name = "PG_HOST"
+            name  = "PG_HOST"
             value = module.shared.pgsql_cluster_endpoint_write
           }
 
           env {
-            name = "PG_PORT"
+            name  = "PG_PORT"
             value = module.shared.pgsql_cluster_port
           }
 
           env {
-            name = "PG_USERNAME"
+            name  = "PG_USERNAME"
             value = local.cla_db_username
           }
 
           env {
-            name = "PG_DB_NAME"
+            name  = "PG_DB_NAME"
             value = local.cla_db_name
           }
 
@@ -199,12 +199,12 @@ resource "kubernetes_deployment" "the_cla" {
           }
 
           env {
-            name = "SMTP_HOST"
+            name  = "SMTP_HOST"
             value = var.env_smtp_host
           }
 
           env {
-            name = "SMTP_PORT"
+            name  = "SMTP_PORT"
             value = var.env_smtp_port
           }
 
@@ -229,7 +229,7 @@ resource "kubernetes_deployment" "the_cla" {
           }
 
           env {
-            name = "NOTIFY_EMAIL"
+            name  = "NOTIFY_EMAIL"
             value = var.env_notify_email
           }
 
@@ -254,7 +254,7 @@ resource "kubernetes_deployment" "the_cla" {
           secret {
             secret_name = "the-cla"
             items {
-              key = "the-cla.pem"
+              key  = "the-cla.pem"
               path = "the-cla.pem"
             }
           }
@@ -287,8 +287,8 @@ resource "kubernetes_deployment" "the_cla" {
 # --------------------------------------------------------------------------
 resource "kubernetes_service" "the_cla" {
   metadata {
-    name            = "the-cla-svc"
-    namespace       = kubernetes_namespace.the_cla.metadata[0].name
+    name      = "the-cla-svc"
+    namespace = kubernetes_namespace.the_cla.metadata[0].name
     labels = {
       app = "the-cla"
     }
@@ -320,8 +320,8 @@ resource "kubernetes_ingress_v1" "the_cla" {
       app = "the-cla"
     }
     annotations = {
-      "kubernetes.io/ingress.class"               = "alb"
-      "alb.ingress.kubernetes.io/group.name"      = "the-cla-${terraform.workspace}"
+      "kubernetes.io/ingress.class"          = "alb"
+      "alb.ingress.kubernetes.io/group.name" = "the-cla-${terraform.workspace}"
       # "alb.ingress.kubernetes.io/healthcheck-path"= "/assets/index.html"
       # "alb.ingress.kubernetes.io/inbound-cidrs"   = join(", ", var.ip_cidr_whitelist)
       "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
@@ -350,4 +350,34 @@ resource "kubernetes_ingress_v1" "the_cla" {
   }
 
   wait_for_load_balancer = true
+}
+
+################################################################################
+# Create ConfigMap for gatus monitoring
+################################################################################
+resource "kubernetes_config_map" "gatus" {
+  metadata {
+    name      = "gatus-config"
+    namespace = kubernetes_namespace.the_cla.metadata[0].name
+    labels = {
+      "gatus.io/enabled" : "true"
+    }
+  }
+
+  data = {
+    "the-cla-eu1.yaml" = <<EOF
+endpoints:
+  - name: "Paul Botsco 2.0 (the-cla)"
+    group: public
+    url: "https://the-cla.${module.shared_private.dns_zone_bma_name}/build-info"
+    internal: 1m
+    conditions:
+      - "[STATUS] == 200"         # Status must be 200
+      - "[RESPONSE_TIME] < 300"   # Response time must be under 300ms
+    alerts:
+      - type: slack
+        description: "Paul Bostco"
+        send-on-resolved: true
+    EOF
+  }
 }
