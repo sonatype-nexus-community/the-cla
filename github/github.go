@@ -343,24 +343,11 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 			}
 		}
 
-		message := `Thanks for the contribution. Unfortunately some of your commits don't meet our standards. All commits must be signed and have author information set.
-		
-The commits to review are:
-		
-%s`
-		commitsMessage := ""
-		for _, c := range commitsMissingAuthor {
-			commitsMessage += fmt.Sprintf(`- <a href="%s">%s</a> - missing author :cop:
-`, *c.HTMLURL, *c.SHA)
-		}
-		for _, c := range commitsMissingVerification {
-			commitsMessage += fmt.Sprintf(`- <a href="%s">%s</a> - unsigned commit :key:
-`, *c.HTMLURL, *c.SHA)
-		}
-		logger.Debug("Adding Comment to Issue", zap.Int("Issue #", int(evalInfo.PRNumber)), zap.String("Comment", fmt.Sprintf(message, commitsMessage)))
+		commentMessage := buildCommentMessage(commitsMissingAuthor, commitsMissingVerification)
+		logger.Debug("Adding Comment to Issue", zap.Int("Issue #", int(evalInfo.PRNumber)), zap.String("Comment", commentMessage))
 		_, err = addCommentToIssueIfNotExists(
 			client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, int(evalInfo.PRNumber),
-			fmt.Sprintf(message, commitsMessage))
+			commentMessage)
 		if err != nil {
 			return err
 		}
@@ -442,6 +429,36 @@ The commits to review are:
 	}
 
 	return nil
+}
+
+const buildCommentPrefix = `Thanks for the contribution. Unfortunately some of your commits don't meet our standards. All commits must be signed and have author information set.
+		
+The commits to review are:
+		
+%s%s`
+
+const buildCommentSuffixSignedCommits = `
+See [Signed Commits](https://contribute.sonatype.com/docs/contributing/submitting/#signed-commits).
+`
+
+func buildCommentMessage(commitsMissingAuthor []github.RepositoryCommit, commitsMissingVerification []github.RepositoryCommit) string {
+
+	commitsMessage := ""
+	for _, c := range commitsMissingAuthor {
+		commitsMessage += fmt.Sprintf(`- <a href="%s">%s</a> - missing author :cop:
+`, *c.HTMLURL, *c.SHA)
+	}
+	for _, c := range commitsMissingVerification {
+		commitsMessage += fmt.Sprintf(`- <a href="%s">%s</a> - unsigned commit :key:
+`, *c.HTMLURL, *c.SHA)
+	}
+
+	buildCommentSuffix := ""
+	if len(commitsMissingVerification) > 0 {
+		buildCommentSuffix = buildCommentSuffixSignedCommits
+	}
+	commentMessage := fmt.Sprintf(buildCommentPrefix, commitsMessage, buildCommentSuffix)
+	return commentMessage
 }
 
 func createRepoStatus(repositoryService RepositoriesService, owner, repo, sha, state, description, botName string) error {
