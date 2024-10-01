@@ -79,7 +79,7 @@ resource "kubernetes_deployment" "the_cla" {
 
       spec {
         container {
-          image             = "sonatypecommunity/the-cla:v0.2.1"
+          image             = "sonatypecommunity/the-cla:v0.2.2"
           name              = "the-cla"
           image_pull_policy = "IfNotPresent"
 
