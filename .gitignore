@@ -53,3 +53,6 @@ docker.sh
 .my-secrets
 .my-vars
 .secrets
+
+# VSCode things
+.vscode
