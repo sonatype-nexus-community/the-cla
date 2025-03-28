@@ -370,13 +370,24 @@ endpoints:
   - name: "Paul Botsco 2.0 (the-cla)"
     group: public
     url: "https://the-cla.${module.shared_private.dns_zone_bma_name}/build-info"
-    internal: 1m
+    interval: 1m
     conditions:
       - "[STATUS] == 200"         # Status must be 200
       - "[RESPONSE_TIME] < 300"   # Response time must be under 300ms
     alerts:
       - type: slack
         description: "Paul Bostco"
+        send-on-resolved: true
+  - name: "CLA Text Availability"
+    group: public
+    url: "${var.env_react_app_cla_url}
+    interval: 1m
+    conditions:
+      - "[STATUS] == 200"         # Status must be 200
+      - "[RESPONSE_TIME] < 300"   # Response time must be under 300ms
+    alerts:
+      - type: slack
+        description: "Paul Bostco CLA Text"
         send-on-resolved: true
     EOF
   }
