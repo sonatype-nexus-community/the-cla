@@ -22,7 +22,7 @@ Here are some important resources:
 
 To get started with this project you will need:
 
-- Golang (project started using Go 1.16.2, but likely anything above 1.14 is fine)
+- Golang 1.23+
 - Yarn/NodeJS
 - Air
 
