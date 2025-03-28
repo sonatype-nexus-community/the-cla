@@ -380,7 +380,7 @@ endpoints:
         send-on-resolved: true
   - name: "CLA Text Availability"
     group: public
-    url: "${var.env_react_app_cla_url}
+    url: "${var.env_react_app_cla_url}"
     interval: 1m
     conditions:
       - "[STATUS] == 200"         # Status must be 200
