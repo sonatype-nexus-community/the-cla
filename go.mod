@@ -7,7 +7,7 @@ toolchain go1.23.6
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/bradleyfalzon/ghinstallation/v2 v2.16.0
-	github.com/golang-migrate/migrate/v4 v4.18.1
+	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/google/go-github/v64 v64.0.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
