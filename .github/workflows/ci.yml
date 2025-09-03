@@ -27,9 +27,7 @@ jobs:
         timeout-minutes: 5
         steps:
             - name: Checkout Code
-              uses: actions/checkout@v4
-              with:
-                ref: ${{ github.event.pull_request.head.sha }}
+              uses: actions/checkout@v5
 
             - name: Setup Node
               uses: actions/setup-node@v4
@@ -54,9 +52,7 @@ jobs:
         timeout-minutes: 5
         steps:
             - name: Checkout Code
-              uses: actions/checkout@v4
-              with:
-                ref: ${{ github.event.pull_request.head.sha }}
+              uses: actions/checkout@v5
 
             - name: Setup Node
               uses: actions/setup-node@v4
@@ -104,11 +100,10 @@ jobs:
         timeout-minutes: 5
         steps:
             - name: Checkout Code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
               with:
                   # Disabling shallow clone is recommended for improving relevancy of reporting
                   fetch-depth: 0
-                  ref: ${{ github.event.pull_request.head.sha }}
 
             - name: Setup Go
               uses: actions/setup-go@v5
