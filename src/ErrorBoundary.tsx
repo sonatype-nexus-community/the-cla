@@ -13,26 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { render, act } from '@testing-library/react';
+
 import React from 'react';
 
-import CLABody from './CLABody';
+type ErrorBoundaryProps = {
+  children: React.ReactNode;
+};
 
-describe("<CLABody />", () => {
-  test("Should display an error by default", async () => {
-    // fetch is not available in jsdom; the promise rejects, ErrorBoundary catches it
-    let container: ReturnType<typeof render>;
+type ErrorBoundaryState = {
+  hasError: boolean;
+};
 
-    await act(async () => {
-      container = render(
-        <React.Suspense fallback={null}>
-          <CLABody handleScroll={() => {}}/>
-        </React.Suspense>
-      );
-    });
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
-    const h1 = await container!.findByTestId(`cla-body-error`);
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
+  }
 
-    expect(h1).toHaveTextContent("There was an error!");
-  });
-});
+  render() {
+    if (this.state.hasError) {
+      return <h1 data-testid="cla-body-error">There was an error!</h1>;
+    }
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;

@@ -15,21 +15,14 @@
  */
 
 import { createRoot } from 'react-dom/client';
-import { ClientContextProvider, createClient } from 'react-fetching-library';
 import ClaAppContainer from './ClaAppContainer';
 import reportWebVitals from './reportWebVitals';
 
-global.Buffer = global.Buffer || require('buffer').Buffer
-
-const client = createClient({});
-
-const container = document.getElementById('ui')
+const container = document.getElementById('ui');
 const root = createRoot(container!);
 root.render(
-  <ClientContextProvider client={client}>
-    <ClaAppContainer />
-  </ClientContextProvider>
-)
+  <ClaAppContainer />
+);
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
