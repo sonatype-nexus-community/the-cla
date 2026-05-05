@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/go-github/v64/github"
+	"github.com/google/go-github/v72/github"
 	"github.com/stretchr/testify/assert"
 )
 

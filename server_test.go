@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/google/go-github/v64/github"
-	"github.com/labstack/echo/v4"
+	"github.com/gin-gonic/gin"
+	"github.com/google/go-github/v72/github"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
 	"github.com/sonatype-nexus-community/the-cla/types"
@@ -38,6 +38,10 @@ import (
 	"go.uber.org/zap/zaptest"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
+
+func init() {
+	gin.SetMode(gin.TestMode)
+}
 
 func resetEnvVariable(t *testing.T, variableName, originalValue string) {
 	if originalValue == "" {
@@ -52,19 +56,12 @@ func resetEnvVarPGHost(t *testing.T, origEnvPGHost string) {
 }
 
 func TestZapLoggerFilterSkipsELB(t *testing.T) {
-	req := httptest.NewRequest("", "/", nil)
+	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("User-Agent", "bing ELB-HealthChecker yadda")
 	logger := zaptest.NewLogger(t)
 	result := ZapLoggerFilterAwsElb(logger)
-	//handlerFunc := func(next echo.HandlerFunc) echo.HandlerFunc {
-	//	return func(c echo.Context) error {
-	//		return nil
-	//	}
-	//}
-	//r2 := result(handlerFunc)
-	//assert.Nil(t, result)
-	// @TODO figure out how to test these hoops
-	result(nil)
+	c, _ := newTestGinContext(req)
+	result(c)
 }
 
 func TestMainDBOpenPanic(t *testing.T) {
@@ -86,16 +83,20 @@ func TestMainDBOpenPanic(t *testing.T) {
 
 const mockClaText = `mock Cla text.`
 
-func setupMockContextCLA(t *testing.T) echo.Context {
+// newTestGinContext creates a gin.Context backed by an httptest recorder.
+func newTestGinContext(req *http.Request) (*gin.Context, *httptest.ResponseRecorder) {
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+	return c, rec
+}
+
+func setupMockContextCLA(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
 	logger = zaptest.NewLogger(t)
 
-	// Setup
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, pathClaText, strings.NewReader(mockClaText))
-	req.Header.Set(echo.HeaderContentType, echo.MIMETextPlainCharsetUTF8)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	return c
+	req.Header.Set("Content-Type", "text/plain; charset=UTF-8")
+	return newTestGinContext(req)
 }
 
 func TestHandleRetrieveCLAText_MissingClaURL(t *testing.T) {
@@ -105,9 +106,11 @@ func TestHandleRetrieveCLAText_MissingClaURL(t *testing.T) {
 	}()
 	resetEnvVariable(t, envClaUrl, "")
 
-	err := handleRetrieveCLAText(setupMockContextCLA(t))
+	c, rec := setupMockContextCLA(t)
+	handleRetrieveCLAText(c)
 
-	assert.EqualError(t, err, msgMissingClaUrl)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, msgMissingClaUrl, rec.Body.String())
 }
 
 func TestHandleRetrieveCLAText_BadResponseCode(t *testing.T) {
@@ -125,7 +128,10 @@ func TestHandleRetrieveCLAText_BadResponseCode(t *testing.T) {
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClaUrl, ts.URL+pathClaText))
-	assert.EqualError(t, handleRetrieveCLAText(setupMockContextCLA(t)), "unexpected cla text response code: 403")
+	c, rec := setupMockContextCLA(t)
+	handleRetrieveCLAText(c)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, "unexpected cla text response code: 403", rec.Body.String())
 }
 
 func TestHandleRetrieveCLAText(t *testing.T) {
@@ -135,6 +141,9 @@ func TestHandleRetrieveCLAText(t *testing.T) {
 	defer func() {
 		resetEnvVariable(t, envClaUrl, origClaUrl)
 	}()
+
+	// Clear cache for this URL
+	delete(claCache, os.Getenv(envClaUrl))
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
@@ -147,12 +156,19 @@ func TestHandleRetrieveCLAText(t *testing.T) {
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClaUrl, ts.URL+pathClaText))
-	assert.NoError(t, handleRetrieveCLAText(setupMockContextCLA(t)))
+
+	// Clear cache for test URL
+	delete(claCache, ts.URL+pathClaText)
+
+	c, rec := setupMockContextCLA(t)
+	handleRetrieveCLAText(c)
+	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, callCount, 1)
 
 	// Ensure that subsequent calls use the cache
-
-	assert.NoError(t, handleRetrieveCLAText(setupMockContextCLA(t)))
+	c2, rec2 := setupMockContextCLA(t)
+	handleRetrieveCLAText(c2)
+	assert.Equal(t, http.StatusOK, rec2.Code)
 	assert.Equal(t, callCount, 1)
 }
 
@@ -175,15 +191,16 @@ func TestHandleRetrieveCLATextWithBadURL(t *testing.T) {
 	defer ts.Close()
 
 	assert.NoError(t, os.Setenv(envClaUrl, "badURLProtocol"+ts.URL+pathClaText))
-	assert.Error(t, handleRetrieveCLAText(setupMockContextCLA(t)), `unsupported protocol scheme "badurlprotocolhttp"`)
+	c, rec := setupMockContextCLA(t)
+	handleRetrieveCLAText(c)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), `unsupported protocol scheme`)
 	assert.Equal(t, callCount, 0)
 }
 
-func setupMockContextOAuth(t *testing.T, queryParams map[string]string) (c echo.Context, rec *httptest.ResponseRecorder) {
+func setupMockContextOAuth(t *testing.T, queryParams map[string]string) (*gin.Context, *httptest.ResponseRecorder) {
 	logger = zaptest.NewLogger(t)
 
-	// Setup
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, pathOAuthCallback, strings.NewReader("mock OAuth stuff"))
 
 	q := req.URL.Query()
@@ -192,23 +209,18 @@ func setupMockContextOAuth(t *testing.T, queryParams map[string]string) (c echo.
 	}
 	req.URL.RawQuery = q.Encode()
 
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec)
-	return
+	return newTestGinContext(req)
 }
 
 func TestHandleProcessGitHubOAuthMissingQueryParamState(t *testing.T) {
 	c, rec := setupMockContextOAuth(t, map[string]string{})
-	assert.NoError(t, handleProcessGitHubOAuth(c))
-	assert.Equal(t, 0, c.Response().Status)
+	handleProcessGitHubOAuth(c)
+	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "", rec.Body.String())
 }
 
-func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (c echo.Context, rec *httptest.ResponseRecorder) {
+func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent github.PullRequestEvent) (*gin.Context, *httptest.ResponseRecorder) {
 	logger = zaptest.NewLogger(t)
-
-	// Setup
-	e := echo.New()
 
 	reqBody, err := json.Marshal(prEvent)
 	assert.NoError(t, err)
@@ -219,16 +231,14 @@ func setupMockContextWebhook(t *testing.T, headers map[string]string, prEvent gi
 		req.Header.Set(k, v)
 	}
 
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec)
-	return
+	return newTestGinContext(req)
 }
 
 func TestHandleProcessWebhookMissingHeaderGitHubEvent(t *testing.T) {
 	c, rec := setupMockContextWebhook(t, map[string]string{}, github.PullRequestEvent{})
 
-	assert.NoError(t, handleProcessWebhook(c))
-	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	handleProcessWebhook(c)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Equal(t, "missing X-GitHub-Event Header", rec.Body.String())
 }
 
@@ -238,8 +248,8 @@ func TestHandleProcessWebhookUnhandledGitHubEvent(t *testing.T) {
 			"X-GitHub-Event": "unknownGitHubEventHeaderValue",
 		}, github.PullRequestEvent{})
 
-	assert.NoError(t, handleProcessWebhook(c))
-	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	handleProcessWebhook(c)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Equal(t, msgUnhandledGitHubEventType, rec.Body.String())
 }
 
@@ -269,8 +279,8 @@ func TestHandleProcessWebhookGitHubEventPullRequestPayloadActionIgnored(t *testi
 		resetEnvVariable(t, envGhWebhookSecret, origGHWebhookSecret)
 	}()
 
-	assert.NoError(t, handleProcessWebhook(c))
-	assert.Equal(t, http.StatusAccepted, c.Response().Status)
+	handleProcessWebhook(c)
+	assert.Equal(t, http.StatusAccepted, rec.Code)
 	assert.Equal(t, "No action taken for: someIgnoredAction", rec.Body.String())
 }
 
@@ -292,8 +302,8 @@ func TestHandleProcessWebhookGitHubEventPullRequestOpenedBadGH_APP_ID(t *testing
 		resetEnvVariable(t, envGhWebhookSecret, origGHWebhookSecret)
 	}()
 
-	assert.NoError(t, handleProcessWebhook(c))
-	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	handleProcessWebhook(c)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Equal(t, `strconv.ParseInt: parsing "nonNumericGHAppID": invalid syntax`, rec.Body.String())
 }
 
@@ -324,8 +334,8 @@ func TestHandleProcessWebhookGitHubEventPullRequestOpenedMissingPemFile(t *testi
 		resetEnvVariable(t, envGhWebhookSecret, origGHWebhookSecret)
 	}()
 
-	assert.NoError(t, handleProcessWebhook(c))
-	assert.Equal(t, http.StatusBadRequest, c.Response().Status)
+	handleProcessWebhook(c)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Equal(t, "could not read private key: open the-cla.pem: no such file or directory", rec.Body.String())
 }
 
@@ -380,16 +390,13 @@ func verifyActionHandled(t *testing.T, actionText string) {
 		resetEnvVariable(t, envGhWebhookSecret, origGHWebhookSecret)
 	}()
 
-	assert.NoError(t, handleProcessWebhook(c))
-	assert.Equal(t, http.StatusAccepted, c.Response().Status)
+	handleProcessWebhook(c)
+	assert.Equal(t, http.StatusAccepted, rec.Code)
 	assert.Equal(t, "accepted pull request for processing", rec.Body.String())
 }
 
-func setupMockContextSignCla(t *testing.T, headers map[string]string, user types.UserSignature) (c echo.Context, rec *httptest.ResponseRecorder) {
+func setupMockContextSignCla(t *testing.T, headers map[string]string, user types.UserSignature) (*gin.Context, *httptest.ResponseRecorder) {
 	logger = zaptest.NewLogger(t)
-
-	// Setup
-	e := echo.New()
 
 	reqBody, err := json.Marshal(user)
 	assert.NoError(t, err)
@@ -400,23 +407,21 @@ func setupMockContextSignCla(t *testing.T, headers map[string]string, user types
 		req.Header.Set(k, v)
 	}
 
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec)
-	return
+	return newTestGinContext(req)
 }
 
 func TestHandleProcessSignClaBindError(t *testing.T) {
-	c, rec := setupMockContextSignCla(t, map[string]string{}, types.UserSignature{})
-	assert.EqualError(t, handleProcessSignCla(c), "code=415, message=Unsupported Media Type")
-	assert.Equal(t, 0, c.Response().Status)
-	assert.Equal(t, "", rec.Body.String())
+	// Invalid JSON body causes ShouldBindJSON to fail
+	logger = zaptest.NewLogger(t)
+	req := httptest.NewRequest(http.MethodPut, pathSignCla, strings.NewReader("not valid json{"))
+	req.Header.Set("Content-Type", "application/json")
+	c, rec := newTestGinContext(req)
+	handleProcessSignCla(c)
+	assert.Equal(t, http.StatusUnsupportedMediaType, rec.Code)
 }
 
-func setupMockContextSignature(t *testing.T, queryParams map[string]string) (c echo.Context, rec *httptest.ResponseRecorder) {
+func setupMockContextSignature(t *testing.T, queryParams map[string]string) (*gin.Context, *httptest.ResponseRecorder) {
 	logger = zaptest.NewLogger(t)
-
-	// Setup
-	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, pathSignCla, nil)
 
@@ -426,24 +431,22 @@ func setupMockContextSignature(t *testing.T, queryParams map[string]string) (c e
 	}
 	req.URL.RawQuery = q.Encode()
 
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec)
-	return
+	return newTestGinContext(req)
 }
 
 func TestHandleSignatureMissingLogin(t *testing.T) {
 	c, rec := setupMockContextSignature(t, map[string]string{})
 
-	assert.NoError(t, handleSignature(c))
-	assert.Equal(t, http.StatusUnprocessableEntity, c.Response().Status)
+	handleSignature(c)
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 	assert.Equal(t, fmt.Sprintf(msgTemplateMissingQueryParam, queryParameterLogin), rec.Body.String())
 }
 
 func TestHandleSignatureMissingCLAVersion(t *testing.T) {
 	c, rec := setupMockContextSignature(t, map[string]string{queryParameterLogin: "myLogin"})
 
-	assert.NoError(t, handleSignature(c))
-	assert.Equal(t, http.StatusUnprocessableEntity, c.Response().Status)
+	handleSignature(c)
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 	assert.Equal(t, fmt.Sprintf(msgTemplateMissingQueryParam, queryParameterCLAVersion), rec.Body.String())
 }
 
@@ -461,8 +464,8 @@ func TestHandleSignatureHasAuthorSignedError(t *testing.T) {
 	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUserSignature)).
 		WillReturnError(forcedError)
 
-	assert.NoError(t, handleSignature(c))
-	assert.Equal(t, http.StatusInternalServerError, c.Response().Status)
+	handleSignature(c)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Equal(t, forcedError.Error(), rec.Body.String())
 }
 
@@ -479,8 +482,8 @@ func TestHandleSignatureHasAuthorSignedFalse(t *testing.T) {
 	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUserSignature)).
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion"}))
 
-	assert.NoError(t, handleSignature(c))
-	assert.Equal(t, http.StatusOK, c.Response().Status)
+	handleSignature(c)
+	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "cla version myCLAVersion not signed by myLogin", rec.Body.String())
 }
 
@@ -503,8 +506,8 @@ func TestHandleSignatureHasAuthorSignedAndHidesFields(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"LoginName", "Email", "GivenName", "SignedAt", "ClaVersion", "ClaTextUrl", "ClaText"}).
 			AddRow(testLogin, "myEmail", "myGivenName", now, testCLAVersion, testCLATextUrl, testCLAText))
 
-	assert.NoError(t, handleSignature(c))
-	assert.Equal(t, http.StatusOK, c.Response().Status)
+	handleSignature(c)
+	assert.Equal(t, http.StatusOK, rec.Code)
 
 	expectedJsonSignature, err := json.Marshal(types.UserSignature{
 		User: types.User{
@@ -518,7 +521,7 @@ func TestHandleSignatureHasAuthorSignedAndHidesFields(t *testing.T) {
 		CLAText:    testCLAText,
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, string(expectedJsonSignature)+"\n", rec.Body.String())
+	assert.Equal(t, string(expectedJsonSignature), strings.TrimRight(rec.Body.String(), "\n"))
 }
 
 func saveEnvInfoCredentials(t *testing.T) (resetInfoCreds func()) {
@@ -541,8 +544,7 @@ func TestInfoBasicValidatorMissingEnv(t *testing.T) {
 	assert.NoError(t, os.Unsetenv(envInfoUsername))
 	assert.NoError(t, os.Unsetenv(envInfoPassword))
 
-	isValid, err := infoBasicValidator("yadda", "bing", nil)
-	assert.NoError(t, err)
+	isValid := infoBasicValidator("yadda", "bing")
 	assert.False(t, isValid)
 }
 
@@ -552,8 +554,7 @@ func TestInfoBasicValidatorInValid(t *testing.T) {
 	assert.NoError(t, os.Setenv(envInfoUsername, "yadda"))
 	assert.NoError(t, os.Setenv(envInfoPassword, "Doh!"))
 
-	isValid, err := infoBasicValidator("yadda", "bing", nil)
-	assert.NoError(t, err)
+	isValid := infoBasicValidator("yadda", "bing")
 	assert.False(t, isValid)
 }
 
@@ -563,8 +564,7 @@ func TestInfoBasicValidatorValid(t *testing.T) {
 	assert.NoError(t, os.Setenv(envInfoUsername, "yadda"))
 	assert.NoError(t, os.Setenv(envInfoPassword, "bing"))
 
-	isValid, err := infoBasicValidator("yadda", "bing", nil)
-	assert.NoError(t, err)
+	isValid := infoBasicValidator("yadda", "bing")
 	assert.True(t, isValid)
 }
 

@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v64/github"
+	"github.com/google/go-github/v72/github"
 	"github.com/sonatype-nexus-community/the-cla/db"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"go.uber.org/zap"

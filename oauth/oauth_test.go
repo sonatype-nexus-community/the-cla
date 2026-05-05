@@ -24,7 +24,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/google/go-github/v64/github"
+	"github.com/google/go-github/v72/github"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/oauth2"

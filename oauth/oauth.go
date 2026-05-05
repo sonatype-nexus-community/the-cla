@@ -24,7 +24,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/google/go-github/v64/github"
+	"github.com/google/go-github/v72/github"
 	ourGithub "github.com/sonatype-nexus-community/the-cla/github"
 	"golang.org/x/oauth2"
 	githuboauth "golang.org/x/oauth2/github"
