@@ -13,47 +13,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React from 'react';
+import React, { use, Suspense } from 'react';
 import { NxLoadingSpinner } from '@sonatype/react-shared-components';
-import { Action, useQuery } from 'react-fetching-library';
+import ErrorBoundary from '../ErrorBoundary';
 
-const fetchCLAText: Action = {
-  method: 'GET',
-  endpoint: '/cla-text'
-};
+// Promise created at module scope to avoid infinite render loop.
+// The no-op .catch suppresses unhandled-rejection warnings in Node/test environments;
+// React's use() hook re-throws for ErrorBoundary when the component renders.
+const claTextPromise: Promise<string> = fetch('/cla-text').then(res => {
+  if (!res.ok) throw new Error(`Failed to fetch CLA text: ${res.status}`);
+  return res.text();
+});
+// Prevent unhandled rejection in Node; use() will surface the error to ErrorBoundary
+claTextPromise.catch(() => {});
 
 type CLABodyProps = {
-  handleScroll: (event: any) => void;
+  handleScroll: (event: React.UIEvent<HTMLPreElement>) => void;
 }
+
+const CLABodyInner = (props: CLABodyProps) => {
+  const claText = use(claTextPromise);
+
+  return (
+    <React.Fragment>
+      <pre className="nx-pre nx-scrollable" onScroll={props.handleScroll}>
+        {claText}
+      </pre>
+    </React.Fragment>
+  );
+};
 
 const CLABody = (props: CLABodyProps) => {
-
-  const { loading, payload, error, errorObject } = useQuery(fetchCLAText);
-
-  if (error) {
-    console.log("errorObject: " + errorObject)
-    return (
-      <h1 data-testid="cla-body-error">There was an error!</h1>
-    )
-  }
-
-  if (loading) {
-    return (
-      <NxLoadingSpinner />
-    )
-  }
-
-  if (payload) {
-    return (
-      <React.Fragment>
-        <pre className="nx-pre nx-scrollable" onScroll={props.handleScroll}>
-          {payload}
-        </pre>
-      </React.Fragment>
-    )
-  }
-
-  return null;
-}
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<NxLoadingSpinner />}>
+        <CLABodyInner handleScroll={props.handleScroll} />
+      </Suspense>
+    </ErrorBoundary>
+  );
+};
 
 export default CLABody;

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 import { NxButton, NxCheckbox, NxFieldset, NxFormGroup, NxLoadError, NxTextInput, nxTextInputStateHelpers, NxTooltip, useToggle } from "@sonatype/react-shared-components";
-import React, { FormEvent, useContext, useState } from "react";
-import { Action, ClientContext } from "react-fetching-library";
+import React, { FormEvent, useState, useTransition } from "react";
 import classnames from 'classnames';
 import { none } from 'ramda';
 import { hasValidationErrors } from '@sonatype/react-shared-components/util/validationUtil';
@@ -35,15 +34,23 @@ type SignCla = {
   claTextUrl: string
 }
 
-type queryError = {
+type QueryError = {
   error: boolean
   errorMessage: string
 }
 
 type StatePropsSetter = (state: StateProps) => void;
 
-const handleScroll = (event: any, setScrolled: (scrolled: boolean) => any) => {
-  let el = event.target;
+type ScrollEvent = {
+  target: {
+    scrollTop: number;
+    clientHeight: number;
+    scrollHeight: number;
+  };
+};
+
+const handleScroll = (event: ScrollEvent, setScrolled: (scrolled: boolean) => void) => {
+  const el = event.target;
   if (Math.round(el.scrollTop + el.clientHeight) === el.scrollHeight) {
     setScrolled(true);
   }
@@ -57,6 +64,8 @@ const { initialState, userInput } = nxTextInputStateHelpers;
 
 const Body = () => {
 
+    const [isPending, startTransition] = useTransition();
+
     const validator = (val: string) => {
       return val.length ? null : 'Must be non empty';
     }
@@ -68,7 +77,7 @@ const Body = () => {
           [email, setEmail] = useState(initialState('', validator)),
           [fullName, setFullName] = useState(initialState('', validator)),
           [user, setUser] = useState<GitHubUser | undefined>(undefined),
-          [queryError, setQueryError] = useState<queryError>({error: false, errorMessage: ""}),
+          [queryError, setQueryError] = useState<QueryError>({error: false, errorMessage: ""}),
           [isOpen, dismiss] = useToggle(true),
           [agreeToTerms, setAgreeToTerms] = useState(false);
 
@@ -79,8 +88,6 @@ const Body = () => {
 
     const nonEmptyValidator = (val: string) => val && val.length ? null : 'Must be non-empty';
 
-    const clientContext = useContext(ClientContext);
-
     const setTextInput = (setter: StatePropsSetter, validator?: Validator) => (value: string) => {
       setter(userInput(validator, value));
     };
@@ -90,7 +97,7 @@ const Body = () => {
 
       const originalUri = urlParams.get("original_uri");
 
-      const state: string = (originalUri) ? originalUri : process.env.REACT_APP_COMPANY_WEBSITE!;
+      const state: string = (originalUri) ? originalUri : process.env.REACT_APP_COMPANY_WEBSITE;
 
       const currentUrl = window.location.href.split('?')[0];
 
@@ -103,63 +110,60 @@ const Body = () => {
 
         const code = urlParams.get("code");
         const redirectState = urlParams.get("state");
-  
-        const checkOAuthCode: Action = {
-          method: 'GET',
-          endpoint: `/oauth-callback?code=${code}&state=${redirectState}`
-        }
-  
-        const res = await clientContext.query(checkOAuthCode);
 
-        if (!res.error) {
-          setUser(res.payload);
-  
-          setLoggedIn(true);
-  
-          setGHState(redirectState!);
-  
-          const user: GitHubUser = res.payload;
-
-          setUsername({value: user.login, trimmedValue: user.login.trim(), isPristine: true});
-          setEmail( (user.email) ? {value: user.email, trimmedValue: user.email.trim(), isPristine: true} : {value: "", trimmedValue: "", isPristine: true});
-          setFullName( (user.name) ? {value: user.name, trimmedValue: user.name.trim(), isPristine: true} : {value: "", trimmedValue: "", isPristine: true});
-        } else {
-          setQueryError({error: true, errorMessage: res.payload});
+        const res = await fetch(`/oauth-callback?code=${code}&state=${redirectState}`);
+        if (!res.ok) {
+          const msg = await res.text();
+          setQueryError({ error: true, errorMessage: msg });
+          return;
         }
+        const githubUser: GitHubUser = await res.json();
+
+        setUser(githubUser);
+        setLoggedIn(true);
+        setGHState(redirectState!);
+
+        setUsername({value: githubUser.login, trimmedValue: githubUser.login.trim(), isPristine: true});
+        setEmail(
+          (githubUser.email)
+            ? {value: githubUser.email, trimmedValue: githubUser.email.trim(), isPristine: true}
+            : {value: "", trimmedValue: "", isPristine: true}
+        );
+        setFullName(
+          (githubUser.name)
+            ? {value: githubUser.name, trimmedValue: githubUser.name.trim(), isPristine: true}
+            : {value: "", trimmedValue: "", isPristine: true}
+        );
       }
     }
 
-    const doSubmit = async (evt: FormEvent) => {
+    const doSubmit = (evt: FormEvent) => {
       evt.preventDefault();
 
-      if (isSubmittable) {  
-        const signUser: SignCla = { 
-          user: { 
-            login: user!.login, 
+      if (isSubmittable) {
+        const signUser: SignCla = {
+          user: {
+            login: user!.login,
             email: email.value,
             name: fullName.value
-          }, 
+          },
           claVersion: (process.env.REACT_APP_CLA_VERSION) ? process.env.REACT_APP_CLA_VERSION : "",
           claTextUrl: (process.env.REACT_APP_CLA_URL) ? process.env.REACT_APP_CLA_URL : ""
         };
-  
-        const putSignCla: Action = {
-          method: 'PUT',
-          endpoint: '/sign-cla',
-          body: signUser,
-          headers: {
-            Accept: 'application/json',
-          },
-        }
-  
-        const res = await clientContext.query(putSignCla);
-  
-        if (!res.error) {
-          if (ghState !== "")
-          window.location.href = decodeURI(ghState);
-        } else {
-          setQueryError({error: true, errorMessage: res.payload});
-        }
+
+        startTransition(async () => {
+          const res = await fetch('/sign-cla', {
+            method: 'PUT',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(signUser),
+          });
+          if (!res.ok) {
+            const msg = await res.text();
+            setQueryError({ error: true, errorMessage: msg });
+            return;
+          }
+          window.location.assign(decodeURIComponent(ghState));
+        });
       } else {
         evt.stopPropagation();
       }
@@ -184,8 +188,8 @@ const Body = () => {
 
         <h1>Sign the {process.env.REACT_APP_COMPANY_NAME} Contributor License Agreement (CLA)</h1>
 
-        <NxCheckbox 
-          checkboxId="login-check" 
+        <NxCheckbox
+          checkboxId="login-check"
           isChecked={loggedIn}
           disabled={true}>
           Authenticate with GitHub so we can associate your commits with your signed CLA
@@ -199,20 +203,20 @@ const Body = () => {
           <h3>Logged in as: { user.login }</h3>
         )}
 
-        <NxCheckbox 
-          checkboxId="cla-check" 
-          isChecked={scrolled} 
+        <NxCheckbox
+          checkboxId="cla-check"
+          isChecked={scrolled}
           disabled={true}>
           Review the CLA version: {process.env.REACT_APP_CLA_VERSION}
         </NxCheckbox>
 
-        <CLABody 
-          handleScroll={(e: any) =>
-            handleScroll(e, setScrolled)
+        <CLABody
+          handleScroll={(e) =>
+            handleScroll({ target: e.target as unknown as { scrollTop: number; clientHeight: number; scrollHeight: number } }, setScrolled)
           }/>
 
-        <NxCheckbox 
-          checkboxId="sign-cla-check" 
+        <NxCheckbox
+          checkboxId="sign-cla-check"
           isChecked={agreeToTerms}
           disabled={true}>
           I agree to the terms of CLA version {process.env.REACT_APP_CLA_VERSION}
@@ -225,8 +229,8 @@ const Body = () => {
         { loggedIn && user && (
           <form className="nx-form" onSubmit={doSubmit}>
 
-            <NxFormGroup 
-              label="Username" 
+            <NxFormGroup
+              label="Username"
               isRequired={true}>
               <NxTextInput
                 disabled={true}
@@ -237,11 +241,11 @@ const Body = () => {
               />
             </NxFormGroup>
 
-            <NxFormGroup 
-              label="Email Address" 
+            <NxFormGroup
+              label="Email Address"
               isRequired={true}>
               <NxTextInput
-                onChange={setTextInput(setEmail, nonEmptyValidator)} 
+                onChange={setTextInput(setEmail, nonEmptyValidator)}
                 validatable={true}
 
                 value={email.value}
@@ -249,8 +253,8 @@ const Body = () => {
               />
             </NxFormGroup>
 
-            <NxFormGroup 
-              label="Full Name" 
+            <NxFormGroup
+              label="Full Name"
               isRequired={true}>
               <NxTextInput
                 onChange={setTextInput(setFullName, nonEmptyValidator)}
@@ -261,13 +265,13 @@ const Body = () => {
               />
             </NxFormGroup>
 
-            <NxFieldset 
+            <NxFieldset
               label="I agree to the terms of the above CLA"
               isRequired={true}>
 
-              <NxCheckbox 
-                checkboxId="sign-cla-check" 
-                isChecked={agreeToTerms} 
+              <NxCheckbox
+                checkboxId="sign-cla-check"
+                isChecked={agreeToTerms}
                 onChange={() => setAgreeToTerms(true)}>
                 Yes
               </NxCheckbox>
@@ -277,14 +281,20 @@ const Body = () => {
             <footer className="nx-form-footer">
               <div className="nx-btn-bar">
                 <NxTooltip title={submitTooltip}>
-                  <NxButton className={submitBtnClasses} variant="primary" type="submit">Sign the CLA</NxButton>
+                  <NxButton
+                    className={submitBtnClasses}
+                    variant="primary"
+                    type="submit"
+                    disabled={!isSubmittable || isPending}>
+                    Sign the CLA
+                  </NxButton>
                 </NxTooltip>
               </div>
             </footer>
 
           </form>
         )}
-        
+
         </React.Fragment>
     }
 
