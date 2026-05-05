@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/google/go-github/v64/github"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -161,8 +160,6 @@ func TestHasAuthorSignedTheClaTrue(t *testing.T) {
 		WithArgs(loginName, mockCLAVersion).
 		WillReturnRows(rs)
 
-	committer := github.User{}
-	committer.Login = &loginName
 	hasSigned, foundSignature, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
 	assert.NoError(t, err)
 	assert.True(t, hasSigned)
