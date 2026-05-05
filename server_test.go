@@ -571,6 +571,13 @@ func TestInfoBasicValidatorValid(t *testing.T) {
 func TestNotifySignatureCompleteFails(t *testing.T) {
 	setupMockContextCLA(t)
 
+	// Ensure SMTP env vars are unset regardless of what godotenv loaded earlier in the test run
+	for _, key := range []string{envSmtpHost, envSmtpPort, envNotificationAddress} {
+		orig := os.Getenv(key)
+		assert.NoError(t, os.Unsetenv(key))
+		defer resetEnvVariable(t, key, orig)
+	}
+
 	testSignature := new(types.UserSignature)
 	testSignature.User.Login = "LOGIN-ID"
 	testSignature.User.Email = "someone@somewhere.tld"

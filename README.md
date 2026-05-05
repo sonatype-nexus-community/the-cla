@@ -168,13 +168,63 @@ for your `Paul Botsco` GitHub App.
 
 ## Development
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+### Prerequisites
+
+- [Go 1.25+](https://go.dev/dl/)
+- [Node.js 20+](https://nodejs.org/)
+- [Docker](https://www.docker.com/) (for running PostgreSQL locally)
+
+### Install dependencies
+
+```bash
+npm install       # frontend
+go mod download   # backend
+```
+
+### Run tests
+
+```bash
+go test ./...     # backend
+npm test          # frontend
+```
+
+### Build
+
+```bash
+npm run build     # compiles React SPA into build/
+go build -o the-cla ./server.go   # compiles Go binary
+```
+
+### Run locally
+
+Start a local PostgreSQL instance (e.g. via Docker):
+
+```bash
+docker run --name the_cla_postgres -p 55432:5432 \
+  -e POSTGRES_PASSWORD=the_cla -e POSTGRES_DB=db -d postgres
+```
+
+Copy `.example.env` to `.env` and fill in your values, then start the backend:
+
+```bash
+go run ./server.go
+```
+
+The frontend dev server (with API proxy to port 4200) can be started separately:
+
+```bash
+npm start
+```
 
 ## Releasing
 
-To enact a release, run `yarn version --new-version=[NEW-VERSION]`.
+To release a new version:
 
-This will update the version in the React App, create a tag and push the tag. This will then cause the Release GitHub Action Workflow to start which does the rest.
+1. Update the `version` field in `package.json` to the new version (e.g. `1.1.0`)
+2. Commit the change: `git commit -S -s -m "chore: bump version to 1.1.0"`
+3. Create and push a tag: `git tag v1.1.0 && git push origin v1.1.0`
+
+Pushing the tag triggers the Release GitHub Actions workflow, which builds the Docker image, runs the Sonatype Lifecycle scan, and publishes to Docker Hub.
 
 ## The Fine Print
 
