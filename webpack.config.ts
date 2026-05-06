@@ -37,6 +37,7 @@ const config = (env: WebpackEnv, argv: WebpackArgv): webpack.Configuration & { d
     output: {
       path: path.resolve(__dirname, 'build'),
       filename: 'static/js/[name].[contenthash].js',
+      assetModuleFilename: 'static/media/[hash][ext][query]',
       clean: true,
       publicPath: '/',
     },
