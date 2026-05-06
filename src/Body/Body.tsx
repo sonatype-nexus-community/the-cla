@@ -165,8 +165,8 @@ const Body = () => {
           }
           const redirectTarget = decodeURIComponent(ghState);
           try {
-            const { protocol } = new URL(redirectTarget);
-            if (protocol !== 'https:') {
+            const url = new URL(redirectTarget);
+            if (url.protocol !== 'https:' || url.hostname !== 'github.com') {
               setQueryError({ error: true, errorMessage: 'Invalid redirect destination' });
               return;
             }
