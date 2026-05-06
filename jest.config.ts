@@ -11,6 +11,8 @@ const config: Config = {
     '^@sonatype/react-shared-components$': '<rootDir>/__mocks__/@sonatype/react-shared-components.tsx',
     '^@sonatype/react-shared-components/(.*)$': '<rootDir>/__mocks__/@sonatype/react-shared-components-deep.ts',
   },
+  testPathIgnorePatterns: ['/node_modules/', '/.claude/'],
+  modulePathIgnorePatterns: ['/.claude/'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: { jsx: 'react-jsx', strict: false } }],
   },

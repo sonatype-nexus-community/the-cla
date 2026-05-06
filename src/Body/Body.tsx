@@ -111,7 +111,8 @@ const Body = () => {
         const code = urlParams.get("code");
         const redirectState = urlParams.get("state");
 
-        const res = await fetch(`/oauth-callback?code=${code}&state=${redirectState}`);
+        const params = new URLSearchParams({ code: code ?? '', state: redirectState ?? '' });
+        const res = await fetch(`/oauth-callback?${params}`);
         if (!res.ok) {
           const msg = await res.text();
           setQueryError({ error: true, errorMessage: msg });
@@ -162,7 +163,18 @@ const Body = () => {
             setQueryError({ error: true, errorMessage: msg });
             return;
           }
-          window.location.assign(decodeURIComponent(ghState));
+          const redirectTarget = decodeURIComponent(ghState);
+          try {
+            const { protocol } = new URL(redirectTarget);
+            if (protocol !== 'https:') {
+              setQueryError({ error: true, errorMessage: 'Invalid redirect destination' });
+              return;
+            }
+          } catch {
+            setQueryError({ error: true, errorMessage: 'Invalid redirect destination' });
+            return;
+          }
+          window.location.assign(redirectTarget);
         });
       } else {
         evt.stopPropagation();
