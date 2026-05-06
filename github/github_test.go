@@ -397,13 +397,13 @@ func TestWithFullEnvironment(t *testing.T) {
 				[]string{"", ""}, // sha
 				[]*github.RepoStatus{
 					{
-						State:       github.String("pending"),
-						Description: github.String("Paul Botsco, the CLA verifier is running"),
+						State:       github.Ptr("pending"),
+						Description: github.Ptr("Paul Botsco, the CLA verifier is running"),
 						Context:     &MockAppSlug,
 					},
 					{
-						State:       github.String("failure"),
-						Description: github.String("One or more commits haven't met our Quality requirements."),
+						State:       github.Ptr("failure"),
+						Description: github.Ptr("One or more commits haven't met our Quality requirements."),
 						Context:     &MockAppSlug,
 					},
 				},
@@ -565,13 +565,13 @@ func TestHandlePullRequestListCommitsNoAuthor(t *testing.T) {
 		{
 			Commit: &github.Commit{
 				Author: &github.CommitAuthor{
-					Name:  github.String("someuser"),
-					Email: github.String("someuser@some.where.tld"),
+					Name:  github.Ptr("someuser"),
+					Email: github.Ptr("someuser@some.where.tld"),
 					// Date:  github.Timestamp.Local(),
 				},
 			},
-			SHA:     github.String("johnSHA"),
-			HTMLURL: github.String("https://github.com"),
+			SHA:     github.Ptr("johnSHA"),
+			HTMLURL: github.Ptr("https://github.com"),
 		},
 	}
 	GHImpl = &GHInterfaceMock{
@@ -588,7 +588,7 @@ func TestHandlePullRequestListCommitsNoAuthor(t *testing.T) {
 					[]string{""},                            // repo
 					[]int{0},                                // number
 					[]*github.IssueComment{
-						{Body: github.String(
+						{Body: github.Ptr(
 							`Thanks for the contribution. Unfortunately some of your commits don't meet our standards. All commits must be signed and have author information set.
 		
 The commits to review are:
@@ -790,17 +790,17 @@ func TestReviewPriorPRs(t *testing.T) {
 
 func getSignedSignatureVerification() *github.SignatureVerification {
 	return &github.SignatureVerification{
-		Verified:  github.Bool(true),
-		Reason:    github.String("valid"),
-		Signature: github.String("some-signature"),
-		Payload:   github.String("some-payload"),
+		Verified:  github.Ptr(true),
+		Reason:    github.Ptr("valid"),
+		Signature: github.Ptr("some-signature"),
+		Payload:   github.Ptr("some-payload"),
 	}
 }
 
 func getUnsignedSignatureVerification() *github.SignatureVerification {
 	return &github.SignatureVerification{
-		Verified:  github.Bool(false),
-		Reason:    github.String("unsigned"),
+		Verified:  github.Ptr(false),
+		Reason:    github.Ptr("unsigned"),
 		Signature: nil,
 		Payload:   nil,
 	}
@@ -824,8 +824,8 @@ func getMockRepositoryCommits(mockAuthorLogins []string, signed bool) []*github.
 			Commit: &github.Commit{
 				Verification: signatureVerification,
 			},
-			HTMLURL: github.String("https://github.com"),
-			SHA:     github.String(author + "SHA"),
+			HTMLURL: github.Ptr("https://github.com"),
+			SHA:     github.Ptr(author + "SHA"),
 		}
 		mockRepositoryCommits = append(mockRepositoryCommits, &commit)
 	}

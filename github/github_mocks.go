@@ -104,13 +104,13 @@ func (r *RepositoriesMock) CreateStatus(ctx context.Context, owner, repo, ref st
 // Get returns a repository.
 func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Repository, *github.Response, error) {
 	return &github.Repository{
-		ID:              github.Int64(185409993),
-		Name:            github.String("wayne"),
-		Description:     github.String("some description"),
-		Language:        github.String("JavaScript"),
-		StargazersCount: github.Int(3141),
-		HTMLURL:         github.String("https://www.foo.com"),
-		FullName:        github.String("john/wayne"),
+		ID:              github.Ptr(int64(185409993)),
+		Name:            github.Ptr("wayne"),
+		Description:     github.Ptr("some description"),
+		Language:        github.Ptr("JavaScript"),
+		StargazersCount: github.Ptr(3141),
+		HTMLURL:         github.Ptr("https://www.foo.com"),
+		FullName:        github.Ptr("john/wayne"),
 	}, nil, nil
 }
 

@@ -395,20 +395,6 @@ func verifyActionHandled(t *testing.T, actionText string) {
 	assert.Equal(t, "accepted pull request for processing", rec.Body.String())
 }
 
-func setupMockContextSignCla(t *testing.T, headers map[string]string, user types.UserSignature) (*gin.Context, *httptest.ResponseRecorder) {
-	logger = zaptest.NewLogger(t)
-
-	reqBody, err := json.Marshal(user)
-	assert.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPut, pathSignCla, strings.NewReader(string(reqBody)))
-
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-
-	return newTestGinContext(req)
-}
 
 func TestHandleProcessSignClaBindError(t *testing.T) {
 	// Invalid JSON body causes ShouldBindJSON to fail
