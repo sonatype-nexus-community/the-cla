@@ -41,7 +41,7 @@ func TestInsertSignatureError(t *testing.T) {
 
 	user := types.UserSignature{}
 	forcedError := errors.New("forced SQL insert error")
-	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertSignature)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(SqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnError(forcedError).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
@@ -59,7 +59,7 @@ func TestInsertSignatureErrorDuplicateSignature(t *testing.T) {
 	}
 
 	forcedError := errors.New("forced SQL insert error")
-	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertSignature)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(SqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
 

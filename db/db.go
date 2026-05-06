@@ -31,7 +31,7 @@ import (
 	"github.com/sonatype-nexus-community/the-cla/types"
 )
 
-const sqlInsertSignature = `INSERT INTO signatures
+const SqlInsertSignature = `INSERT INTO signatures
 		(LoginName, Email, GivenName, SignedAt, ClaVersion, ClaTextUrl, ClaText)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
@@ -59,7 +59,7 @@ func New(db *sql.DB, logger *zap.Logger) *ClaDB {
 }
 
 func (p *ClaDB) InsertSignature(user *types.UserSignature) error {
-	result, err := p.db.Exec(sqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion, user.CLATextUrl, user.CLAText)
+	result, err := p.db.Exec(SqlInsertSignature, user.User.Login, user.User.Email, user.User.GivenName, user.TimeSigned, user.CLAVersion, user.CLATextUrl, user.CLAText)
 	if err != nil {
 		return fmt.Errorf(msgTemplateErrInsertSignatureDuplicate, user.User, err)
 	}

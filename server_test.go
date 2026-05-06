@@ -406,6 +406,53 @@ func TestHandleProcessSignClaBindError(t *testing.T) {
 	assert.Equal(t, http.StatusUnsupportedMediaType, rec.Code)
 }
 
+func TestHandleProcessSignClaFallsBackToEnvClaUrl(t *testing.T) {
+	// When the client sends an empty claTextUrl (e.g. built without REACT_APP_CLA_URL),
+	// the server should fall back to its own REACT_APP_CLA_URL env var to fetch the CLA text.
+	logger = zaptest.NewLogger(t)
+
+	const testCLAText = "CLA text from server env"
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(testCLAText))
+	}))
+	defer ts.Close()
+
+	origClaUrl := os.Getenv(envClaUrl)
+	defer resetEnvVariable(t, envClaUrl, origClaUrl)
+	assert.NoError(t, os.Setenv(envClaUrl, ts.URL+pathClaText))
+	delete(claCache, ts.URL+pathClaText)
+
+	body := types.UserSignature{
+		User:        types.User{Login: "testuser", Email: "test@example.com", GivenName: "Test User"},
+		CLAVersion:  "1.0",
+		CLATextUrl:  "", // empty — simulates a frontend built without REACT_APP_CLA_URL
+	}
+	bodyJSON, err := json.Marshal(body)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, pathSignCla, strings.NewReader(string(bodyJSON)))
+	req.Header.Set("Content-Type", "application/json")
+	c, rec := newTestGinContext(req)
+
+	mock, dbIF, closeDbFunc := db.SetupMockDB(t)
+	defer closeDbFunc()
+	postgresDB = dbIF
+
+	mock.ExpectExec(db.ConvertSqlToDbMockExpect(db.SqlInsertSignature)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery(db.ConvertSqlToDbMockExpect(db.SqlSelectUserSignature)).
+		WillReturnRows(sqlmock.NewRows([]string{}))
+
+	handleProcessSignCla(c)
+	assert.Equal(t, http.StatusCreated, rec.Code)
+
+	var result types.UserSignature
+	assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+	assert.Equal(t, testCLAText, result.CLAText)
+}
+
 func setupMockContextSignature(t *testing.T, queryParams map[string]string) (*gin.Context, *httptest.ResponseRecorder) {
 	logger = zaptest.NewLogger(t)
 
