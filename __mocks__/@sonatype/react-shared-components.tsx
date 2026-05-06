@@ -14,16 +14,16 @@ export const NxCheckbox = ({ children, isChecked, disabled, onChange, checkboxId
 }) =>
   <label htmlFor={checkboxId}><input id={checkboxId} type="checkbox" checked={isChecked} disabled={disabled} onChange={onChange ?? (() => {})} />{children}</label>;
 
-export const NxFieldset = ({ children, label }: { children?: React.ReactNode; label?: string; isRequired?: boolean }) =>
+export const NxFieldset = ({ children, label }: { children?: React.ReactNode; label?: string }) =>
   <fieldset><legend>{label}</legend>{children}</fieldset>;
 
-export const NxFormGroup = ({ children, label }: { children?: React.ReactNode; label?: string; isRequired?: boolean }) =>
+export const NxFormGroup = ({ children, label }: { children?: React.ReactNode; label?: string }) =>
   <div><label>{label}</label>{children}</div>;
 
 export const NxLoadError = ({ error, onClose }: { error: string; onClose?: () => void }) =>
   <div role="alert">{error}<button onClick={onClose}>Close</button></div>;
 
-export const NxLoadingSpinner = () => <div role="status">Loading...</div>;
+export const NxLoadingSpinner = () => <output>Loading...</output>;
 
 export const NxTextInput = ({ value, onChange, disabled, validatable, isPristine }: {
   value?: string;

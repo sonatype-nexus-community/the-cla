@@ -30,7 +30,7 @@ import (
 	githuboauth "golang.org/x/oauth2/github"
 )
 
-var githubImpl ourGithub.GHInterface = &ourGithub.GHCreator{}
+var githubImpl ourGithub.GHClientFactory = &ourGithub.GHCreator{}
 
 type OAuthInterface interface {
 	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)

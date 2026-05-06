@@ -93,13 +93,13 @@ const Body = () => {
     };
 
     const getGitHubAuthUrl = (): string => {
-      const urlParams = new URLSearchParams(window.location.search);
+      const urlParams = new URLSearchParams(globalThis.location.search);
 
       const originalUri = urlParams.get("original_uri");
 
-      const state: string = (originalUri) ? originalUri : process.env.REACT_APP_COMPANY_WEBSITE;
+      const state: string = originalUri ?? process.env.REACT_APP_COMPANY_WEBSITE;
 
-      const currentUrl = window.location.href.split('?')[0];
+      const currentUrl = globalThis.location.href.split('?')[0];
 
       return `https://github.com/login/oauth/authorize?client_id=${process.env.REACT_APP_GITHUB_CLIENT_ID}&redirect_uri=${currentUrl}&scope=user:email&state=${state}`;
     }
@@ -168,7 +168,7 @@ const Body = () => {
             setQueryError({ error: true, errorMessage: 'Invalid redirect destination' });
             return;
           }
-          window.location.assign(redirectTarget);
+          globalThis.location.assign(redirectTarget);
         });
       } else {
         evt.stopPropagation();
@@ -182,8 +182,8 @@ const Body = () => {
 
     const doRender = () => {
 
-      if (hasCode(window.location.search) && !loggedIn) {
-        getUser(window.location.search);
+      if (hasCode(globalThis.location.search) && !loggedIn) {
+        getUser(globalThis.location.search);
       }
 
       if (queryError.error) {

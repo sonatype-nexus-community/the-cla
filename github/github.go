@@ -56,18 +56,18 @@ type RepositoriesService interface {
 	IsCollaborator(ctx context.Context, owner, repo, user string) (bool, *github.Response, error)
 }
 
-// UsersService handles communication with the user related methods
+// UserGetter handles communication with the user related methods
 // of the GitHub API.
-// https://godoc.org/github.com/google/go-github/github#UsersService
-type UsersService interface {
+// https://godoc.org/github.com/google/go-github/github#UserGetter
+type UserGetter interface {
 	Get(context.Context, string) (*github.User, *github.Response, error)
 }
 
-// PullRequestsService handles communication with the pull request related
+// CommitsLister handles communication with the pull request related
 // methods of the GitHub API.
 //
 // GitHub API docs: https://docs.github.com/en/free-pro-team@latest/rest/reference/pulls/
-type PullRequestsService interface {
+type CommitsLister interface {
 	ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error)
 }
 
@@ -130,7 +130,7 @@ func (ghj *GHJWTClient) GetInstallInfo() (install *github.Installation, err erro
 	return
 }
 
-type GHJWTInterface interface {
+type JWTClientFactory interface {
 	NewJWTClient(httpClient *http.Client, installID int64) IGitHubJWTClient
 }
 
@@ -141,27 +141,27 @@ func (gj *GHJWTCreator) NewJWTClient(httpClient *http.Client, installID int64) I
 	return &GHJWTClient{apps: client.Apps, installID: installID}
 }
 
-var GHJWTImpl GHJWTInterface = &GHJWTCreator{}
+var GHJWTImpl JWTClientFactory = &GHJWTCreator{}
 
 // GHClient manages communication with the GitHub API.
 // https://github.com/google/go-github/issues/113
 type GHClient struct {
 	Repositories RepositoriesService
-	Users        UsersService
-	PullRequests PullRequestsService
+	Users        UserGetter
+	PullRequests CommitsLister
 	Issues       IssuesService
 }
 
-// GHInterface defines all necessary methods.
+// GHClientFactory defines all necessary methods.
 // https://godoc.org/github.com/google/go-github/github#NewClient
-type GHInterface interface {
+type GHClientFactory interface {
 	NewClient(httpClient *http.Client) GHClient
 }
 
-// GHCreator implements GHInterface.
+// GHCreator implements GHClientFactory.
 type GHCreator struct{}
 
-// NewClient returns a new GHInterface instance.
+// NewClient returns a new GHClientFactory instance.
 func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 	client := github.NewClient(httpClient)
 	return GHClient{
@@ -172,7 +172,7 @@ func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 	}
 }
 
-var GHImpl GHInterface = &GHCreator{}
+var GHImpl GHClientFactory = &GHCreator{}
 
 func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.PullRequestPayload, appId int64, claVersion string) error {
 
@@ -441,7 +441,7 @@ const buildCommentSuffixSignedCommits = `
 See [Signed Commits](https://contribute.sonatype.com/docs/contributing/submitting/#signed-commits).
 `
 
-func buildCommentMessage(commitsMissingAuthor []github.RepositoryCommit, commitsMissingVerification []github.RepositoryCommit) string {
+func buildCommentMessage(commitsMissingAuthor, commitsMissingVerification []github.RepositoryCommit) string {
 
 	commitsMessage := ""
 	for _, c := range commitsMissingAuthor {

@@ -119,28 +119,28 @@ func (r *RepositoriesMock) IsCollaborator(ctx context.Context, owner, repo, user
 	return r.isCollaboratorResult, r.isCollaboratorResp, r.isCollaboratorErr
 }
 
-// UsersMock mocks UsersService
+// UsersMock mocks UserGetter
 type UsersMock struct {
 	mockUser     *github.User
 	mockResponse *github.Response
 	mockGetError error
 }
 
-var _ UsersService = (*UsersMock)(nil)
+var _ UserGetter = (*UsersMock)(nil)
 
 // Get returns a user.
 func (u *UsersMock) Get(context.Context, string) (*github.User, *github.Response, error) {
 	return u.mockUser, u.mockResponse, u.mockGetError
 }
 
-// PullRequestsMock mocks PullRequestsService
+// PullRequestsMock mocks CommitsLister
 type PullRequestsMock struct {
 	mockRepositoryCommits []*github.RepositoryCommit
 	mockResponse          *github.Response
 	mockListCommitsError  error
 }
 
-var _ PullRequestsService = (*PullRequestsMock)(nil)
+var _ CommitsLister = (*PullRequestsMock)(nil)
 
 //goland:noinspection GoUnusedParameter
 func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error) {
@@ -256,7 +256,7 @@ type GHJWTMock struct {
 	AppsMock AppsMock
 }
 
-var _ GHJWTInterface = (*GHJWTMock)(nil)
+var _ JWTClientFactory = (*GHJWTMock)(nil)
 
 //goland:noinspection GoUnusedParameter
 func (gj *GHJWTMock) NewJWTClient(httpClient *http.Client, installID int64) IGitHubJWTClient {
@@ -266,7 +266,7 @@ func (gj *GHJWTMock) NewJWTClient(httpClient *http.Client, installID int64) IGit
 	}
 }
 
-// GHInterfaceMock implements GHInterface.
+// GHInterfaceMock implements GHClientFactory.
 type GHInterfaceMock struct {
 	RepositoriesMock RepositoriesMock
 	UsersMock        UsersMock
@@ -274,7 +274,7 @@ type GHInterfaceMock struct {
 	IssuesMock       IssuesMock
 }
 
-var _ GHInterface = (*GHInterfaceMock)(nil)
+var _ GHClientFactory = (*GHInterfaceMock)(nil)
 
 // NewClient something
 //
