@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-FROM node:20-alpine AS npm-build
+FROM node:22-alpine AS npm-build
 ARG REACT_APP_CLA_URL=http://something
 ARG REACT_APP_COMPANY_NAME=A Company Name Here
 ARG REACT_APP_COMPANY_WEBSITE=http://localhost
