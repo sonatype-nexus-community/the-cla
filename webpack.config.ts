@@ -17,6 +17,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import webpack from 'webpack';
+import CopyWebpackPlugin from 'copy-webpack-plugin';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import type { Configuration as DevServerConfiguration } from 'webpack-dev-server';
@@ -82,6 +83,11 @@ const config = (env: WebpackEnv, argv: WebpackArgv): webpack.Configuration & { d
     },
 
     plugins: [
+      new CopyWebpackPlugin({
+        patterns: [
+          { from: 'public', to: '.', globOptions: { ignore: ['**/index.html'] } },
+        ],
+      }),
       new HtmlWebpackPlugin({
         template: './public/index.html',
       }),
