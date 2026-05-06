@@ -107,6 +107,7 @@ jobs:
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
                   scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.sha }} .'
+                  stage: ${{ github.ref_name == 'main' && 'build' || 'develop' }}
 
     code_quality:
         name: Code Quality
