@@ -59,7 +59,15 @@ const config = (env: WebpackEnv, argv: WebpackArgv): webpack.Configuration & { d
           exclude: /node_modules/,
         },
         {
-          test: /\.(scss|css)$/,
+          test: /\.module\.(scss|css)$/,
+          use: [
+            MiniCssExtractPlugin.loader,
+            { loader: 'css-loader', options: { esModule: false, modules: { localIdentName: '[local]' } } },
+            'sass-loader',
+          ],
+        },
+        {
+          test: /(?<!\.module)\.(scss|css)$/,
           use: [
             MiniCssExtractPlugin.loader,
             'css-loader',
