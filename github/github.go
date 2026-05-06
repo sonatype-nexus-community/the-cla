@@ -130,7 +130,7 @@ func (ghj *GHJWTClient) GetInstallInfo() (install *github.Installation, err erro
 	return
 }
 
-type JWTClientFactory interface {
+type JWTClientCreator interface {
 	NewJWTClient(httpClient *http.Client, installID int64) IGitHubJWTClient
 }
 
@@ -141,7 +141,7 @@ func (gj *GHJWTCreator) NewJWTClient(httpClient *http.Client, installID int64) I
 	return &GHJWTClient{apps: client.Apps, installID: installID}
 }
 
-var GHJWTImpl JWTClientFactory = &GHJWTCreator{}
+var GHJWTImpl JWTClientCreator = &GHJWTCreator{}
 
 // GHClient manages communication with the GitHub API.
 // https://github.com/google/go-github/issues/113
@@ -152,16 +152,16 @@ type GHClient struct {
 	Issues       IssuesService
 }
 
-// GHClientFactory defines all necessary methods.
+// GHClientCreator defines all necessary methods.
 // https://godoc.org/github.com/google/go-github/github#NewClient
-type GHClientFactory interface {
+type GHClientCreator interface {
 	NewClient(httpClient *http.Client) GHClient
 }
 
-// GHCreator implements GHClientFactory.
+// GHCreator implements GHClientCreator.
 type GHCreator struct{}
 
-// NewClient returns a new GHClientFactory instance.
+// NewClient returns a new GHClientCreator instance.
 func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 	client := github.NewClient(httpClient)
 	return GHClient{
@@ -172,7 +172,7 @@ func (g *GHCreator) NewClient(httpClient *http.Client) GHClient {
 	}
 }
 
-var GHImpl GHClientFactory = &GHCreator{}
+var GHImpl GHClientCreator = &GHCreator{}
 
 func HandlePullRequest(logger *zap.Logger, postgres db.IClaDB, payload webhook.PullRequestPayload, appId int64, claVersion string) error {
 

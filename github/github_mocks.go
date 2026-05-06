@@ -256,7 +256,7 @@ type GHJWTMock struct {
 	AppsMock AppsMock
 }
 
-var _ JWTClientFactory = (*GHJWTMock)(nil)
+var _ JWTClientCreator = (*GHJWTMock)(nil)
 
 //goland:noinspection GoUnusedParameter
 func (gj *GHJWTMock) NewJWTClient(httpClient *http.Client, installID int64) IGitHubJWTClient {
@@ -266,7 +266,7 @@ func (gj *GHJWTMock) NewJWTClient(httpClient *http.Client, installID int64) IGit
 	}
 }
 
-// GHInterfaceMock implements GHClientFactory.
+// GHInterfaceMock implements GHClientCreator.
 type GHInterfaceMock struct {
 	RepositoriesMock RepositoriesMock
 	UsersMock        UsersMock
@@ -274,7 +274,7 @@ type GHInterfaceMock struct {
 	IssuesMock       IssuesMock
 }
 
-var _ GHClientFactory = (*GHInterfaceMock)(nil)
+var _ GHClientCreator = (*GHInterfaceMock)(nil)
 
 // NewClient something
 //
