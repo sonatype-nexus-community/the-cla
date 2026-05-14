@@ -201,7 +201,6 @@ func infoBasicValidator(username, password string) bool {
 	}
 	logger.Info("failed info endpoint login",
 		zap.String("username", username),
-		zap.String("password", password),
 	)
 	return false
 }
