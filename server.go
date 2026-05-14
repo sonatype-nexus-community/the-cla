@@ -412,11 +412,11 @@ func handleProcessSignCla(c *gin.Context) {
 	var err error
 	user.TimeSigned = time.Now()
 
-	# Don't allow user-supplied CLA URL
-	# claUrl := user.CLATextUrl
-	#if claUrl == "" {
+	// Don't allow user-supplied CLA URL
+	// claUrl := user.CLATextUrl
+	//if claUrl == "" {
 	claUrl := os.Getenv(envClaUrl)
-	#}
+	//}
 	user.CLAText, err = getClaText(claUrl)
 
 	if err != nil {
