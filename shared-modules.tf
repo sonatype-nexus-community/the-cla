@@ -22,12 +22,12 @@ module "shared" {
 }
 
 module "shared_private" {
-  source                   = "git::ssh://git@github.com/vendorcorp/terraform-shared-private-infrastructure.git?ref=v1.5.0"
+  source                   = "git::ssh://git@github.com/vendorcorp/terraform-shared-private-infrastructure.git?ref=v1.6.2"
   environment              = var.environment
 }
 
 module "database" {
-  source            = "git::ssh://git@github.com/vendorcorp/terraform-aws-rds-database.git?ref=v0.1.0"
+  source            = "git::ssh://git@github.com/vendorcorp/terraform-aws-rds-database.git?ref=v0.1.1"
 
   pg_hostname       = module.shared.pgsql_cluster_endpoint_write
   pg_port           = module.shared.pgsql_cluster_port
