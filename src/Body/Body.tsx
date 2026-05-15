@@ -287,13 +287,15 @@ const Body = () => {
             <footer className="nx-form-footer">
               <div className="nx-btn-bar">
                 <NxTooltip title={submitTooltip}>
-                  <NxButton
-                    className={submitBtnClasses}
-                    variant="primary"
-                    type="submit"
-                    disabled={!isSubmittable || isPending}>
-                    Sign the CLA
-                  </NxButton>
+                  <span>
+                    <NxButton
+                      className={submitBtnClasses}
+                      variant="primary"
+                      type="submit"
+                      disabled={!isSubmittable || isPending}>
+                      Sign the CLA
+                    </NxButton>
+                  </span>
                 </NxTooltip>
               </div>
             </footer>
