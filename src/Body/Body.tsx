@@ -164,7 +164,14 @@ const Body = () => {
             return;
           }
           const redirectTarget = decodeURIComponent(ghState);
-          if (!redirectTarget.startsWith('https://github.com/')) {
+          try {
+            const target = new URL(redirectTarget);
+            const allowed = new URL(process.env.REACT_APP_COMPANY_WEBSITE!);
+            if (target.protocol !== 'https:' || target.hostname !== allowed.hostname) {
+              setQueryError({ error: true, errorMessage: 'Invalid redirect destination' });
+              return;
+            }
+          } catch {
             setQueryError({ error: true, errorMessage: 'Invalid redirect destination' });
             return;
           }
