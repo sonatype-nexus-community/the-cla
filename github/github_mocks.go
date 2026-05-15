@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/go-github/v64/github"
+	"github.com/google/go-github/v72/github"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -104,13 +104,13 @@ func (r *RepositoriesMock) CreateStatus(ctx context.Context, owner, repo, ref st
 // Get returns a repository.
 func (r *RepositoriesMock) Get(context.Context, string, string) (*github.Repository, *github.Response, error) {
 	return &github.Repository{
-		ID:              github.Int64(185409993),
-		Name:            github.String("wayne"),
-		Description:     github.String("some description"),
-		Language:        github.String("JavaScript"),
-		StargazersCount: github.Int(3141),
-		HTMLURL:         github.String("https://www.foo.com"),
-		FullName:        github.String("john/wayne"),
+		ID:              github.Ptr(int64(185409993)),
+		Name:            github.Ptr("wayne"),
+		Description:     github.Ptr("some description"),
+		Language:        github.Ptr("JavaScript"),
+		StargazersCount: github.Ptr(3141),
+		HTMLURL:         github.Ptr("https://www.foo.com"),
+		FullName:        github.Ptr("john/wayne"),
 	}, nil, nil
 }
 
@@ -119,28 +119,28 @@ func (r *RepositoriesMock) IsCollaborator(ctx context.Context, owner, repo, user
 	return r.isCollaboratorResult, r.isCollaboratorResp, r.isCollaboratorErr
 }
 
-// UsersMock mocks UsersService
+// UsersMock mocks UserGetter
 type UsersMock struct {
 	mockUser     *github.User
 	mockResponse *github.Response
 	mockGetError error
 }
 
-var _ UsersService = (*UsersMock)(nil)
+var _ UserGetter = (*UsersMock)(nil)
 
 // Get returns a user.
 func (u *UsersMock) Get(context.Context, string) (*github.User, *github.Response, error) {
 	return u.mockUser, u.mockResponse, u.mockGetError
 }
 
-// PullRequestsMock mocks PullRequestsService
+// PullRequestsMock mocks CommitsLister
 type PullRequestsMock struct {
 	mockRepositoryCommits []*github.RepositoryCommit
 	mockResponse          *github.Response
 	mockListCommitsError  error
 }
 
-var _ PullRequestsService = (*PullRequestsMock)(nil)
+var _ CommitsLister = (*PullRequestsMock)(nil)
 
 //goland:noinspection GoUnusedParameter
 func (p *PullRequestsMock) ListCommits(ctx context.Context, owner string, repo string, number int, opts *github.ListOptions) ([]*github.RepositoryCommit, *github.Response, error) {
@@ -256,7 +256,7 @@ type GHJWTMock struct {
 	AppsMock AppsMock
 }
 
-var _ GHJWTInterface = (*GHJWTMock)(nil)
+var _ JWTClientCreator = (*GHJWTMock)(nil)
 
 //goland:noinspection GoUnusedParameter
 func (gj *GHJWTMock) NewJWTClient(httpClient *http.Client, installID int64) IGitHubJWTClient {
@@ -266,7 +266,7 @@ func (gj *GHJWTMock) NewJWTClient(httpClient *http.Client, installID int64) IGit
 	}
 }
 
-// GHInterfaceMock implements GHInterface.
+// GHInterfaceMock implements GHClientCreator.
 type GHInterfaceMock struct {
 	RepositoriesMock RepositoriesMock
 	UsersMock        UsersMock
@@ -274,7 +274,7 @@ type GHInterfaceMock struct {
 	IssuesMock       IssuesMock
 }
 
-var _ GHInterface = (*GHInterfaceMock)(nil)
+var _ GHClientCreator = (*GHInterfaceMock)(nil)
 
 // NewClient something
 //

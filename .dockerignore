@@ -1,5 +1,6 @@
 */tmp*
 node_modules
+build
 the-cla
 .terraform.lock.hcl
 .terraform

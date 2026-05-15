@@ -6,9 +6,6 @@ on:
     pull_request:
         paths-ignore:
             - 'README.md'
-    #pull_request_target:
-    #    branches:
-    #        - main
     push:
         branches:
             - main
@@ -24,59 +21,76 @@ jobs:
     build:
         name: Build & Test
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 10
         steps:
             - name: Checkout Code
-              uses: actions/checkout@v5
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
             - name: Setup Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
               with:
-                  node-version: '18.x'
+                  node-version: '22.x'
 
             - name: Setup Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c #v6.4.0
               with:
                   go-version-file: 'go.mod'
                   cache: true
 
-            - name: Build
-              run: make all
+            - name: Install Frontend Dependencies
+              run: npm ci
 
-            - name: Run Tests
-              run: make test
+            - name: Build Frontend
+              run: npm run build
+
+            - name: Build Backend
+              run: |
+                  COMMIT=$(git rev-parse --short HEAD)
+                  DATE=$(git log -1 --format=%cd --date=iso)
+                  VERSION=$(git describe --abbrev=0 --tags 2>/dev/null | sed 's/^v//' || echo "dev")
+                  go build \
+                    -ldflags="-X 'github.com/sonatype-nexus-community/the-cla/buildversion.BuildVersion=${VERSION}' \
+                              -X 'github.com/sonatype-nexus-community/the-cla/buildversion.BuildTime=${DATE}' \
+                              -X 'github.com/sonatype-nexus-community/the-cla/buildversion.BuildCommit=${COMMIT}'" \
+                    ./server.go
+
+            - name: Test Backend
+              run: go test ./...
+
+            - name: Test Frontend
+              run: npm test
 
     sonatype:
         name: Sonatype Lifecycle
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 10
         steps:
             - name: Checkout Code
-              uses: actions/checkout@v5
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
             - name: Setup Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
               with:
-                  node-version: '18.x'
+                  node-version: '22.x'
 
             - name: Setup Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c #v6.4.0
               with:
                   go-version-file: 'go.mod'
                   cache: true
 
             # See https://help.sonatype.com/en/npm-application-analysis.html
             - name: Install Production Node Dependencies
-              run: corepack yarn install --prod
+              run: npm ci --omit=dev
 
             - name: Login to Docker Hub
-              uses: docker/login-action@v3
+              uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
               with:
                   username: ${{ secrets.DOCKER_HUB_USERNAME }}
                   password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
             - name: Build Container and export to Docker
-              uses: docker/build-push-action@v6
+              uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f #v7.1.0
               with:
                   context: .
                   file: ./Dockerfile
@@ -93,6 +107,7 @@ jobs:
                   password: ${{ secrets.SONATYPE_LIFECYCLE_PASSWORD }}
                   application-id: ${{ env.LC_APPLICATION_ID }}
                   scan-targets: 'container:docker.io/sonatypecommunity/the-cla:${{ github.sha }} .'
+                  stage: ${{ github.ref_name == 'main' && 'build' || 'develop' }}
 
     code_quality:
         name: Code Quality
@@ -100,18 +115,18 @@ jobs:
         timeout-minutes: 5
         steps:
             - name: Checkout Code
-              uses: actions/checkout@v5
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
               with:
                   # Disabling shallow clone is recommended for improving relevancy of reporting
                   fetch-depth: 0
 
             - name: Setup Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c #v6.4.0
               with:
                   go-version-file: 'go.mod'
                   cache: true
 
             - name: Run Go Linter
-              uses: golangci/golangci-lint-action@v6
+              uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 #v9.2.0
               with:
-                  version: latest
+                  version: v2.12.1

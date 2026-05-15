@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/google/go-github/v64/github"
 	"github.com/sonatype-nexus-community/the-cla/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -42,7 +41,7 @@ func TestInsertSignatureError(t *testing.T) {
 
 	user := types.UserSignature{}
 	forcedError := errors.New("forced SQL insert error")
-	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertSignature)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(SqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnError(forcedError).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
@@ -60,7 +59,7 @@ func TestInsertSignatureErrorDuplicateSignature(t *testing.T) {
 	}
 
 	forcedError := errors.New("forced SQL insert error")
-	mock.ExpectExec(ConvertSqlToDbMockExpect(sqlInsertSignature)).
+	mock.ExpectExec(ConvertSqlToDbMockExpect(SqlInsertSignature)).
 		WithArgs(user.User.Login, user.User.Email, user.User.GivenName, AnyTime{}, user.CLAVersion).
 		WillReturnResult(sqlmock.NewErrorResult(forcedError))
 
@@ -161,8 +160,6 @@ func TestHasAuthorSignedTheClaTrue(t *testing.T) {
 		WithArgs(loginName, mockCLAVersion).
 		WillReturnRows(rs)
 
-	committer := github.User{}
-	committer.Login = &loginName
 	hasSigned, foundSignature, err := db.HasAuthorSignedTheCla(loginName, mockCLAVersion)
 	assert.NoError(t, err)
 	assert.True(t, hasSigned)

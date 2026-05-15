@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-FROM node:18-alpine3.18 AS yarn-build
+FROM node:22-alpine AS npm-build
 ARG REACT_APP_CLA_URL=http://something
 ARG REACT_APP_COMPANY_NAME=A Company Name Here
 ARG REACT_APP_COMPANY_WEBSITE=http://localhost
@@ -23,9 +23,10 @@ ARG REACT_APP_GITHUB_CLIENT_ID=FAKE_ID
 ARG REACT_APP_CLA_VERSION=0.0
 LABEL stage=builder
 
-RUN apk add --no-cache build-base
-
 WORKDIR /src
+
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
 
@@ -35,33 +36,40 @@ RUN REACT_APP_CLA_URL="$REACT_APP_CLA_URL" \
     REACT_APP_CLA_APP_NAME="$REACT_APP_CLA_APP_NAME" \
     REACT_APP_GITHUB_CLIENT_ID="$REACT_APP_GITHUB_CLIENT_ID" \
     REACT_APP_CLA_VERSION="$REACT_APP_CLA_VERSION" \
-    make yarn
+    npm run build
 
-FROM golang:1.23-alpine AS build
+FROM golang:1.25-alpine AS build
 LABEL stage=builder
 
 RUN apk add --no-cache build-base ca-certificates git
 
 ENV USER=clauser
-ENV UID=10001 
+ENV UID=10001
 
 WORKDIR /src
 
-RUN adduser \    
-    --disabled-password \    
-    --gecos "" \    
-    --home "/nonexistent" \    
-    --shell "/sbin/nologin" \    
-    --no-create-home \    
-    --uid "${UID}" \    
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
     "${USER}"
 
 COPY . .
 
-# Ensures that the build from yarn is used, not an existing build on the local device
-COPY --from=yarn-build /src/build /src/build
+# Ensures that the npm build is used, not an existing build on the local device
+COPY --from=npm-build /src/build /src/build
 
-RUN make go-alpine-build
+RUN COMMIT=$(git rev-parse --short HEAD) && \
+    DATE=$(git log -1 --format=%cd --date=iso) && \
+    VERSION=$(git describe --abbrev=0 --tags 2>/dev/null | sed 's/^v//' || echo "dev") && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o the-cla \
+      -ldflags="-X 'github.com/sonatype-nexus-community/the-cla/buildversion.BuildVersion=${VERSION}' \
+                -X 'github.com/sonatype-nexus-community/the-cla/buildversion.BuildTime=${DATE}' \
+                -X 'github.com/sonatype-nexus-community/the-cla/buildversion.BuildCommit=${COMMIT}'" \
+      ./server.go
 
 FROM scratch AS bin
 LABEL application=the-cla

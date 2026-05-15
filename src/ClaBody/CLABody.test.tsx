@@ -13,16 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { render } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import React from 'react';
 
 import CLABody from './CLABody';
 
 describe("<CLABody />", () => {
   test("Should display an error by default", async () => {
-    const { findByTestId } = render(<CLABody handleScroll={(e: any) => { }}/>);
+    // fetch is not available in jsdom; the promise rejects, ErrorBoundary catches it
+    let container: ReturnType<typeof render>;
 
-    const h1 = await findByTestId(`cla-body-error`);
+    await act(async () => {
+      container = render(
+        <React.Suspense fallback={null}>
+          <CLABody handleScroll={() => {}}/>
+        </React.Suspense>
+      );
+    });
+
+    const h1 = await container!.findByTestId(`cla-body-error`);
 
     expect(h1).toHaveTextContent("There was an error!");
   });

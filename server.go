@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -42,8 +43,6 @@ import (
 	"github.com/sonatype-nexus-community/the-cla/types"
 
 	"github.com/joho/godotenv"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	webhook "gopkg.in/go-playground/webhooks.v5/github"
 )
 
@@ -83,35 +82,30 @@ var errRecovered error
 var logger *zap.Logger
 
 func main() {
-	e := echo.New()
+	r := gin.New()
 
 	var err error
 	config := zap.NewProductionConfig()
 	config.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
 	logger, err = config.Build()
 	if err != nil {
-		e.Logger.Fatal("can not initialize zap logger: %+v", err)
+		logger.Fatal("can not initialize zap logger: %+v", zap.Error(err))
 	}
 	defer func() {
 		_ = logger.Sync()
 	}()
-	//e.Use(echozap.ZapLogger(logger))
-	e.Use(ZapLoggerFilterAwsElb(logger))
-
-	// NOTE: using middleware.Logger() makes lots of AWS ELB Healthcheck noise in server logs
-	//e.Use(
-	//	middleware.Logger(), // Log everything to stdout
-	//)
-	e.Debug = true
+	r.Use(ZapLoggerFilterAwsElb(logger))
 
 	defer func() {
-		if r := recover(); r != nil {
-			err, ok := r.(error)
+		if rec := recover(); rec != nil {
+			var recErr error
+			var ok bool
+			recErr, ok = rec.(error)
 			if !ok {
-				err = fmt.Errorf("pkg: %v", r)
+				recErr = fmt.Errorf("pkg: %v", rec)
 			}
-			errRecovered = err
-			logger.Error("panic", zap.Error(err))
+			errRecovered = recErr
+			logger.Error("panic", zap.Error(recErr))
 		}
 	}()
 
@@ -152,33 +146,45 @@ func main() {
 		logger.Info("db migration complete")
 	}
 
-	e.Use(middleware.CORS())
-
-	e.GET("/build-info", func(c echo.Context) error {
-		return c.String(http.StatusOK, fmt.Sprintf("I am ALIVE. %s", buildInfoMessage))
+	// CORS middleware
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
 	})
 
-	e.GET(pathClaText, handleRetrieveCLAText)
+	r.GET("/build-info", func(c *gin.Context) {
+		c.String(http.StatusOK, fmt.Sprintf("I am ALIVE. %s", buildInfoMessage))
+	})
 
-	e.GET(pathOAuthCallback, handleProcessGitHubOAuth)
+	r.GET(pathClaText, handleRetrieveCLAText)
 
-	e.POST(pathWebhook, handleProcessWebhook)
+	r.GET(pathOAuthCallback, handleProcessGitHubOAuth)
 
-	e.PUT(pathSignCla, handleProcessSignCla)
+	r.POST(pathWebhook, handleProcessWebhook)
 
-	g := e.Group(pathInfo, middleware.BasicAuth(infoBasicValidator))
+	r.PUT(pathSignCla, handleProcessSignCla)
+
+	g := r.Group(pathInfo, ginBasicAuth())
 	g.GET(pathSignature, handleSignature)
 	g.GET(pathTestEmail, handleTestEmail)
 
-	e.Static("/", buildLocation)
+	// Serve React SPA static files
+	r.Static("/static", buildLocation+"/static")
+	r.StaticFile("/favicon.ico", buildLocation+"/favicon.ico")
+	r.StaticFile("/manifest.json", buildLocation+"/manifest.json")
+	r.StaticFile("/robots.txt", buildLocation+"/robots.txt")
+	r.StaticFile("/theeecla.png", buildLocation+"/theeecla.png")
+	r.NoRoute(func(c *gin.Context) {
+		c.File(buildLocation + "/index.html")
+	})
 
-	routes := e.Routes()
-	for _, v := range routes {
-		routeInfo := fmt.Sprintf("%s %s as %s", v.Method, v.Path, v.Name)
-		logger.Info("route", zap.String("info", routeInfo))
-	}
-
-	logger.Fatal("application end", zap.Error(e.Start(defaultServicePort)))
+	logger.Fatal("application end", zap.Error(r.Run(defaultServicePort)))
 }
 
 const queryParameterLogin = "login"
@@ -187,50 +193,64 @@ const msgTemplateMissingQueryParam = "missing required query parameter: %s"
 const hiddenFieldValue = "hidden"
 
 //goland:noinspection GoUnusedParameter
-func infoBasicValidator(username, password string, c echo.Context) (isValidLogin bool, err error) {
+func infoBasicValidator(username, password string) bool {
 	// Be careful to use constant time comparison to prevent timing attacks
 	if subtle.ConstantTimeCompare([]byte(username), []byte(os.Getenv(envInfoUsername))) == 1 &&
 		subtle.ConstantTimeCompare([]byte(password), []byte(os.Getenv(envInfoPassword))) == 1 {
-		isValidLogin = true
-	} else {
-		logger.Info("failed info endpoint login",
-			zap.String("username", username),
-			zap.String("password", password),
-		)
+		return true
 	}
-	return
+	logger.Info("failed info endpoint login",
+		zap.String("username", username),
+	)
+	return false
 }
 
-func handleSignature(c echo.Context) (err error) {
+func ginBasicAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		username, password, ok := c.Request.BasicAuth()
+		if !ok || !infoBasicValidator(username, password) {
+			c.Header("WWW-Authenticate", `Basic realm="restricted"`)
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	}
+}
+
+func handleSignature(c *gin.Context) {
 	login, err := getRequiredQueryParameter(c, queryParameterLogin)
 	if err != nil {
-		return c.String(http.StatusUnprocessableEntity, err.Error())
+		c.String(http.StatusUnprocessableEntity, err.Error())
+		return
 	}
 
 	claVersion, err := getRequiredQueryParameter(c, queryParameterCLAVersion)
 	if err != nil {
-		return c.String(http.StatusUnprocessableEntity, err.Error())
+		c.String(http.StatusUnprocessableEntity, err.Error())
+		return
 	}
 
 	hasUserSignedCLA, foundUserSignature, err := postgresDB.HasAuthorSignedTheCla(login, claVersion)
 	if err != nil {
 		logger.Error("error checking signature", zap.Error(err))
-		return c.String(http.StatusInternalServerError, err.Error())
+		c.String(http.StatusInternalServerError, err.Error())
+		return
 	}
 	if !hasUserSignedCLA {
 		logger.Debug("cla not signed", zap.String("login", login))
-		return c.String(http.StatusOK, fmt.Sprintf("cla version %s not signed by %s", claVersion, login))
+		c.String(http.StatusOK, fmt.Sprintf("cla version %s not signed by %s", claVersion, login))
+		return
 	}
 
 	// hide sensitive info
 	foundUserSignature.User.Email = hiddenFieldValue
 	foundUserSignature.User.GivenName = hiddenFieldValue
 	logger.Debug("found login signature", zap.Any("foundUserSignature", foundUserSignature))
-	return c.JSON(http.StatusOK, foundUserSignature)
+	c.JSON(http.StatusOK, foundUserSignature)
 }
 
-func getRequiredQueryParameter(c echo.Context, parameterName string) (parameterValue string, err error) {
-	parameterValue = c.QueryParam(parameterName)
+func getRequiredQueryParameter(c *gin.Context, parameterName string) (parameterValue string, err error) {
+	parameterValue = c.Query(parameterName)
 	if parameterValue == "" {
 		err = fmt.Errorf(msgTemplateMissingQueryParam, parameterName)
 		logger.Error("invalid request", zap.Error(err))
@@ -241,63 +261,55 @@ func getRequiredQueryParameter(c echo.Context, parameterName string) (parameterV
 
 // ZapLoggerFilterAwsElb is a middleware and zap to provide an "access log" like logging for each request.
 // Adapted from ZapLogger, until I find a better way to filter out AWS ELB Healthcheck messages.
-func ZapLoggerFilterAwsElb(log *zap.Logger) echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			start := time.Now()
+func ZapLoggerFilterAwsElb(log *zap.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
 
-			err := next(c)
-			if err != nil {
-				c.Error(err)
+		c.Next()
+
+		req := c.Request
+
+		fields := []zapcore.Field{
+			zap.String("remote_ip", c.ClientIP()),
+			zap.String("latency", time.Since(start).String()),
+			zap.String("host", req.Host),
+			zap.String("request", fmt.Sprintf("%s %s", req.Method, req.RequestURI)),
+			zap.Int("status", c.Writer.Status()),
+			zap.Int64("size", int64(c.Writer.Size())),
+			zap.String("user_agent", req.UserAgent()),
+		}
+
+		userAgent := req.UserAgent()
+		if strings.Contains(userAgent, "ELB-HealthChecker") {
+			//fmt.Printf("userAgent: %s\n", userAgent)
+			// skip logging of this AWS ELB healthcheck
+			return
+		}
+
+		logIncludeHostname := os.Getenv(envLogFilterIncludeHostname)
+		if logIncludeHostname != "" && req.Host != "" {
+			// only log legit stuff from expected host
+			if logIncludeHostname != req.Host {
+				return
 			}
+		}
 
-			req := c.Request()
-			res := c.Response()
+		id := req.Header.Get("X-Request-Id")
+		if id == "" {
+			id = c.Writer.Header().Get("X-Request-Id")
+			fields = append(fields, zap.String("request_id", id))
+		}
 
-			fields := []zapcore.Field{
-				zap.String("remote_ip", c.RealIP()),
-				zap.String("latency", time.Since(start).String()),
-				zap.String("host", req.Host),
-				zap.String("request", fmt.Sprintf("%s %s", req.Method, req.RequestURI)),
-				zap.Int("status", res.Status),
-				zap.Int64("size", res.Size),
-				zap.String("user_agent", req.UserAgent()),
-			}
-
-			userAgent := req.UserAgent()
-			if strings.Contains(userAgent, "ELB-HealthChecker") {
-				//fmt.Printf("userAgent: %s\n", userAgent)
-				// skip logging of this AWS ELB healthcheck
-				return nil
-			}
-
-			logIncludeHostname := os.Getenv(envLogFilterIncludeHostname)
-			if logIncludeHostname != "" && req.Host != "" {
-				// only log legit stuff from expected host
-				if logIncludeHostname != req.Host {
-					return nil
-				}
-			}
-
-			id := req.Header.Get(echo.HeaderXRequestID)
-			if id == "" {
-				id = res.Header().Get(echo.HeaderXRequestID)
-				fields = append(fields, zap.String("request_id", id))
-			}
-
-			n := res.Status
-			switch {
-			case n >= 500:
-				log.With(zap.Error(err)).Error("Server error", fields...)
-			case n >= 400:
-				log.With(zap.Error(err)).Warn("Client error", fields...)
-			case n >= 300:
-				log.Info("Redirection", fields...)
-			default:
-				log.Info("Success", fields...)
-			}
-
-			return nil
+		n := c.Writer.Status()
+		switch {
+		case n >= 500:
+			log.Error("Server error", fields...)
+		case n >= 400:
+			log.Warn("Client error", fields...)
+		case n >= 300:
+			log.Info("Redirection", fields...)
+		default:
+			log.Info("Success", fields...)
 		}
 	}
 }
@@ -317,7 +329,7 @@ func openDB() (db *sql.DB, host string, port int, dbname, sslMode string, err er
 	return
 }
 
-func handleProcessWebhook(c echo.Context) (err error) {
+func handleProcessWebhook(c *gin.Context) {
 	callId := uuid.New()
 	logger.Info("handleProcessWebhook-start",
 		zap.Any("callId", callId),
@@ -332,21 +344,24 @@ func handleProcessWebhook(c echo.Context) (err error) {
 
 	hook, _ := webhook.New(webhook.Options.Secret(ghSecret))
 
-	payload, err := hook.Parse(c.Request(), webhook.PullRequestEvent)
+	payload, err := hook.Parse(c.Request, webhook.PullRequestEvent)
 
 	if err != nil {
 		if err == webhook.ErrEventNotFound {
 			logger.Debug("Unsupported event type encountered", zap.Error(err))
 
-			return c.String(http.StatusBadRequest, msgUnhandledGitHubEventType)
+			c.String(http.StatusBadRequest, msgUnhandledGitHubEventType)
+			return
 		}
 		logger.Debug("error parsing pull request event", zap.Error(err))
-		return c.String(http.StatusBadRequest, err.Error())
+		c.String(http.StatusBadRequest, err.Error())
+		return
 	}
 
 	appId, err := ourGithub.GetAppId()
 	if err != nil {
-		return c.String(http.StatusBadRequest, err.Error())
+		c.String(http.StatusBadRequest, err.Error())
+		return
 	}
 
 	switch payload := payload.(type) {
@@ -356,10 +371,12 @@ func handleProcessWebhook(c echo.Context) (err error) {
 			err := ourGithub.HandlePullRequest(logger, postgresDB, payload, appId, getCurrentCLAVersion())
 			if err != nil {
 				logger.Error("failed to handle pull request", zap.Error(err))
-				return c.String(http.StatusBadRequest, err.Error())
+				c.String(http.StatusBadRequest, err.Error())
+				return
 			}
 
-			return c.String(http.StatusAccepted, "accepted pull request for processing")
+			c.String(http.StatusAccepted, "accepted pull request for processing")
+			return
 		default:
 			logger.Debug("ignore pull request payload",
 				zap.String("action", payload.Action),
@@ -367,13 +384,15 @@ func handleProcessWebhook(c echo.Context) (err error) {
 				zap.String("repo", payload.Repository.Name),
 				zap.Int64("pullRequestID", payload.Number),
 			)
-			return c.String(http.StatusAccepted, fmt.Sprintf("No action taken for: %s", payload.Action))
+			c.String(http.StatusAccepted, fmt.Sprintf("No action taken for: %s", payload.Action))
+			return
 		}
 	default:
 		// theoretically can't get here due to hook.Parse() call above (events param), but better safe than sorry
 		logger.Debug("Unhandled payload type encountered", zap.Any("payload", payload))
 
-		return c.String(http.StatusBadRequest, fmt.Sprintf("I do not handle this type of payload, sorry! Type: %T", payload))
+		c.String(http.StatusBadRequest, fmt.Sprintf("I do not handle this type of payload, sorry! Type: %T", payload))
+		return
 	}
 }
 
@@ -381,16 +400,24 @@ func getCurrentCLAVersion() (requiredClaVersion string) {
 	return os.Getenv(envReactAppClaVersion)
 }
 
-func handleProcessSignCla(c echo.Context) (err error) {
+func handleProcessSignCla(c *gin.Context) {
 	logger.Debug("Attempting to sign the CLA")
 	user := new(types.UserSignature)
 
-	if err := c.Bind(user); err != nil {
-		return err
+	if err := c.ShouldBindJSON(user); err != nil {
+		c.String(http.StatusUnsupportedMediaType, err.Error())
+		return
 	}
 
+	var err error
 	user.TimeSigned = time.Now()
-	user.CLAText, err = getClaText(user.CLATextUrl)
+
+	// Don't allow user-supplied CLA URL
+	// claUrl := user.CLATextUrl
+	//if claUrl == "" {
+	claUrl := os.Getenv(envClaUrl)
+	//}
+	user.CLAText, err = getClaText(claUrl)
 
 	if err != nil {
 		logger.Error("Failed to get CLA Text - not blocking signature registration", zap.Error(err))
@@ -399,7 +426,8 @@ func handleProcessSignCla(c echo.Context) (err error) {
 	err = postgresDB.InsertSignature(user)
 	if err != nil {
 		logger.Error("failed to process sign cla", zap.Error(err))
-		return c.String(http.StatusBadRequest, err.Error())
+		c.String(http.StatusBadRequest, err.Error())
+		return
 	}
 
 	logger.Debug("CLA signed successfully")
@@ -416,15 +444,15 @@ func handleProcessSignCla(c echo.Context) (err error) {
 		logger.Error("Failed to send CLA signature notification", zap.Error(err))
 	}
 
-	return c.JSON(http.StatusCreated, user)
+	c.JSON(http.StatusCreated, user)
 }
 
-func handleProcessGitHubOAuth(c echo.Context) (err error) {
+func handleProcessGitHubOAuth(c *gin.Context) {
 	logger.Debug("Attempting to fetch GitHub crud")
 
-	code := c.QueryParam("code")
+	code := c.Query("code")
 
-	state := c.QueryParam("state")
+	state := c.Query("state")
 	if state == "" {
 		return
 	}
@@ -437,23 +465,24 @@ func handleProcessGitHubOAuth(c echo.Context) (err error) {
 		return
 	}
 
-	return c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, user)
 }
 
 const envClaUrl = "REACT_APP_CLA_URL"
 const msgMissingClaUrl = "missing " + envClaUrl + " environment variable"
 
-func handleRetrieveCLAText(c echo.Context) (err error) {
+func handleRetrieveCLAText(c *gin.Context) {
 	logger.Debug("Attempting to fetch CLA text")
 	claURL := os.Getenv(envClaUrl)
 	claText, err := getClaText(claURL)
 
 	if err != nil {
 		logger.Error("Failed to get CLA Text", zap.Error(err))
-		return err
+		c.String(http.StatusInternalServerError, err.Error())
+		return
 	}
 
-	return c.String(http.StatusOK, claText)
+	c.String(http.StatusOK, claText)
 }
 
 func getClaText(claTextUrl string) (claText string, err error) {
@@ -504,7 +533,7 @@ const envSmtpUsername = "SMTP_USERNAME"
 const envSmtpPassword = "SMTP_PASSWORD"
 const envNotificationAddress = "NOTIFY_EMAIL"
 
-func handleTestEmail(c echo.Context) (err error) {
+func handleTestEmail(c *gin.Context) {
 	testSignature := new(types.UserSignature)
 	testSignature.User.Login = "LOGIN-ID"
 	testSignature.User.Email = "someone@somewhere.tld"
@@ -514,7 +543,12 @@ func handleTestEmail(c echo.Context) (err error) {
 	testSignature.CLATextUrl = os.Getenv(envClaUrl)
 	testSignature.CLAText, _ = getClaText(testSignature.CLATextUrl)
 
-	return notifySignatureComplete(testSignature)
+	err := notifySignatureComplete(testSignature)
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.String(http.StatusOK, "email sent")
 }
 
 func notifySignatureComplete(signature *types.UserSignature) (err error) {
