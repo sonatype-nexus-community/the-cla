@@ -24,9 +24,9 @@ variable "default_resource_tags" {
   description = "List of tags to apply to all resources created in AWS"
   type        = map(string)
   default = {
-    environment : "production"
+    environment : "prod"
     purpose : "sonatype-community-cla"
-    owner : "phorton@sonatype.com"
+    owner : "community-group@sonatype.com"
     sonatype-group : "se"
   }
 }
@@ -35,7 +35,7 @@ variable "default_resource_tags" {
 variable "environment" {
   description = "Used as part of Sonatype's Shared AWS Infrastructure"
   type        = string
-  default     = "production"
+  default     = "prod"
 }
 
 variable "the_cla_pem" {
