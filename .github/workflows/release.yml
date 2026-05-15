@@ -36,6 +36,9 @@ jobs:
                   username: ${{ secrets.DOCKER_HUB_USERNAME }}
                   password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
+            - name: Set version from tag
+              run: npm version ${{ github.ref_name }} --no-git-tag-version
+
             - name: Build Container and export to Docker
               uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f #v7.1.0
               with:
