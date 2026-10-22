@@ -38,7 +38,7 @@ jobs:
                   cache: true
 
             - name: Install Frontend Dependencies
-              run: npm ci
+              run: npm ci --ignore-scripts
 
             - name: Build Frontend
               run: npm run build
@@ -81,7 +81,7 @@ jobs:
 
             # See https://help.sonatype.com/en/npm-application-analysis.html
             - name: Install Production Node Dependencies
-              run: npm ci --omit=dev
+              run: npm ci --omit=dev --ignore-scripts
 
             - name: Login to Docker Hub
               uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0

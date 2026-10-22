@@ -26,7 +26,7 @@ LABEL stage=builder
 WORKDIR /src
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 COPY . .
 
