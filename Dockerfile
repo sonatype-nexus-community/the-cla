@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-FROM node:22-alpine AS npm-build
+FROM node:22.23.4-alpine AS npm-build
 ARG REACT_APP_CLA_URL=http://something
 ARG REACT_APP_COMPANY_NAME=A Company Name Here
 ARG REACT_APP_COMPANY_WEBSITE=http://localhost
@@ -38,7 +38,7 @@ RUN REACT_APP_CLA_URL="$REACT_APP_CLA_URL" \
     REACT_APP_CLA_VERSION="$REACT_APP_CLA_VERSION" \
     npm run build
 
-FROM golang:1.25-alpine AS build
+FROM golang:1.26.10-alpine AS build
 LABEL stage=builder
 
 RUN apk add --no-cache build-base ca-certificates git

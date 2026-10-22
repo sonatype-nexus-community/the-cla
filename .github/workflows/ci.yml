@@ -98,6 +98,17 @@ jobs:
                   platforms: linux/amd64
                   tags: sonatypecommunity/the-cla:${{ github.sha }}
 
+            # Guards against regressing to a Go toolchain without the eMudhra intermediate CA
+            # distrust fix (CVE-2026-111943, fixed in Go 1.26.10 / 1.27.3).
+            - name: Verify Go toolchain in container binary
+              run: |
+                  id=$(docker create sonatypecommunity/the-cla:${{ github.sha }})
+                  docker cp "$id:/the-cla" /tmp/the-cla
+                  docker rm "$id"
+                  v=$(go version /tmp/the-cla | awk '{print $2}' | sed 's/^go//')
+                  echo "Binary built with Go $v"
+                  printf '%s\n' "1.26.10" "$v" | sort -V -C || { echo "Go $v is older than 1.26.10"; exit 1; }
+
             - name: Sonatype Lifecycle Evaluation
               id: evaluate
               uses: sonatype/actions/evaluate@v1
