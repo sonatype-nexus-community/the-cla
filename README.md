@@ -141,6 +141,7 @@ The important things to update are:
 - `INFO_USERNAME` - the username to access the "info" endpoint, e.g. to check if a particular login has signed the cla.
 - `INFO_PASSWORD` - the password to access the "info" endpoint, e.g. to check if a particular login has signed the cla.
 - `CLA_PEM_FILE` - Path to `the-cla.pem` (optional - defaults to just `the-cla.pem` if not defined)
+- `CLA_PEM` - the private key itself, as PEM text or base64-encoded (optional - takes precedence over `CLA_PEM_FILE`; useful on platforms that inject secrets as environment variables rather than files)
 - `SMTP_HOST` - SMTP Server hostname (no port) for CLA signature notifications
 - `SMTP_PORT` - SMTP Server port for CLA signature notifications
 - `SMTP_USERNAME` - SMTP Server username for CLA signature notifications
@@ -152,6 +153,10 @@ Since these are all environment variables, you can just set them that way if you
 - `REACT_APP_COMPANY_NAME`, `REACT_APP_CLA_APP_NAME`, `REACT_APP_GITHUB_CLIENT_ID`
 
 Additionally, to communicate with the GitHub API, you will need to have the pem file that is generated when you set up your GitHub App, in the root of this repo. All of our scripts have it named `the-cla.pem`, so if you name it that, you change nothing, and the Docker build works, etc...
+
+#### Container platforms (ECS/Fargate and similar)
+
+The container listens on port `4200`, logs to stdout, and serves `GET /build-info` as a health check endpoint (the image has no shell, so use the platform's load balancer health check rather than a container command). Supply the settings above as environment variables (secrets from your platform's secret store), and provide the GitHub App private key via `CLA_PEM`. Database migrations run at startup.
 
 #### App Installation on Repository
 
