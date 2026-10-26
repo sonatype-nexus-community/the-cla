@@ -18,9 +18,11 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +45,28 @@ func getpemlocation() string {
 }
 
 var FilenameTheClaPem = getpemlocation()
+
+const envClaPem = "CLA_PEM"
+
+// getPrivateKey returns the GitHub App private key. If CLA_PEM is set it is used (either the PEM text itself or
+// its base64 encoding), otherwise the key is read from the file named by CLA_PEM_FILE.
+func getPrivateKey() ([]byte, error) {
+	if fromenv := strings.TrimSpace(os.Getenv(envClaPem)); fromenv != "" {
+		if strings.HasPrefix(fromenv, "-----BEGIN") {
+			return []byte(fromenv), nil
+		}
+		decoded, err := base64.StdEncoding.DecodeString(fromenv)
+		if err != nil {
+			return nil, fmt.Errorf("could not decode private key from %s: %w", envClaPem, err)
+		}
+		return decoded, nil
+	}
+	key, err := os.ReadFile(FilenameTheClaPem)
+	if err != nil {
+		return nil, fmt.Errorf("could not read private key: %w", err)
+	}
+	return key, nil
+}
 
 const EnvGhAppId = "GH_APP_ID"
 
@@ -196,8 +220,13 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 
 	// get JWT GH stuff first
 	// Getting a JWT Apps Transport to ask GitHub about stuff that needs a JWT for asking, such as installInfo
+	privateKey, err := getPrivateKey()
+	if err != nil {
+		logger.Error("failed to load private key", zap.Error(err))
+		return err
+	}
 	var atr *ghinstallation.AppsTransport
-	atr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, evalInfo.AppId, FilenameTheClaPem)
+	atr, err = ghinstallation.NewAppsTransport(http.DefaultTransport, evalInfo.AppId, privateKey)
 	if err != nil {
 		logger.Error("failed to get JWT key",
 			zap.Int64("appId", evalInfo.AppId),
@@ -217,7 +246,7 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 	botName := *installInfo.AppSlug
 
 	// get regular GH stuff next
-	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, evalInfo.AppId, evalInfo.InstallId, FilenameTheClaPem)
+	itr, err := ghinstallation.New(http.DefaultTransport, evalInfo.AppId, evalInfo.InstallId, privateKey)
 	if err != nil {
 		return err
 	}
@@ -395,7 +424,7 @@ func EvaluatePullRequest(logger *zap.Logger, postgres db.IClaDB, evalInfo *types
 		message := "Thanks for the contribution. Before we can merge this, we need %s to [sign the Contributor License Agreement](%s)"
 		userMsg := strings.Join(users, ",")
 
-		_, err = addCommentToIssueIfNotExists(client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, int(evalInfo.PRNumber), fmt.Sprintf(message, userMsg, appExternalUrl))
+		_, err = addCommentToIssueIfNotExistsMatching(client.Issues, evalInfo.RepoOwner, evalInfo.RepoName, int(evalInfo.PRNumber), fmt.Sprintf(message, userMsg, appExternalUrl), stripTrailingLinkTarget)
 		if err != nil {
 			return err
 		}
@@ -520,15 +549,30 @@ func _createRepoLabelIfNotExists(logger *zap.Logger,
 	return
 }
 
+var trailingLinkTarget = regexp.MustCompile(`\]\([^)]*\)\s*$`)
+
+// stripTrailingLinkTarget drops the target of a trailing markdown link, so comments that differ only by the URL they
+// link to (e.g. after the app's homepage URL changes) are treated as the same comment.
+func stripTrailingLinkTarget(body string) string {
+	return trailingLinkTarget.ReplaceAllString(body, "](...)")
+}
+
 func addCommentToIssueIfNotExists(issuesService IssuesService, owner, repo string, issueNumber int, message string) (*github.IssueComment, error) {
+	return addCommentToIssueIfNotExistsMatching(issuesService, owner, repo, issueNumber, message, func(s string) string { return s })
+}
+
+// addCommentToIssueIfNotExistsMatching adds the comment unless the issue already has one whose normalised body equals
+// the normalised message.
+func addCommentToIssueIfNotExistsMatching(issuesService IssuesService, owner, repo string, issueNumber int, message string, normalise func(string) string) (*github.IssueComment, error) {
 	opts := &github.IssueListCommentsOptions{}
 	comments, _, err := issuesService.ListComments(context.Background(), owner, repo, issueNumber, opts)
 	if err != nil {
 		return nil, err
 	}
 	alreadyCommented := false
+	wanted := normalise(message)
 	for _, v := range comments {
-		if *v.Body == message {
+		if normalise(*v.Body) == wanted {
 			alreadyCommented = true
 		}
 	}
